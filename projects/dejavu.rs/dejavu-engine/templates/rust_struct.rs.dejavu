@@ -1,0 +1,6 @@
+// Struct definition for Rust template
+#[derive(Clone)]
+pub struct <% class_name %> {
+    template_registry: Option<std::rc::Rc<std::cell::RefCell<dejavu::TemplateRegistry>>>,
+}
+

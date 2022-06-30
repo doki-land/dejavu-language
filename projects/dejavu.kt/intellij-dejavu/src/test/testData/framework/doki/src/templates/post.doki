@@ -1,0 +1,18 @@
+{% extends "base.doki" %}
+
+{% block head %}
+    {% super() %}
+    <meta name="description" content="{% post.excerpt %}">
+{% end block %}
+
+{% block content %}
+    <main>
+        <article class="post">
+            <h2>{% post.title %}</h2>
+            <p class="post-date">{% post.date %}</p>
+            <div class="post-content">
+                {% post.content %}
+            </div>
+        </article>
+    </main>
+{% end block %}

@@ -1,0 +1,11 @@
+{
+    "syntaxMode": "template",
+    "template": {
+        "codeStart": "{%",
+        "codeEnd": "%}",
+        "commentStart": "{#",
+        "commentEnd": "#}",
+        "supportFilterPipe": true,
+        "legacyFor": false
+    }
+}

@@ -1,0 +1,5 @@
+<% loop item in items %>
+   <% item %>
+<% else %>
+   Missing items.
+<% end loop %>

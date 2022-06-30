@@ -1,0 +1,12 @@
+// Header section for Rust template
+use dejavu::*;
+use dejavu::DejavuResult;
+use dejavu_types::filters::apply_filter_aot;
+use std::fmt::Write;
+use std::collections::HashMap;
+
+<% if optimize %>
+#![allow(unused)]
+#![deny(unused_mut)]
+<% end if %>
+

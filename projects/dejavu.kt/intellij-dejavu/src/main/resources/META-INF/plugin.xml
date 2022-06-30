@@ -1,0 +1,183 @@
+<idea-plugin>
+	<id>Dejavu Language</id>
+	<name>Dejavu Language Support</name>
+	<vendor>Dejavu Language</vendor>
+	<depends>com.intellij.modules.platform</depends>
+	<depends optional="true" config-file="plugin-with-rust.xml">org.rust.lang</depends>
+	<resource-bundle>messages.DejavuBundle</resource-bundle>
+	<extensions defaultExtensionNs="com.intellij">
+		<fileType
+			name="Dejavu"
+			language="Dejavu"
+			extensions="dejavu;"
+			implementationClass="dejavu.intellij.language.file.DejavuFileType"
+			fieldName="INSTANCE"/>
+		<fileType
+			name="Doki"
+			language="Doki"
+			extensions="doki;"
+			implementationClass="dejavu.intellij.language.file.DokiFileType"
+			fieldName="INSTANCE"/>
+		<lang.parserDefinition
+			language="Dejavu"
+			implementationClass="dejavu.intellij.language.parser.DejavuParserDefinition"/>
+		<lang.parserDefinition
+			language="Doki"
+			implementationClass="dejavu.intellij.language.parser.DokiParserDefinition"/>
+		<!-- Highlighter -->
+		<colorSettingsPage implementation="dejavu.intellij.ide.highlight.DejavuHighlightSettingPage"/>
+		<lang.syntaxHighlighter
+			language="Dejavu"
+			implementationClass="dejavu.intellij.ide.highlight.DejavuSyntaxHighlighter"/>
+		<lang.syntaxHighlighter
+			language="Doki"
+			implementationClass="dejavu.intellij.ide.highlight.DokiSyntaxHighlighter"/>
+		<highlightVisitor implementation="dejavu.intellij.ide.highlight.DejavuSemanticHighlighter"/>
+		<additionalTextAttributes scheme="Default" file="colors/DejavuDefault.xml"/>
+		<additionalTextAttributes scheme="Darcula" file="colors/DejavuDarcula.xml"/>
+		<!-- Formatter -->
+		<langCodeStyleSettingsProvider
+			implementation="dejavu.intellij.ide.codeStyle.LanguageCodeStyleSettingsProvider"
+		/>
+		<lang.commenter
+			language="Dejavu"
+			implementationClass="dejavu.intellij.ide.commenter.DejavuCommenter"
+		/>
+		<lang.commenter
+			language="Doki"
+			implementationClass="dejavu.intellij.ide.commenter.DokiCommenter"
+		/>
+		<lang.braceMatcher
+			language="Dejavu"
+			implementationClass="dejavu.intellij.ide.braces.DejavuBraceMatcher"
+		/>
+		<lang.quoteHandler
+			language="Dejavu"
+			implementationClass="dejavu.intellij.ide.DejavuQuoteHandler"
+		/>
+		<!-- Structure View -->
+		<lang.foldingBuilder
+			language="Dejavu"
+			implementationClass="dejavu.intellij.ide.folding.DejavuFoldingBuilder"
+		/>
+		<indexPatternBuilder
+			implementation="dejavu.intellij.ide.todo.DejavuTodoIndexPatternBuilder"
+		/>
+		<todoIndexer
+			filetype="Dejavu"
+			implementationClass="dejavu.intellij.ide.todo.DejavuTodoIndexer"
+		/>
+		<typedHandler implementation="dejavu.intellij.ide.completion.CompletionTrigger"/>
+		<completion.contributor
+			language="Dejavu"
+			implementationClass="dejavu.intellij.ide.completion.CompletionContributor"
+		/>
+		<completion.contributor
+			language="Dejavu"
+			implementationClass="dejavu.intellij.ide.completion.DejavuCompletionContributor"
+		/>
+		<completion.contributor
+			language="Doki"
+			implementationClass="dejavu.intellij.ide.completion.DokiCompletionContributor"
+		/>
+		<annotator
+			language="Dejavu"
+			implementationClass="dejavu.intellij.ide.annotator.DejavuHighlightingAnnotator"
+		/>
+		<annotator
+			language="Dejavu"
+			implementationClass="dejavu.intellij.ide.annotator.checkers.DejavuScopeCheckerAnnotator"
+		/>
+		<annotator
+			language="Dejavu"
+			implementationClass="dejavu.intellij.ide.annotator.checkers.DejavuTableCheckerAnnotator"
+		/>
+		<annotator
+			language="Dejavu"
+			implementationClass="dejavu.intellij.ide.annotator.DejavuAnnotator"
+		/>
+		<annotator
+			language="Dejavu"
+			implementationClass="dejavu.intellij.ide.annotator.DejavuContextualHighlightingAnnotator"
+		/>
+		<annotator
+			language="Doki"
+			implementationClass="dejavu.intellij.ide.annotator.DokiAnnotator"
+		/>
+		<gotoDeclarationHandler
+			implementationClass="dejavu.intellij.ide.navigation.DejavuGotoDeclarationHandler"
+		/>
+		<renamePsiElementProcessor
+			implementationClass="dejavu.intellij.ide.refactoring.DejavuRenameProcessor"
+		/>
+		<intentionAction
+			implementationClass="dejavu.intellij.ide.intentions.DejavuCreateVariableIntention"
+		/>
+		<intentionAction
+			implementationClass="dejavu.intellij.ide.intentions.DejavuAddMissingEndIntention"
+		/>
+		<lang.psiStructureViewFactory
+			language="Dejavu"
+			implementationClass="dejavu.intellij.ide.structure.DejavuStructureViewFactory"
+		/>
+		<!-- Documentation -->
+		<lang.documentationProvider
+			language="Dejavu"
+			implementationClass="dejavu.intellij.ide.documentation.DejavuDocumentationProvider"
+		/>
+
+		<lang.formatter
+			language="Dejavu"
+			implementationClass="dejavu.intellij.ide.formatter.FormatModel"/>
+		<lang.smartEnterProcessor
+			language="Dejavu"
+			implementationClass="dejavu.intellij.ide.assist.fixers.SmartEnterProcessor"/>
+	</extensions>
+	<actions>
+		<action
+			id="djv.intellij.ide.actions.CreateDejavuFile"
+			class="dejavu.intellij.ide.actions.CreateDejavuFile"
+			text="Dejavu File"
+			description="Create new Dejavu file">
+			<add-to-group group-id="NewGroup" anchor="after" relative-to-action="NewFile"/>
+		</action>
+		<action
+			id="djv.intellij.ide.actions.PreviewTemplateAction"
+			class="dejavu.intellij.ide.actions.PreviewTemplateAction"
+			text="Preview Template"
+			description="Preview Dejavu template with data file">
+			<add-to-group group-id="EditorPopupMenu" anchor="after" relative-to-action="Cut"/>
+			<add-to-group group-id="MainMenu" anchor="after" relative-to-action="Edit"/>
+		</action>
+		<action
+			id="djv.intellij.ide.refactoring.DejavuExtractBlockHandler"
+			class="dejavu.intellij.ide.refactoring.DejavuExtractBlockAction"
+			text="Extract Block"
+			description="Extract selected code into a block">
+			<add-to-group group-id="RefactoringMenu" anchor="after" relative-to-action="ExtractMethod"/>
+			<add-to-group group-id="EditorPopupMenu" anchor="after" relative-to-action="Cut"/>
+			<keyboard-shortcut keymap="$default" first-keystroke="ctrl alt B"/>
+		</action>
+	</actions>
+
+	<extensions defaultExtensionNs="com.intellij">
+		<projectService
+			serviceImplementation="dejavu.intellij.language.workspace.FrameworkConfigDetector"
+		/>
+		<projectService
+			serviceImplementation="dejavu.intellij.language.workspace.WorkspaceFileIndexer"
+		/>
+		<projectService
+			serviceImplementation="dejavu.intellij.language.workspace.PathResolver"
+		/>
+		<projectService
+			serviceImplementation="dejavu.intellij.language.workspace.BlockResolver"
+		/>
+		<projectService
+			serviceImplementation="dejavu.intellij.language.workspace.ExtendsResolver"
+		/>
+		<projectService
+			serviceImplementation="dejavu.intellij.language.workspace.DokiContextManager"
+		/>
+	</extensions>
+</idea-plugin>

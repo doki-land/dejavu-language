@@ -1,0 +1,14 @@
+// Rust template for DejaVu AOT compilation
+// This template generates the complete Rust code for a template
+
+// Header section
+<% include "rust_header.rs.dejavu" %>
+
+// Struct definition
+<% include "rust_struct.rs.dejavu" %>
+
+// Implementation
+<% include "rust_impl.rs.dejavu" %>
+
+// Template trait implementation
+<% include "rust_template_trait.rs.dejavu" %>

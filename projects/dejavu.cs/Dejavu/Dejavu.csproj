@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Dejavu</RootNamespace>
+    <AssemblyName>Dejavu</AssemblyName>
+    <PackageId>Dejavu</PackageId>
+    <Version>0.0.1</Version>
+    <Description>Dejavu template engine — public .NET API</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Dejavu.Engine\Dejavu.Engine.csproj" />
+    <ProjectReference Include="..\Dejavu.Language\Dejavu.Language.csproj" />
+    <ProjectReference Include="..\Dejavu.Types\Dejavu.Types.csproj" />
+  </ItemGroup>
+  <!-- Legacy files from the pre-IR tree; keep out of the public facade build. -->
+  <ItemGroup>
+    <Compile Remove="DejavuRenderer.cs" />
+    <Compile Remove="CompiledTemplateCache.cs" />
+    <Compile Remove="DejavuPackage.cs" />
+  </ItemGroup>
+</Project>

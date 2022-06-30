@@ -1,0 +1,23 @@
+[package]
+name = "dejavu"
+version.workspace = true
+authors.workspace = true
+description = "Dejavu template engine — public Rust API"
+categories = ["template-engine", "text-processing"]
+license.workspace = true
+homepage.workspace = true
+repository = "https://github.com/doki-land/dejavu-engine/tree/dev/projects/dejavu.rs/dejavu"
+documentation = "https://docs.rs/dejavu"
+exclude = ["/tests/*"]
+edition.workspace = true
+
+[lib]
+name = "dejavu"
+
+[dependencies]
+dejavu-engine = { workspace = true }
+dejavu-ir = { workspace = true }
+dejavu-language = { workspace = true }
+dejavu-types = { workspace = true }
+dejavu-runtime = { workspace = true }
+serde_json = { workspace = true }

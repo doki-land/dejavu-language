@@ -1,0 +1,71 @@
+
+> Task :dejavu-engine:dependencies
+
+------------------------------------------------------------
+Project ':dejavu-engine'
+------------------------------------------------------------
+
+testRuntimeClasspath - Runtime classpath of 'test'.
++--- org.jetbrains.kotlin:kotlin-stdlib:2.0.21
+|    \--- org.jetbrains:annotations:13.0
++--- project :dejavu-types
+|    +--- org.jetbrains.kotlin:kotlin-stdlib:2.0.21 (*)
+|    \--- org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3
+|         \--- org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.7.3
+|              +--- org.jetbrains.kotlinx:kotlinx-serialization-bom:1.7.3
+|              |    +--- org.jetbrains.kotlinx:kotlinx-serialization-core:1.7.3 (c)
+|              |    +--- org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.7.3 (c)
+|              |    +--- org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3 (c)
+|              |    \--- org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.7.3 (c)
+|              +--- org.jetbrains.kotlin:kotlin-stdlib:2.0.20 -> 2.0.21 (*)
+|              \--- org.jetbrains.kotlinx:kotlinx-serialization-core:1.7.3
+|                   \--- org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.7.3
+|                        +--- org.jetbrains.kotlinx:kotlinx-serialization-bom:1.7.3 (*)
+|                        \--- org.jetbrains.kotlin:kotlin-stdlib:2.0.20 -> 2.0.21 (*)
++--- project :dejavu-language
+|    +--- org.jetbrains.kotlin:kotlin-stdlib:2.0.21 (*)
+|    +--- project :dejavu-types (*)
+|    \--- org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3 (*)
++--- org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3 (*)
++--- org.jetbrains.kotlin:kotlin-test -> 2.0.21
+|    +--- org.jetbrains.kotlin:kotlin-stdlib:2.0.21 (*)
+|    \--- org.jetbrains.kotlin:kotlin-test-junit5:2.0.21
+|         +--- org.jetbrains.kotlin:kotlin-test:2.0.21 (*)
+|         +--- org.junit.jupiter:junit-jupiter-engine:5.10.1
+|         |    +--- org.junit:junit-bom:5.10.1
+|         |    |    +--- org.junit.jupiter:junit-jupiter-api:5.10.1 (c)
+|         |    |    +--- org.junit.jupiter:junit-jupiter-engine:5.10.1 (c)
+|         |    |    +--- org.junit.platform:junit-platform-engine:1.10.1 (c)
+|         |    |    +--- org.junit.platform:junit-platform-launcher:1.10.1 (c)
+|         |    |    \--- org.junit.platform:junit-platform-commons:1.10.1 (c)
+|         |    +--- org.junit.platform:junit-platform-engine:1.10.1
+|         |    |    +--- org.junit:junit-bom:5.10.1 (*)
+|         |    |    +--- org.opentest4j:opentest4j:1.3.0
+|         |    |    \--- org.junit.platform:junit-platform-commons:1.10.1
+|         |    |         \--- org.junit:junit-bom:5.10.1 (*)
+|         |    \--- org.junit.jupiter:junit-jupiter-api:5.10.1
+|         |         +--- org.junit:junit-bom:5.10.1 (*)
+|         |         +--- org.opentest4j:opentest4j:1.3.0
+|         |         \--- org.junit.platform:junit-platform-commons:1.10.1 (*)
+|         \--- org.junit.platform:junit-platform-launcher:1.10.1
+|              +--- org.junit:junit-bom:5.10.1 (*)
+|              \--- org.junit.platform:junit-platform-engine:1.10.1 (*)
++--- org.jetbrains.kotlin:kotlin-test:2.0.21 (*)
+\--- org.jetbrains.kotlin:kotlin-test:2.0.21 (c)
+
+(c) - A dependency constraint, not a dependency. The dependency affected by the constraint occurs elsewhere in the tree.
+(*) - Indicates repeated occurrences of a transitive dependency subtree. Gradle expands transitive dependency subtrees only once per project; repeat occurrences only display the root of the subtree, followed by this annotation.
+
+A web-based, searchable dependency report is available by adding the --scan option.
+
+[Incubating] Problems report is available at: file:///E:/%E6%A8%A1%E6%9D%BF%E8%AF%AD%E8%A8%80/dejavu-engine/projects/dejavu.kt/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.4.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 985ms
+1 actionable task: 1 executed
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.0/userguide/configuration_cache_enabling.html

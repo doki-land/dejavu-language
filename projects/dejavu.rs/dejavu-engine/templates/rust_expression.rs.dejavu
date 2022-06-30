@@ -1,0 +1,43 @@
+// Expression handling for Rust template
+<% match expr %>
+    <% case ExpressionNode::Ident(ident) %>
+        ctx.get("<% ident.name %>")
+    <% case ExpressionNode::Path(path) %>
+        ctx.get("<% join(path.parts, ".", (part) => part.name) %>")
+    <% case ExpressionNode::Literal(lit) %>
+        <% lit.value %>
+    <% case ExpressionNode::Bool(bool_lit) %>
+        <% bool_lit.value %>
+    <% case ExpressionNode::Call(call) %>
+        <% include "rust_expression.rs.dejavu" expr=call.callee %>(
+            <% for i, arg in call.args %>
+                <% if i > 0 %>, <% end if %>
+                <% include "rust_expression.rs.dejavu" expr=arg %>
+            <% end for %>
+        )
+    <% case ExpressionNode::Field(field) %>
+        <% include "rust_expression.rs.dejavu" expr=field.receiver %>.get_property("<% field.field.name %>")
+    <% case ExpressionNode::Index(index) %>
+        <% include "rust_expression.rs.dejavu" expr=index.receiver %>[<% include "rust_expression.rs.dejavu" expr=index.index %>]
+    <% case ExpressionNode::Binary(binary) %>
+        (
+            <% include "rust_expression.rs.dejavu" expr=binary.left %>
+            <% binary_op_to_string(binary.op) %>
+            <% include "rust_expression.rs.dejavu" expr=binary.right %>
+        )
+    <% case ExpressionNode::Unary(unary) %>
+        (<% unary_op_to_string(unary.op) %><% include "rust_expression.rs.dejavu" expr=unary.expr %>)
+    <% case ExpressionNode::Filter(filter) %>
+        apply_filter_aot(
+            "<% filter.name.name %>",
+            <% include "rust_expression.rs.dejavu" expr=filter.expr %>,
+            vec![
+                <% for i, arg in filter.args %>
+                    <% if i > 0 %>, <% end if %>
+                    <% include "rust_expression.rs.dejavu" expr=arg %>
+                <% end for %>
+            ]
+        )
+    <% default %>
+        ""
+<% end match %>

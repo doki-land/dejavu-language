@@ -1,0 +1,11 @@
+<% block content %>
+  <h1>Title</h1>
+  <p>Main content here.</p>
+<% end block %>
+
+<% block sidebar %>
+  <ul>
+    <li>Link 1</li>
+    <li>Link 2</li>
+  </ul>
+<% end block %>

@@ -1,0 +1,37 @@
+# Build outputs
+[Bb]in/
+[Oo]bj/
+.artifacts/
+artifacts/
+TestResults/
+[Pp]ublish/
+[Pp]ackages/
+
+# NuGet
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+
+# User / IDE
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.rsuser
+.vs/
+_ReSharper*/
+*.DotSettings.user
+
+# Coverage / profiling
+*.coverage
+*.coveragexml
+coverage/
+TestResult.xml
+
+# Misc
+*.dbmdl
+*.jfm
+*.pfx
+*.publishsettings
+orleans.codegen.cs

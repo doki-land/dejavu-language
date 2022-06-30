@@ -1,0 +1,16 @@
+[package]
+name = "dejavu-ir"
+publish = false
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Dejavu IR v1 types, encode/decode, normalize, and render"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+[dev-dependencies]
+pretty_assertions = "1"
+dejavu-language = { workspace = true }

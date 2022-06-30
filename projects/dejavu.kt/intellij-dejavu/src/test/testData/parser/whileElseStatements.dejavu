@@ -1,0 +1,5 @@
+<% while condition %>
+   <% item %>
+<% else %>
+   No items.
+<% end while %>

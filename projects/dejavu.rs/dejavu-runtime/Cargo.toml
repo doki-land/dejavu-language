@@ -1,0 +1,16 @@
+[package]
+name = "dejavu-runtime"
+publish = false
+version.workspace = true
+authors.workspace = true
+description = "Minimal no_std runtime helpers for Dejavu AOT output"
+license.workspace = true
+edition.workspace = true
+
+[lib]
+name = "dejavu_runtime"
+
+[dependencies]
+
+[features]
+default = []

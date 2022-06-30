@@ -1,0 +1,20 @@
+[package]
+name = "dejavu-config"
+publish = false
+version.workspace = true
+authors.workspace = true
+description = "Configuration management for DejaVu template engine"
+license.workspace = true
+repository = "https://github.com/doki-land/dejavu-engine/tree/dev/projects/dejavu.rs/dejavu-config"
+exclude = ["/tests/*"]
+edition.workspace = true
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+toml = { workspace = true }
+toml_edit = { workspace = true }
+figment = { workspace = true, features = ["toml", "env"] }
+dejavu-types = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.27.0"

@@ -1,0 +1,9 @@
+packages:
+  - "projects/dejavu.ts/dejavu"
+  - "projects/dejavu.ts/dejavu-engine"
+  - "projects/dejavu.ts/dejavu-language"
+  - "projects/dejavu.ts/dejavu-tools"
+  - "projects/dejavu.ts/dejavu-types"
+  - "projects/dejavu.ts/homepage"
+  - "projects/dejavu.ts/hono-dejavu"
+  - "projects/dejavu.ts/examples/*"

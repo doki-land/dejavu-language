@@ -1,0 +1,50 @@
+{
+    "name": "@doki-land/dejavu",
+    "version": "0.0.0",
+    "description": "Dejavu template engine — public TypeScript/JavaScript API",
+    "type": "module",
+    "license": "MPL-2.0",
+    "author": "Doki Land",
+    "homepage": "https://github.com/doki-land/dejavu-language/tree/dev/projects/dejavu.ts/dejavu",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/doki-land/dejavu-language.git",
+        "directory": "projects/dejavu.ts/dejavu"
+    },
+    "bugs": {
+        "url": "https://github.com/doki-land/dejavu-language/issues"
+    },
+    "engines": {
+        "node": ">=20"
+    },
+    "keywords": [
+        "dejavu",
+        "template",
+        "ir",
+        "doki-land"
+    ],
+    "main": "src/index.ts",
+    "types": "./src/index.ts",
+    "exports": {
+        ".": "./src/index.ts"
+    },
+    "files": [
+        "dist",
+        "src"
+    ],
+    "publishConfig": {
+        "access": "public"
+    },
+    "scripts": {
+        "build": "tsup src/index.ts --format esm --dts",
+        "build:publish": "tsup --config tsup.publish.config.ts",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@dejavu/engine": "workspace:*"
+    },
+    "devDependencies": {
+        "tsup": "^8.5.1",
+        "typescript": "^5.8.0"
+    }
+}

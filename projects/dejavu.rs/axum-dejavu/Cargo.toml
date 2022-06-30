@@ -1,0 +1,15 @@
+[package]
+name = "axum-dejavu"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Axum integration for Dejavu (depends on public dejavu crate)"
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+axum = { version = "0.8", default-features = false, features = ["tokio"] }
+dejavu = { workspace = true }
+serde_json = { workspace = true }
+thiserror = "2"

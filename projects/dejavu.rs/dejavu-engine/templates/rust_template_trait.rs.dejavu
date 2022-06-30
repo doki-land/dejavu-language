@@ -1,0 +1,19 @@
+// Template trait implementation for Rust template
+impl dejavu::Template for <% class_name %> {
+    fn render(&self, ctx: &Context) -> DejavuResult<String> {
+        self.render_template(ctx)
+    }
+
+    fn name(&self) -> &str {
+        "template"
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+}
+

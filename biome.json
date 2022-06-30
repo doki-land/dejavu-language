@@ -1,0 +1,56 @@
+{
+    "$schema": "https://biomejs.dev/schemas/2.4.8/schema.json",
+    "formatter": {
+        "enabled": true,
+        "indentStyle": "space",
+        "indentWidth": 4,
+        "lineWidth": 100,
+        "lineEnding": "lf",
+        "formatWithErrors": false
+    },
+    "javascript": {
+        "formatter": {
+            "arrowParentheses": "always",
+            "bracketSameLine": false,
+            "quoteStyle": "double",
+            "semicolons": "always",
+            "trailingCommas": "all"
+        }
+    },
+    "json": {
+        "formatter": {
+            "trailingCommas": "none"
+        }
+    },
+    "linter": {
+        "enabled": false
+    },
+    "files": {
+        "includes": [
+            "package.json",
+            "biome.json",
+            "scripts/**",
+            "specifications/**",
+            "conformance/**",
+            "projects/dejavu.ts/**",
+            "!**/node_modules/**",
+            "!**/dist/**",
+            "!**/build/**",
+            "!**/target/**",
+            "!**/coverage/**",
+            "!**/bin/**",
+            "!**/obj/**",
+            "!**/.artifacts/**",
+            "!**/.vite/**",
+            "!**/.cache/**",
+            "!**/pnpm-lock.yaml",
+            "!**/*.css",
+            "!**/*.scss",
+            "!**/*.less",
+            "!**/*.md",
+            "!**/*.toml",
+            "!**/*.yml",
+            "!**/*.yaml"
+        ]
+    }
+}

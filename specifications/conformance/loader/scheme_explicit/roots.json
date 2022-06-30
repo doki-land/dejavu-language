@@ -1,0 +1,11 @@
+[
+    {
+        "name": "theme",
+        "priority": 10,
+        "scheme": "theme"
+    },
+    {
+        "name": "project",
+        "priority": 20
+    }
+]

@@ -1,0 +1,18 @@
+{% extends "base.doki" %}
+
+{% block content %}
+    <main>
+        <h2>Recent Posts</h2>
+        <ul class="post-list">
+            {% loop posts in post %}
+            <li>
+                <a href="/posts/{% post.slug %}">
+                    <h3>{% post.title %}</h3>
+                    <p class="post-date">{% post.date %}</p>
+                    <p>{% post.excerpt %}</p>
+                </a>
+            </li>
+            {% end loop %}
+        </ul>
+    </main>
+{% end block %}

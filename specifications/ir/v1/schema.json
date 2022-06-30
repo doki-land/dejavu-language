@@ -1,0 +1,635 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://dejavu.dev/specifications/ir/v1/schema.json",
+    "title": "Dejavu IR v1",
+    "description": "Dejavu 模板（T1）的跨语言中间表示。",
+    "type": "object",
+    "required": ["irVersion", "language", "body"],
+    "additionalProperties": false,
+    "properties": {
+        "irVersion": {
+            "const": "1.0"
+        },
+        "language": {
+            "$ref": "#/$defs/Language"
+        },
+        "body": {
+            "$ref": "#/$defs/Template"
+        }
+    },
+    "$defs": {
+        "Span": {
+            "type": "object",
+            "required": ["start", "end"],
+            "additionalProperties": false,
+            "properties": {
+                "start": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "end": {
+                    "type": "integer",
+                    "minimum": 0
+                }
+            }
+        },
+        "Trim": {
+            "type": "string",
+            "enum": ["none", "ws", "nl", "ws_nl", "all"]
+        },
+        "Language": {
+            "type": "object",
+            "required": ["syntaxMode", "template"],
+            "additionalProperties": false,
+            "properties": {
+                "syntaxMode": {
+                    "type": "string",
+                    "enum": ["template", "programming"]
+                },
+                "template": {
+                    "$ref": "#/$defs/TemplateConfig"
+                }
+            }
+        },
+        "TemplateConfig": {
+            "type": "object",
+            "required": [
+                "codeStart",
+                "codeEnd",
+                "commentStart",
+                "commentEnd",
+                "supportFilterPipe",
+                "legacyFor"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "codeStart": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "codeEnd": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "commentStart": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "commentEnd": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "supportFilterPipe": {
+                    "type": "boolean"
+                },
+                "legacyFor": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "Template": {
+            "type": "object",
+            "required": ["type", "children"],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "Template"
+                },
+                "children": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Node"
+                    }
+                },
+                "span": {
+                    "$ref": "#/$defs/Span"
+                }
+            }
+        },
+        "Node": {
+            "oneOf": [
+                {
+                    "$ref": "#/$defs/Text"
+                },
+                {
+                    "$ref": "#/$defs/Comment"
+                },
+                {
+                    "$ref": "#/$defs/Interpolation"
+                },
+                {
+                    "$ref": "#/$defs/StmtIf"
+                },
+                {
+                    "$ref": "#/$defs/StmtFor"
+                },
+                {
+                    "$ref": "#/$defs/StmtBlock"
+                },
+                {
+                    "$ref": "#/$defs/StmtExtends"
+                },
+                {
+                    "$ref": "#/$defs/StmtInclude"
+                },
+                {
+                    "$ref": "#/$defs/StmtSuper"
+                },
+                {
+                    "$ref": "#/$defs/StmtRaw"
+                }
+            ]
+        },
+        "Text": {
+            "type": "object",
+            "required": ["type", "value"],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "Text"
+                },
+                "value": {
+                    "type": "string"
+                },
+                "span": {
+                    "$ref": "#/$defs/Span"
+                }
+            }
+        },
+        "Comment": {
+            "type": "object",
+            "required": ["type", "value"],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "Comment"
+                },
+                "value": {
+                    "type": "string"
+                },
+                "span": {
+                    "$ref": "#/$defs/Span"
+                }
+            }
+        },
+        "Interpolation": {
+            "type": "object",
+            "required": ["type", "expression", "trim"],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "Interpolation"
+                },
+                "expression": {
+                    "$ref": "#/$defs/Expr"
+                },
+                "trim": {
+                    "$ref": "#/$defs/Trim"
+                },
+                "raw": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "span": {
+                    "$ref": "#/$defs/Span"
+                }
+            }
+        },
+        "StmtElseIf": {
+            "type": "object",
+            "required": ["type", "test", "consequent", "trim"],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "Stmt.ElseIf"
+                },
+                "test": {
+                    "$ref": "#/$defs/Expr"
+                },
+                "consequent": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Node"
+                    }
+                },
+                "trim": {
+                    "$ref": "#/$defs/Trim"
+                },
+                "span": {
+                    "$ref": "#/$defs/Span"
+                }
+            }
+        },
+        "StmtIf": {
+            "type": "object",
+            "required": ["type", "test", "consequent", "elseIfs", "trim"],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "Stmt.If"
+                },
+                "test": {
+                    "$ref": "#/$defs/Expr"
+                },
+                "consequent": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Node"
+                    }
+                },
+                "elseIfs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/StmtElseIf"
+                    }
+                },
+                "alternate": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Node"
+                    }
+                },
+                "trim": {
+                    "$ref": "#/$defs/Trim"
+                },
+                "span": {
+                    "$ref": "#/$defs/Span"
+                }
+            }
+        },
+        "StmtFor": {
+            "type": "object",
+            "required": ["type", "item", "iterable", "body", "trim"],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "Stmt.For"
+                },
+                "item": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "index": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "iterable": {
+                    "$ref": "#/$defs/Expr"
+                },
+                "body": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Node"
+                    }
+                },
+                "trim": {
+                    "$ref": "#/$defs/Trim"
+                },
+                "span": {
+                    "$ref": "#/$defs/Span"
+                }
+            }
+        },
+        "StmtBlock": {
+            "type": "object",
+            "required": ["type", "name", "body", "trim"],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "Stmt.Block"
+                },
+                "name": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "body": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Node"
+                    }
+                },
+                "trim": {
+                    "$ref": "#/$defs/Trim"
+                },
+                "span": {
+                    "$ref": "#/$defs/Span"
+                }
+            }
+        },
+        "StmtExtends": {
+            "type": "object",
+            "required": ["type", "parent", "trim"],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "Stmt.Extends"
+                },
+                "parent": {
+                    "$ref": "#/$defs/Expr"
+                },
+                "trim": {
+                    "$ref": "#/$defs/Trim"
+                },
+                "span": {
+                    "$ref": "#/$defs/Span"
+                }
+            }
+        },
+        "StmtInclude": {
+            "type": "object",
+            "required": ["type", "path", "trim"],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "Stmt.Include"
+                },
+                "path": {
+                    "$ref": "#/$defs/Expr"
+                },
+                "trim": {
+                    "$ref": "#/$defs/Trim"
+                },
+                "span": {
+                    "$ref": "#/$defs/Span"
+                }
+            }
+        },
+        "StmtSuper": {
+            "type": "object",
+            "required": ["type", "trim"],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "Stmt.Super"
+                },
+                "trim": {
+                    "$ref": "#/$defs/Trim"
+                },
+                "span": {
+                    "$ref": "#/$defs/Span"
+                }
+            }
+        },
+        "StmtRaw": {
+            "type": "object",
+            "required": ["type", "value", "trim"],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "Stmt.Raw"
+                },
+                "value": {
+                    "type": "string"
+                },
+                "trim": {
+                    "$ref": "#/$defs/Trim"
+                },
+                "span": {
+                    "$ref": "#/$defs/Span"
+                }
+            }
+        },
+        "Expr": {
+            "oneOf": [
+                {
+                    "$ref": "#/$defs/ExprLiteral"
+                },
+                {
+                    "$ref": "#/$defs/ExprIdentifier"
+                },
+                {
+                    "$ref": "#/$defs/ExprMember"
+                },
+                {
+                    "$ref": "#/$defs/ExprIndex"
+                },
+                {
+                    "$ref": "#/$defs/ExprCall"
+                },
+                {
+                    "$ref": "#/$defs/ExprBinary"
+                },
+                {
+                    "$ref": "#/$defs/ExprUnary"
+                },
+                {
+                    "$ref": "#/$defs/ExprPipe"
+                }
+            ]
+        },
+        "ExprLiteral": {
+            "type": "object",
+            "required": ["type", "value"],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "Expr.Literal"
+                },
+                "value": {
+                    "type": ["null", "boolean", "number", "string"]
+                },
+                "span": {
+                    "$ref": "#/$defs/Span"
+                }
+            }
+        },
+        "ExprIdentifier": {
+            "type": "object",
+            "required": ["type", "name"],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "Expr.Identifier"
+                },
+                "name": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "span": {
+                    "$ref": "#/$defs/Span"
+                }
+            }
+        },
+        "ExprMember": {
+            "type": "object",
+            "required": ["type", "object", "property"],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "Expr.Member"
+                },
+                "object": {
+                    "$ref": "#/$defs/Expr"
+                },
+                "property": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "span": {
+                    "$ref": "#/$defs/Span"
+                }
+            }
+        },
+        "ExprIndex": {
+            "type": "object",
+            "required": ["type", "object", "index"],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "Expr.Index"
+                },
+                "object": {
+                    "$ref": "#/$defs/Expr"
+                },
+                "index": {
+                    "$ref": "#/$defs/Expr"
+                },
+                "span": {
+                    "$ref": "#/$defs/Span"
+                }
+            }
+        },
+        "ExprCall": {
+            "type": "object",
+            "required": ["type", "callee", "arguments"],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "Expr.Call"
+                },
+                "callee": {
+                    "$ref": "#/$defs/Expr"
+                },
+                "arguments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Expr"
+                    }
+                },
+                "span": {
+                    "$ref": "#/$defs/Span"
+                }
+            }
+        },
+        "ExprBinary": {
+            "type": "object",
+            "required": ["type", "operator", "left", "right"],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "Expr.Binary"
+                },
+                "operator": {
+                    "type": "string",
+                    "enum": [
+                        "+",
+                        "-",
+                        "*",
+                        "/",
+                        "%",
+                        "==",
+                        "!=",
+                        "<",
+                        "<=",
+                        ">",
+                        ">=",
+                        "&&",
+                        "||",
+                        "in"
+                    ]
+                },
+                "left": {
+                    "$ref": "#/$defs/Expr"
+                },
+                "right": {
+                    "$ref": "#/$defs/Expr"
+                },
+                "span": {
+                    "$ref": "#/$defs/Span"
+                }
+            }
+        },
+        "ExprUnary": {
+            "type": "object",
+            "required": ["type", "operator", "argument"],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "Expr.Unary"
+                },
+                "operator": {
+                    "type": "string",
+                    "enum": ["!", "-", "+"]
+                },
+                "argument": {
+                    "$ref": "#/$defs/Expr"
+                },
+                "span": {
+                    "$ref": "#/$defs/Span"
+                }
+            }
+        },
+        "ExprPipe": {
+            "type": "object",
+            "required": ["type", "expression", "filter", "arguments"],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "Expr.Pipe"
+                },
+                "expression": {
+                    "$ref": "#/$defs/Expr"
+                },
+                "filter": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "arguments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Expr"
+                    }
+                },
+                "span": {
+                    "$ref": "#/$defs/Span"
+                }
+            }
+        },
+        "Value": {
+            "description": "运行时 Value / Context 条目的 JSON 编码。",
+            "type": ["null", "boolean", "number", "string", "array", "object"],
+            "items": {
+                "$ref": "#/$defs/Value"
+            },
+            "additionalProperties": {
+                "$ref": "#/$defs/Value"
+            }
+        },
+        "Context": {
+            "type": "object",
+            "additionalProperties": {
+                "$ref": "#/$defs/Value"
+            }
+        },
+        "Diagnostic": {
+            "type": "object",
+            "required": ["code", "message"],
+            "additionalProperties": false,
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "span": {
+                    "$ref": "#/$defs/Span"
+                },
+                "severity": {
+                    "type": "string",
+                    "enum": ["error", "warning", "info"]
+                }
+            }
+        }
+    }
+}

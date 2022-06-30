@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net11.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>preview</LangVersion>
+            <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\projects\Sonic.Standard.Template\Dejavu\Dejavu.csproj"/>
+        <ProjectReference Include="..\..\projects\Sonic.Standard.Template\Site\Site.csproj"/>
+        <ProjectReference Include="..\..\projects\Sonic.Standard.Template\EBook\EBook.csproj"/>
+        <ProjectReference Include="..\..\Oak.cs\projects\Oak.DejaVu\Oak.DejaVu.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="xunit" Version="2.9.*"/>
+        <PackageReference Include="xunit.runner.visualstudio" Version="2.8.*"/>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.*"/>
+    </ItemGroup>
+
+
+  <ItemGroup>
+        <Compile Remove="EpubGeneratorTests.cs"/>
+        <Compile Remove="SiteGeneratorTests.cs"/>
+        <Compile Remove="DejaVuRendererTests.cs"/>
+  </ItemGroup>
+</Project>

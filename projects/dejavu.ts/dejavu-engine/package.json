@@ -1,0 +1,40 @@
+{
+    "name": "@dejavu/engine",
+    "version": "0.0.0",
+    "private": true,
+    "description": "Internal Dejavu engine — applications must depend on @doki-land/dejavu only",
+    "type": "module",
+    "license": "MPL-2.0",
+    "author": "Doki Land",
+    "homepage": "https://github.com/doki-land/dejavu-language/tree/dev/projects/dejavu.ts/dejavu-engine",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/doki-land/dejavu-language.git",
+        "directory": "projects/dejavu.ts/dejavu-engine"
+    },
+    "bugs": {
+        "url": "https://github.com/doki-land/dejavu-language/issues"
+    },
+    "main": "src/index.ts",
+    "types": "./src/index.ts",
+    "exports": {
+        ".": "./src/index.ts",
+        "./legacy": {
+            "default": "./src/legacy/index.ts"
+        }
+    },
+    "scripts": {
+        "build": "tsup src/index.ts --format esm --dts",
+        "test": "vitest run",
+        "typecheck": "tsc --noEmit",
+        "typecheck:legacy": "tsc --noEmit -p tsconfig.legacy.json"
+    },
+    "dependencies": {
+        "@dejavu/language": "workspace:*",
+        "@dejavu/types": "workspace:*"
+    },
+    "devDependencies": {
+        "vitest": "^2.1.8",
+        "typescript": "^5.8.0"
+    }
+}

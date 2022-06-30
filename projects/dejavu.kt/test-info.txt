@@ -1,0 +1,231 @@
+Initialized native services in: C:\Users\Administrator\.gradle\native
+Initialized jansi services in: C:\Users\Administrator\.gradle\native
+The client will now receive all logging from the daemon (pid: 21224). The daemon log file: C:\Users\Administrator\.gradle\daemon\9.4.0\daemon-21224.out.log
+Starting 33rd build in daemon [uptime: 15 mins 41.617 secs, performance: 100%, GC rate: 0.00/s, heap usage: 3% of 512 MiB, non-heap usage: 44% of 384 MiB]
+Using 16 worker leases.
+Operational build model parameters: {cachingModelBuilding=false, configurationCache=false, configurationCacheDisabledReason=null, configurationCacheParallelLoad=false, configurationCacheParallelStore=false, configureOnDemand=false, invalidateCoupledProjects=false, isolatedProjects=false, modelAsProjectDependency=false, modelBuilding=false, parallelModelBuilding=false, parallelProjectConfiguration=false, parallelProjectExecution=false, resilientModelBuilding=false}
+Now considering [E:\模板语言\dejavu-engine\projects\dejavu.kt] as hierarchies to watch
+Watching the file system is configured to be enabled if available
+File system watching is active
+Starting Build
+Settings evaluated using settings file 'E:\模板语言\dejavu-engine\projects\dejavu.kt\settings.gradle.kts'.
+Projects loaded. Root project using build file 'E:\模板语言\dejavu-engine\projects\dejavu.kt\build.gradle.kts'.
+Included projects: [root project 'dejavu-kt', project ':dejavu', project ':dejavu-engine', project ':dejavu-language', project ':dejavu-tools', project ':dejavu-types']
+
+> Configure project :
+Evaluating root project 'dejavu-kt' using build file 'E:\模板语言\dejavu-engine\projects\dejavu.kt\build.gradle.kts'.
+Resolved plugin [id: 'org.jetbrains.kotlin.jvm', version: '2.0.21', apply: false]
+
+> Configure project :dejavu
+Evaluating project ':dejavu' using build file 'E:\模板语言\dejavu-engine\projects\dejavu.kt\dejavu\build.gradle.kts'.
+Resolved plugin [id: 'org.jetbrains.kotlin.jvm']
+Using Kotlin Gradle Plugin gradle85 variant
+kotlin scripting plugin: created the scripting discovery configuration: kotlinScriptDef
+kotlin scripting plugin: created the scripting discovery configuration: testKotlinScriptDef
+
+> Configure project :dejavu-engine
+Evaluating project ':dejavu-engine' using build file 'E:\模板语言\dejavu-engine\projects\dejavu.kt\dejavu-engine\build.gradle.kts'.
+Resolved plugin [id: 'org.jetbrains.kotlin.jvm']
+Using Kotlin Gradle Plugin gradle85 variant
+kotlin scripting plugin: created the scripting discovery configuration: kotlinScriptDef
+kotlin scripting plugin: created the scripting discovery configuration: testKotlinScriptDef
+
+> Configure project :dejavu-language
+Evaluating project ':dejavu-language' using build file 'E:\模板语言\dejavu-engine\projects\dejavu.kt\dejavu-language\build.gradle.kts'.
+Resolved plugin [id: 'org.jetbrains.kotlin.jvm']
+Using Kotlin Gradle Plugin gradle85 variant
+kotlin scripting plugin: created the scripting discovery configuration: kotlinScriptDef
+kotlin scripting plugin: created the scripting discovery configuration: testKotlinScriptDef
+
+> Configure project :dejavu-tools
+Evaluating project ':dejavu-tools' using build file 'E:\模板语言\dejavu-engine\projects\dejavu.kt\dejavu-tools\build.gradle.kts'.
+Resolved plugin [id: 'org.jetbrains.kotlin.jvm']
+Resolved plugin [id: 'org.gradle.application']
+Using Kotlin Gradle Plugin gradle85 variant
+kotlin scripting plugin: created the scripting discovery configuration: kotlinScriptDef
+kotlin scripting plugin: created the scripting discovery configuration: testKotlinScriptDef
+
+> Configure project :dejavu-types
+Evaluating project ':dejavu-types' using build file 'E:\模板语言\dejavu-engine\projects\dejavu.kt\dejavu-types\build.gradle.kts'.
+Resolved plugin [id: 'org.jetbrains.kotlin.jvm']
+Using Kotlin Gradle Plugin gradle85 variant
+kotlin scripting plugin: created the scripting discovery configuration: kotlinScriptDef
+kotlin scripting plugin: created the scripting discovery configuration: testKotlinScriptDef
+All projects evaluated.
+Task path ':dejavu-engine:test' matched project ':dejavu-engine'
+Task name matched 'test'
+Selected primary task 'test' from project :dejavu-engine
+Tasks to be executed: [task ':dejavu-engine:checkKotlinGradlePluginConfigurationErrors', task ':dejavu-language:checkKotlinGradlePluginConfigurationErrors', task ':dejavu-types:checkKotlinGradlePluginConfigurationErrors', task ':dejavu-types:compileKotlin', task ':dejavu-types:compileJava', task ':dejavu-types:processResources', task ':dejavu-types:classes', task ':dejavu-types:jar', task ':dejavu-language:compileKotlin', task ':dejavu-language:compileJava', task ':dejavu-language:processResources', task ':dejavu-language:classes', task ':dejavu-language:jar', task ':dejavu-engine:compileKotlin', task ':dejavu-engine:compileJava', task ':dejavu-engine:processResources', task ':dejavu-engine:classes', task ':dejavu-engine:jar', task ':dejavu-engine:compileTestKotlin', task ':dejavu-engine:compileTestJava', task ':dejavu-engine:processTestResources', task ':dejavu-engine:testClasses', task ':dejavu-engine:test']
+Tasks that were excluded: []
+Resolve mutations for :dejavu-engine:checkKotlinGradlePluginConfigurationErrors (Thread[#1546,Execution worker,5,main]) started.
+:dejavu-engine:checkKotlinGradlePluginConfigurationErrors (Thread[#1546,Execution worker,5,main]) started.
+
+> Task :dejavu-engine:checkKotlinGradlePluginConfigurationErrors SKIPPED
+Skipping task ':dejavu-engine:checkKotlinGradlePluginConfigurationErrors' as task onlyIf 'errorDiagnostics are present' is false.
+Resolve mutations for :dejavu-language:checkKotlinGradlePluginConfigurationErrors (Thread[#1546,Execution worker,5,main]) started.
+:dejavu-language:checkKotlinGradlePluginConfigurationErrors (Thread[#1551,Execution worker Thread 6,5,main]) started.
+
+> Task :dejavu-language:checkKotlinGradlePluginConfigurationErrors SKIPPED
+Skipping task ':dejavu-language:checkKotlinGradlePluginConfigurationErrors' as task onlyIf 'errorDiagnostics are present' is false.
+Resolve mutations for :dejavu-types:checkKotlinGradlePluginConfigurationErrors (Thread[#1551,Execution worker Thread 6,5,main]) started.
+:dejavu-types:checkKotlinGradlePluginConfigurationErrors (Thread[#1551,Execution worker Thread 6,5,main]) started.
+
+> Task :dejavu-types:checkKotlinGradlePluginConfigurationErrors SKIPPED
+Skipping task ':dejavu-types:checkKotlinGradlePluginConfigurationErrors' as task onlyIf 'errorDiagnostics are present' is false.
+Resolve mutations for :dejavu-types:compileKotlin (Thread[#1551,Execution worker Thread 6,5,main]) started.
+:dejavu-types:compileKotlin (Thread[#1551,Execution worker Thread 6,5,main]) started.
+
+> Task :dejavu-types:compileKotlin UP-TO-DATE
+Caching disabled for task ':dejavu-types:compileKotlin' because:
+  Build cache is disabled
+Skipping task ':dejavu-types:compileKotlin' as it is up-to-date.
+Resolve mutations for :dejavu-types:compileJava (Thread[#1551,Execution worker Thread 6,5,main]) started.
+:dejavu-types:compileJava (Thread[#1551,Execution worker Thread 6,5,main]) started.
+
+> Task :dejavu-types:compileJava NO-SOURCE
+Skipping task ':dejavu-types:compileJava' as it has no source files and no previous output files.
+Resolve mutations for :dejavu-types:processResources (Thread[#1551,Execution worker Thread 6,5,main]) started.
+:dejavu-types:processResources (Thread[#1551,Execution worker Thread 6,5,main]) started.
+
+> Task :dejavu-types:processResources NO-SOURCE
+Skipping task ':dejavu-types:processResources' as it has no source files and no previous output files.
+Resolve mutations for :dejavu-types:classes (Thread[#1551,Execution worker Thread 6,5,main]) started.
+:dejavu-types:classes (Thread[#1551,Execution worker Thread 6,5,main]) started.
+
+> Task :dejavu-types:classes UP-TO-DATE
+Skipping task ':dejavu-types:classes' as it has no actions.
+Resolve mutations for :dejavu-types:jar (Thread[#1551,Execution worker Thread 6,5,main]) started.
+:dejavu-types:jar (Thread[#1551,Execution worker Thread 6,5,main]) started.
+
+> Task :dejavu-types:jar UP-TO-DATE
+Caching disabled for task ':dejavu-types:jar' because:
+  Build cache is disabled
+  Not worth caching
+Skipping task ':dejavu-types:jar' as it is up-to-date.
+work action resolve dejavu-types.jar (project :dejavu-types) (Thread[#1551,Execution worker Thread 6,5,main]) started.
+Resolve mutations for :dejavu-language:compileKotlin (Thread[#1551,Execution worker Thread 6,5,main]) started.
+:dejavu-language:compileKotlin (Thread[#1551,Execution worker Thread 6,5,main]) started.
+
+> Task :dejavu-language:compileKotlin UP-TO-DATE
+Caching disabled for task ':dejavu-language:compileKotlin' because:
+  Build cache is disabled
+Skipping task ':dejavu-language:compileKotlin' as it is up-to-date.
+Resolve mutations for :dejavu-language:compileJava (Thread[#1551,Execution worker Thread 6,5,main]) started.
+:dejavu-language:compileJava (Thread[#1551,Execution worker Thread 6,5,main]) started.
+
+> Task :dejavu-language:compileJava NO-SOURCE
+Skipping task ':dejavu-language:compileJava' as it has no source files and no previous output files.
+Resolve mutations for :dejavu-language:processResources (Thread[#1551,Execution worker Thread 6,5,main]) started.
+:dejavu-language:processResources (Thread[#1551,Execution worker Thread 6,5,main]) started.
+
+> Task :dejavu-language:processResources NO-SOURCE
+Skipping task ':dejavu-language:processResources' as it has no source files and no previous output files.
+Resolve mutations for :dejavu-language:classes (Thread[#1551,Execution worker Thread 6,5,main]) started.
+:dejavu-language:classes (Thread[#1551,Execution worker Thread 6,5,main]) started.
+
+> Task :dejavu-language:classes UP-TO-DATE
+Skipping task ':dejavu-language:classes' as it has no actions.
+Resolve mutations for :dejavu-language:jar (Thread[#1551,Execution worker Thread 6,5,main]) started.
+:dejavu-language:jar (Thread[#1551,Execution worker Thread 6,5,main]) started.
+
+> Task :dejavu-language:jar UP-TO-DATE
+Caching disabled for task ':dejavu-language:jar' because:
+  Build cache is disabled
+  Not worth caching
+Skipping task ':dejavu-language:jar' as it is up-to-date.
+work action resolve dejavu-language.jar (project :dejavu-language) (Thread[#1551,Execution worker Thread 6,5,main]) started.
+Resolve mutations for :dejavu-engine:compileKotlin (Thread[#1551,Execution worker Thread 6,5,main]) started.
+:dejavu-engine:compileKotlin (Thread[#1551,Execution worker Thread 6,5,main]) started.
+
+> Task :dejavu-engine:compileKotlin UP-TO-DATE
+Caching disabled for task ':dejavu-engine:compileKotlin' because:
+  Build cache is disabled
+Skipping task ':dejavu-engine:compileKotlin' as it is up-to-date.
+Resolve mutations for :dejavu-engine:compileJava (Thread[#1551,Execution worker Thread 6,5,main]) started.
+:dejavu-engine:compileJava (Thread[#1551,Execution worker Thread 6,5,main]) started.
+
+> Task :dejavu-engine:compileJava NO-SOURCE
+Skipping task ':dejavu-engine:compileJava' as it has no source files and no previous output files.
+Resolve mutations for :dejavu-engine:processResources (Thread[#1551,Execution worker Thread 6,5,main]) started.
+:dejavu-engine:processResources (Thread[#1551,Execution worker Thread 6,5,main]) started.
+
+> Task :dejavu-engine:processResources NO-SOURCE
+Skipping task ':dejavu-engine:processResources' as it has no source files and no previous output files.
+Resolve mutations for :dejavu-engine:classes (Thread[#1551,Execution worker Thread 6,5,main]) started.
+:dejavu-engine:classes (Thread[#1545,included builds,5,main]) started.
+
+> Task :dejavu-engine:classes UP-TO-DATE
+Skipping task ':dejavu-engine:classes' as it has no actions.
+Resolve mutations for :dejavu-engine:jar (Thread[#1545,included builds,5,main]) started.
+:dejavu-engine:jar (Thread[#1545,included builds,5,main]) started.
+
+> Task :dejavu-engine:jar UP-TO-DATE
+Caching disabled for task ':dejavu-engine:jar' because:
+  Build cache is disabled
+  Not worth caching
+Skipping task ':dejavu-engine:jar' as it is up-to-date.
+Resolve mutations for :dejavu-engine:compileTestKotlin (Thread[#1545,included builds,5,main]) started.
+:dejavu-engine:compileTestKotlin (Thread[#1545,included builds,5,main]) started.
+
+> Task :dejavu-engine:compileTestKotlin UP-TO-DATE
+Caching disabled for task ':dejavu-engine:compileTestKotlin' because:
+  Build cache is disabled
+Skipping task ':dejavu-engine:compileTestKotlin' as it is up-to-date.
+Resolve mutations for :dejavu-engine:compileTestJava (Thread[#1545,included builds,5,main]) started.
+:dejavu-engine:compileTestJava (Thread[#1545,included builds,5,main]) started.
+
+> Task :dejavu-engine:compileTestJava NO-SOURCE
+Skipping task ':dejavu-engine:compileTestJava' as it has no source files and no previous output files.
+Resolve mutations for :dejavu-engine:processTestResources (Thread[#1545,included builds,5,main]) started.
+:dejavu-engine:processTestResources (Thread[#1545,included builds,5,main]) started.
+
+> Task :dejavu-engine:processTestResources NO-SOURCE
+Skipping task ':dejavu-engine:processTestResources' as it has no source files and no previous output files.
+Resolve mutations for :dejavu-engine:testClasses (Thread[#1545,included builds,5,main]) started.
+:dejavu-engine:testClasses (Thread[#1551,Execution worker Thread 6,5,main]) started.
+
+> Task :dejavu-engine:testClasses UP-TO-DATE
+Skipping task ':dejavu-engine:testClasses' as it has no actions.
+Resolve mutations for :dejavu-engine:test (Thread[#1551,Execution worker Thread 6,5,main]) started.
+:dejavu-engine:test (Thread[#1551,Execution worker Thread 6,5,main]) started.
+Gradle Test Executor 9 started executing tests.
+Gradle Test Executor 9 finished executing tests.
+
+> Task :dejavu-engine:test FAILED
+Caching disabled for task ':dejavu-engine:test' because:
+  Build cache is disabled
+Task ':dejavu-engine:test' is not up-to-date because:
+  Task has failed previously.
+file or directory 'E:\模板语言\dejavu-engine\projects\dejavu.kt\dejavu-engine\build\classes\java\test', not found
+Starting process 'Gradle Test Executor 9'. Working directory: E:\模板语言\dejavu-engine\projects\dejavu.kt\dejavu-engine Command: C:\Program Files\Microsoft\jdk-21.0.11.10-hotspot\bin\java.exe -Dorg.gradle.internal.worker.tmpdir=E:\模板语言\dejavu-engine\projects\dejavu.kt\dejavu-engine\build\tmp\test\work @C:\Users\Administrator\.gradle\.tmp\gradle-worker-classpath14677414779238005825txt -Xmx512m -Dfile.encoding=UTF-8 -Duser.country=CN -Duser.language=zh -Duser.variant -ea worker.org.gradle.process.internal.worker.GradleWorkerMain 'Gradle Test Executor 9'
+Successfully started process 'Gradle Test Executor 9'
+Generating HTML test report...
+Finished generating test html results (0.002 secs) into: E:\模板语言\dejavu-engine\projects\dejavu.kt\dejavu-engine\build\reports\tests\test
+Finished generating test XML results (0.0 secs) into: E:\模板语言\dejavu-engine\projects\dejavu.kt\dejavu-engine\build\test-results\test
+
+[Incubating] Problems report is available at: file:///E:/%E6%A8%A1%E6%9D%BF%E8%AF%AD%E8%A8%80/dejavu-engine/projects/dejavu.kt/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':dejavu-engine:test'.
+> Test process encountered an unexpected problem.
+   > Could not execute test class 'dejavu.engine.ConformanceTest'.
+      > java.lang.ClassNotFoundException: dejavu.engine.ConformanceTest
+
+* Try:
+> Check common problems https://docs.gradle.org/9.4.0/userguide/java_testing.html#sec:java_testing_troubleshooting.
+> Run with --stacktrace option to get the stack trace.
+> Run with --debug option to get more log output.
+> Run with --scan to get full insights from a Build Scan (powered by Develocity).
+> Get more help at https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.4.0/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 1s
+8 actionable tasks: 1 executed, 7 up-to-date
+Watched directory hierarchies: [E:\模板语言\dejavu-engine\projects\dejavu.kt]

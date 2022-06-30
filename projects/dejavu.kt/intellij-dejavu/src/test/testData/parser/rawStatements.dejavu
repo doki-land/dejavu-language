@@ -1,0 +1,5 @@
+<% raw %>
+  <% this will not be parsed %>
+  <%= expressions are ignored %>
+  <%- whitespace control is disabled %>
+<% end raw %>

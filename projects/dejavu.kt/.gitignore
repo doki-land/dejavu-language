@@ -1,0 +1,28 @@
+# Gradle / Kotlin
+.gradle/
+.kotlin/
+build/
+out/
+*.class
+
+# IDE / IntelliJ Platform
+.idea/
+.intellijPlatform/
+.trae/
+.qodana/
+*.iml
+
+# Native / OS libs from local runs
+*.dll
+*.so
+*.dylib
+
+# Generated (plugin)
+**/src/main/gen/
+
+# Logs / temp
+*.log
+*.tmp
+*.temp
+*.swp
+*~

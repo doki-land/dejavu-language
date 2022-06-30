@@ -1,0 +1,6 @@
+<% macro greeting(name) %>
+Hello, <%= name %>!
+<% end macro %>
+<% macro button(text, url) %>
+<a href="<%= url %>"><%= text %></a>
+<% end macro %>
