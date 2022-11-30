@@ -1,0 +1,16 @@
+// Item handling for Rust template
+<% match item %>
+    <% case ItemNode::TemplateInterpolation(interpolation) %>
+        write!(&mut output, "{{}}", dejavu::Value::to_output_string(&(
+            <% include "rust_expression.rs.dejavu" %>, &ctx.template_mode
+        )))?;
+    <% case ItemNode::TemplateControl(control) %>
+        <% for inner_item in control.items %>
+            <% include "rust_item.rs.dejavu" %>
+        <% end for %>
+    <% case ItemNode::Statement(statement) %>
+        // Statement node
+    <% default %>
+        // Unhandled item type
+<% end match %>
+

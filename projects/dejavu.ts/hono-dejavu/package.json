@@ -1,0 +1,23 @@
+{
+    "name": "hono-dejavu",
+    "version": "0.0.1",
+    "type": "module",
+    "description": "Hono integration for Dejavu (depends on public dejavu package)",
+    "main": "src/index.ts",
+    "exports": {
+        ".": "./src/index.ts"
+    },
+    "scripts": {
+        "typecheck": "node_modules/.bin/tsc --noEmit"
+    },
+    "dependencies": {
+        "dejavu": "workspace:*"
+    },
+    "peerDependencies": {
+        "hono": "^4.0.0"
+    },
+    "devDependencies": {
+        "hono": "^4.0.0",
+        "typescript": "^5.8.0"
+    }
+}

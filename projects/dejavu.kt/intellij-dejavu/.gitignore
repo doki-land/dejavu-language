@@ -1,0 +1,31 @@
+# OS specific
+*.dll
+*.so
+*.dylib
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE
+.intellijPlatform/
+.idea/
+.trae/
+
+# Kotlin
+.gradle/
+.kotlin/
+.qodana/
+build/
+
+# Generated files
+src/main/gen/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*~

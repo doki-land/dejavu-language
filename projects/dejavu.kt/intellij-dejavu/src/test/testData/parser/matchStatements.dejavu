@@ -1,0 +1,26 @@
+<% match value %>
+  <% case 1 %>
+    One
+  <% case 2 %>
+    Two
+  <% case _ %>
+    Other
+<% end match %>
+
+<% match user.role %>
+  <% case "admin" %>
+    Admin
+  <% case "user" %>
+    User
+  <% case _ %>
+    Guest
+<% end match %>
+
+<% match items.length %>
+  <% case 0 %>
+    Empty
+  <% case 1 %>
+    One item
+  <% case n if n > 1 %>
+    <%= n %> items
+<% end match %>

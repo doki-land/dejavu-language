@@ -1,0 +1,29 @@
+{
+    "name": "@dejavu/engine",
+    "version": "0.0.1",
+    "private": true,
+    "description": "Internal Dejavu engine — apps must depend on the `dejavu` package only",
+    "type": "module",
+    "main": "src/index.ts",
+    "types": "./src/index.ts",
+    "exports": {
+        ".": "./src/index.ts",
+        "./legacy": {
+            "default": "./src/legacy/index.ts"
+        }
+    },
+    "scripts": {
+        "build": "tsup src/index.ts --format esm --dts",
+        "test": "vitest run",
+        "typecheck": "tsc --noEmit",
+        "typecheck:legacy": "tsc --noEmit -p tsconfig.legacy.json"
+    },
+    "dependencies": {
+        "@dejavu/language": "workspace:*",
+        "@dejavu/types": "workspace:*"
+    },
+    "devDependencies": {
+        "vitest": "^2.1.8",
+        "typescript": "^5.8.0"
+    }
+}

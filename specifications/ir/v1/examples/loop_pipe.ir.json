@@ -1,0 +1,43 @@
+{
+    "irVersion": "1.0",
+    "language": {
+        "syntaxMode": "template",
+        "template": {
+            "codeStart": "<%",
+            "codeEnd": "%>",
+            "commentStart": "<#",
+            "commentEnd": "#>",
+            "supportFilterPipe": true,
+            "legacyFor": false
+        }
+    },
+    "body": {
+        "type": "Template",
+        "children": [
+            {
+                "type": "Stmt.For",
+                "item": "item",
+                "iterable": {
+                    "type": "Expr.Identifier",
+                    "name": "items"
+                },
+                "body": [
+                    {
+                        "type": "Interpolation",
+                        "expression": {
+                            "type": "Expr.Pipe",
+                            "expression": {
+                                "type": "Expr.Identifier",
+                                "name": "item"
+                            },
+                            "filter": "uppercase",
+                            "arguments": []
+                        },
+                        "trim": "none"
+                    }
+                ],
+                "trim": "none"
+            }
+        ]
+    }
+}

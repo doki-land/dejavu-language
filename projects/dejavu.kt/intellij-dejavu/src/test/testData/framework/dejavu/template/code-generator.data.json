@@ -1,0 +1,17 @@
+{
+    "title": "Code Generator Test",
+    "items": [
+        {
+            "name": "Java",
+            "value": "11"
+        },
+        {
+            "name": "Kotlin",
+            "value": "1.7"
+        },
+        {
+            "name": "IntelliJ",
+            "value": "2025.3"
+        }
+    ]
+}

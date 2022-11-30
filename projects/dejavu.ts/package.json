@@ -1,0 +1,6 @@
+{
+    "name": "dejavu.ts",
+    "private": true,
+    "type": "module",
+    "description": "TypeScript host packages for Dejavu (members of the repo-root pnpm workspace)"
+}

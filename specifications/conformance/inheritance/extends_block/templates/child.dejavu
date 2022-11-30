@@ -1,0 +1,1 @@
+<% extends "base.dejavu" %><% block body %><% title %><% end block %>

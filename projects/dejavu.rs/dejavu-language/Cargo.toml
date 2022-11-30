@@ -1,0 +1,19 @@
+[package]
+name = "dejavu-language"
+publish = false
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Dejavu T1 language frontend: hand-written lexer + recursive-descent parser + miette diagnostics to IR"
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+dejavu-ir = { workspace = true }
+miette = { workspace = true, features = ["fancy"] }
+thiserror = "2"
+serde_json = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = "1"

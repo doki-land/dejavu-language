@@ -1,0 +1,31 @@
+{
+    "irVersion": "1.0",
+    "language": {
+        "syntaxMode": "template",
+        "template": {
+            "codeStart": "<%",
+            "codeEnd": "%>",
+            "commentStart": "<#",
+            "commentEnd": "#>",
+            "supportFilterPipe": true,
+            "legacyFor": false
+        }
+    },
+    "body": {
+        "type": "Template",
+        "children": [
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Member",
+                    "object": {
+                        "type": "Expr.Identifier",
+                        "name": "user"
+                    },
+                    "property": "name"
+                },
+                "trim": "none"
+            }
+        ]
+    }
+}

@@ -1,0 +1,35 @@
+{
+    "irVersion": "1.0",
+    "language": {
+        "syntaxMode": "template",
+        "template": {
+            "codeStart": "<%",
+            "codeEnd": "%>",
+            "commentStart": "<#",
+            "commentEnd": "#>",
+            "supportFilterPipe": true,
+            "legacyFor": false
+        }
+    },
+    "body": {
+        "type": "Template",
+        "children": [
+            {
+                "type": "Text",
+                "value": "Hello, "
+            },
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Identifier",
+                    "name": "name"
+                },
+                "trim": "none"
+            },
+            {
+                "type": "Text",
+                "value": "!"
+            }
+        ]
+    }
+}

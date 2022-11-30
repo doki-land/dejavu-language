@@ -1,0 +1,19 @@
+{
+    "name": "@dejavu/tools",
+    "version": "0.0.1",
+    "private": true,
+    "description": "Internal Dejavu CLI workspace package — end users install the `dejavu` binary / facade",
+    "type": "module",
+    "main": "src/cli.ts",
+    "bin": {
+        "dejavu": "src/cli.ts"
+    },
+    "scripts": {
+        "build": "tsup src/cli.ts --format esm",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@dejavu/engine": "workspace:*",
+        "cac": "^6.7.14"
+    }
+}

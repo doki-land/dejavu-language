@@ -1,0 +1,27 @@
+[package]
+name = "dejavu-engine"
+publish = false
+version.workspace = true
+authors.workspace = true
+description = "Dejavu engine: IR render (+ thin wrappers over dejavu-language / dejavu-ir)"
+license.workspace = true
+repository = "https://github.com/doki-land/dejavu-engine/tree/dev/projects/dejavu.rs/dejavu-engine"
+exclude = ["/tests/*"]
+edition.workspace = true
+
+[lib]
+name = "dejavu_engine"
+
+[dependencies]
+dejavu-types = { workspace = true }
+dejavu-ir = { workspace = true }
+dejavu-language = { workspace = true }
+miette = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[features]
+default = []

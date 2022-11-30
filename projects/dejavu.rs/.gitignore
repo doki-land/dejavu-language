@@ -1,0 +1,21 @@
+# Cargo
+/target/
+**/target/
+Cargo.lock
+.cargo/config.toml
+
+# Profiling / coverage
+*.profraw
+*.profdata
+coverage/
+tarpaulin-report.html
+lcov.info
+
+# Leftover JS build dirs colocated with crates
+dist/
+lib/
+
+# Generated / local
+**/*.rs.bk
+.idea/
+*.iml

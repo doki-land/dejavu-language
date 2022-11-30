@@ -1,0 +1,7 @@
+<%= if confition =%>
+    if text
+<%= else if condition =%>
+    else if text
+<%= else =%>
+    else text
+<%= end if =%>

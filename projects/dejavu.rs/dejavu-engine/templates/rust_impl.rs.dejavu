@@ -1,0 +1,24 @@
+// Implementation for Rust template
+impl <% class_name %> {
+    pub fn new() -> Self {
+        Self {
+            template_registry: None,
+        }
+    }
+
+    pub fn set_template_registry(&mut self, registry: std::rc::Rc<std::cell::RefCell<dejavu::TemplateRegistry>>) {
+        self.template_registry = Some(registry);
+    }
+
+    pub fn render_template(&self, ctx: &Context) -> DejavuResult<String> {
+        let mut output = String::with_capacity(1024);
+
+        // Process template content
+        <% for item in elements %>
+            <% include "rust_item.rs.dejavu" %>
+        <% end for %>
+
+        Ok(output)
+    }
+}
+

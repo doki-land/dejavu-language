@@ -1,0 +1,5 @@
+<% extends "base.dejavu" %>
+
+<% block content %>
+  Override base content here.
+<% end block %>

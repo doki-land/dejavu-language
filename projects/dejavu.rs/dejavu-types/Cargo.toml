@@ -1,0 +1,26 @@
+[package]
+name = "dejavu-types"
+publish = false
+version.workspace = true
+authors.workspace = true
+description = "Core type definitions, values, and runtime utilities for Dejavu"
+license.workspace = true
+repository = "https://github.com/doki-land/dejavu-engine/tree/dev/projects/dejavu.rs/dejavu-types"
+exclude = ["/tests/*"]
+edition.workspace = true
+autotests = false
+autobenches = false
+
+[dependencies]
+dejavu-ir = { workspace = true }
+dejavu-language = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+fluent = { workspace = true }
+fluent-syntax = { workspace = true }
+fluent-bundle = { workspace = true }
+unic-langid = { workspace = true }
+lru = { workspace = true }
+
+[features]
+default = []

@@ -1,0 +1,18 @@
+[package]
+name = "dejavu-tools"
+publish = false
+version.workspace = true
+authors.workspace = true
+description = "Command-line tools for the Dejavu template engine"
+license.workspace = true
+repository = "https://github.com/doki-land/dejavu-engine/tree/dev/projects/dejavu.rs/dejavu-tools"
+edition.workspace = true
+
+[dependencies]
+clap = { workspace = true }
+tokio = { workspace = true }
+dejavu-engine = { workspace = true }
+dejavu-types = { workspace = true }
+regex = { workspace = true }
+glob = { workspace = true }
+

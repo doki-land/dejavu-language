@@ -1,8 +1,0 @@
-
-
-
-{% for item in items %}
-- item:
-{% else %}
-- no items
-{% end %}

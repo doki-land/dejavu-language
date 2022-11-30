@@ -1,0 +1,3 @@
+<% using layout %>
+<% using "layouts/main" %>
+<% using adminLayout with sidebar=false %>

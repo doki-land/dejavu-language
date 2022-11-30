@@ -1,0 +1,3 @@
+<%= if items > 0 %>
+    if text
+<%= end if %>
