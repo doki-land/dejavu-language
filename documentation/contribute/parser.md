@@ -7,9 +7,10 @@ Rust T1 语言前端位于 `projects/dejavu.rs/dejavu-language`：
 - **Diagnostics**: [miette](https://docs.rs/miette)
 - **产出**: `dejavu_ir::IrDocument`（经 `NativeTemplate` → `encode_native`）
 
-```sh
-cd projects/dejavu.rs
-cargo test -p dejavu-language
+从仓库根目录运行：
+
+```bash
+cargo test --manifest-path projects/dejavu.rs/Cargo.toml -p dejavu-language
 ```
 
 TypeScript 解析在 `projects/dejavu.ts/dejavu-language`，产出与 Contract / IR 对齐的文档。

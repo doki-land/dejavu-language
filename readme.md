@@ -1,29 +1,98 @@
 # Dejavu
 
-Dejavu parses templates into a shared intermediate representation and renders that IR with a JSON-compatible context. The current contract covers interpolation, conditions, loops, filters, HTML escaping, inheritance, includes, and template loading.
+**One template language, shared IR, host-specific runtimes.**
+
+Dejavu is a template engine with a frozen, host-independent contract: parse source into IR, then render with a
+JSON-compatible context. TypeScript, Rust, C#, Kotlin, and Python hosts consume the same semantics; application code on
+TypeScript uses the public facade `@doki-land/dejavu`.
+
+Repository: [doki-land/dejavu-language](https://github.com/doki-land/dejavu-language/tree/dev) (`dev` branch).
 
 ```dejavu
 Hello, <% account.name %>!
 ```
 
-Application developers using TypeScript import the public facade from `@doki-land/dejavu`. Engine-layer packages are for binding and core maintainers, not ordinary application code.
+## Features
 
-## Documentation
+- Shared **Template Contract** + **IR v1** + conformance fixtures under `specifications/`
+- Interpolation, `if` / `else if` / `else`, `loop`, `|>` filters, HTML escaping, `safe` / `raw`
+- Inheritance: `extends` / `block` / `super` / `include` with path-v1 loader resolution
+- AOT where a host supports it; runtime rendering otherwise
+- Host adapters stay outside the public application facade
 
-- [English user documentation](./projects/dejavu.ts/homepage/documents/en-us/index.md)
-- [Simplified Chinese user documentation](./projects/dejavu.ts/homepage/documents/zh-hans/index.md)
-- [Contributor and core developer documentation](./documentation/index.md)
-- [Host-independent specifications](./specifications/)
-- [Implementation compatibility](./documentation/compatibility.md)
+## Quick start (TypeScript)
 
-The specification defines required behavior; the compatibility page records which host implementations have verified that behavior. Do not infer implementation completeness from the list of host directories.
+```bash
+pnpm add @doki-land/dejavu
+```
+
+```ts
+import {Dejavu, parse, render} from "@doki-land/dejavu";
+
+const out = render(parse("Hello, <% name %>!"), {name: "World"});
+// → Hello, World!
+```
+
+Install and API notes for other hosts live under each `projects/dejavu.*` tree. Do not depend on `@dejavu/*` or other
+engine-layer packages from application code.
+
+## Hosts
+
+| Host       | Public surface      | Notes                      |
+|------------|---------------------|----------------------------|
+| TypeScript | `@doki-land/dejavu` | Primary application facade |
+| Rust       | `dejavu` crate      | Embed / CLI                |
+| C#         | `Dejavu`            | .NET binding               |
+| Kotlin     | `dejavu`            | JVM / tooling              |
+| Python     | `dejavu`            | Binding                    |
+| CLI        | `dejavu` binary     | Where packaged             |
+
+Cross-host completeness is recorded in [`documentation/compatibility.md`](./documentation/compatibility.md) — not
+implied by directory presence alone.
 
 ## Repository layout
 
-- `projects/dejavu.ts`, `.rs`, `.cs`, `.kt`, `.py`: host implementations and bindings
-- `specifications/`: Template Contract, IR schema, and conformance fixtures
-- `documentation/`: contributor workflows and implementation notes
-- `projects/dejavu.ts/homepage/documents/`: external user documentation
+| Path                                 | Role                                      |
+|--------------------------------------|-------------------------------------------|
+| `projects/dejavu.ts`                 | TypeScript packages, homepage, user docs  |
+| `projects/dejavu.rs`                 | Rust crates                               |
+| `projects/dejavu.cs` / `.kt` / `.py` | Other host trees                          |
+| `specifications/`                    | Contract, IR schema, conformance fixtures |
+| `documentation/`                     | Contributor / maintainer docs             |
+| `scripts/`                           | Format, test, conformance runners         |
+
+## Documentation
+
+| Kind                | Start here                                                                                                  |
+|---------------------|-------------------------------------------------------------------------------------------------------------|
+| User docs (en-us)   | [`projects/dejavu.ts/homepage/documents/en-us`](./projects/dejavu.ts/homepage/documents/en-us/index.md)     |
+| User docs (zh-hans) | [`projects/dejavu.ts/homepage/documents/zh-hans`](./projects/dejavu.ts/homepage/documents/zh-hans/index.md) |
+| Developer docs      | [`documentation/index.md`](./documentation/index.md)                                                        |
+| Doc map             | [`documentation/readme.md`](./documentation/readme.md)                                                      |
+| Specs               | [`specifications/`](./specifications/)                                                                      |
+| Compatibility       | [`documentation/compatibility.md`](./documentation/compatibility.md)                                        |
+| Release checklist   | [`documentation/contribute/release.md`](./documentation/contribute/release.md)                              |
+
+## Development
+
+Requires Node.js 20+ and pnpm 10 (see `packageManager` in root `package.json`).
+
+```bash
+pnpm install
+pnpm fmt:check
+pnpm test
+pnpm conformance
+```
+
+Workspace packages for the TypeScript host live under `projects/dejavu.ts/` (`pnpm-workspace.yaml`).
+
+## Package scope
+
+| Package                                                  | Audience                        |
+|----------------------------------------------------------|---------------------------------|
+| `@doki-land/dejavu`                                      | Applications                    |
+| `@dejavu/engine`, `@dejavu/language`, `@dejavu/types`, … | Binding / core maintainers only |
+| Host adapters (`hono-dejavu`, …)                         | Framework integration           |
 
 ## License
 
