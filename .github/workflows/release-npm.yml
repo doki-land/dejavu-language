@@ -1,8 +1,8 @@
 # Publish @doki-land/dejavu when a semver tag is pushed.
 # Trusted Publisher on npmjs.com must use workflow filename: release-npm.yml
 #
-# Flow: tag → ci (same checks as push-to-dev) → publish only if ci is green.
-# Tag supplies the version number; checkout / build always use this repo's `dev`.
+# Flow: tag → ci → publish only if ci is green.
+# Trigger: tag vX.Y.Z (any branch / any commit the tag points at).
 #
 # Repo: doki-land/dejavu-language
 # Tag: vX.Y.Z  (smoke: v0.0.0 — already-published versions are skipped, not errors)
@@ -34,8 +34,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: dev
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4

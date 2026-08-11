@@ -1,9 +1,10 @@
-# Build and push the `dejavu` CLI image to GHCR when a semver tag is pushed.
+# Build and push the Rust `dejavu` CLI image to GHCR.
 # Independent of release-npm / publish-artifacts.
 #
-# Image: ghcr.io/doki-land/dejavu:vX.Y.Z  (+ :X.Y.Z and :latest for plain semver)
+# Trigger: tag vX.Y.Z (any branch / any commit the tag points at).
+# Flow: tag → ci → docker build/push of that tagged commit.
 #
-# Flow: tag → ci → docker build/push from this repo's `dev`.
+# Image: ghcr.io/doki-land/dejavu:vX.Y.Z (+ :X.Y.Z and :latest for plain semver)
 
 name: publish-docker
 
@@ -35,8 +36,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: dev
 
       - name: Resolve version from tag
         id: ver
@@ -64,7 +63,6 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.IMAGE }}
-          # Checkout is `dev`, so do not rely on git-tag semver discovery.
           tags: |
             type=raw,value=${{ steps.ver.outputs.version }}
             type=raw,value=${{ steps.ver.outputs.tag }}

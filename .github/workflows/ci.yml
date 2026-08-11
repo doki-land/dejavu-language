@@ -1,7 +1,8 @@
 # Gate checks for dejavu-language.
 # - push / PR to `dev` → run this workflow
 # - release-npm / publish-docker / publish-artifacts call this via workflow_call;
-#   publish jobs only run after it succeeds
+#   publish jobs only run after it succeeds.
+# - On workflow_call (tag release), checkout is the caller's ref (the tagged commit).
 
 name: ci
 
@@ -28,15 +29,7 @@ jobs:
 
     steps:
       - name: Checkout
-        if: github.event_name != 'workflow_call'
         uses: actions/checkout@v4
-
-      # Publish workflows call this; build always from this repo's `dev`.
-      - name: Checkout dev
-        if: github.event_name == 'workflow_call'
-        uses: actions/checkout@v4
-        with:
-          ref: dev
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4

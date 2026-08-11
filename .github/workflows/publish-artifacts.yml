@@ -1,9 +1,10 @@
 # Pack the Rust `dejavu` CLI (dejavu-tools) and publish/update a GitHub Release.
 # Independent of release-npm / publish-docker.
 #
-# Asset: dejavu-vX.Y.Z-linux-x64.zip  (contains `dejavu/dejavu`)
+# Trigger: tag vX.Y.Z (any branch / any commit the tag points at).
 # Flow: tag → ci → cargo build --release -p dejavu-tools --bin dejavu → GitHub Release
-# Tag supplies the version number; checkout / build always use this repo's `dev`.
+#
+# Asset: dejavu-vX.Y.Z-linux-x64.zip  (contains `dejavu/dejavu`)
 
 name: publish-artifacts
 
@@ -31,8 +32,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: dev
 
       - name: Resolve version from tag
         id: ver
