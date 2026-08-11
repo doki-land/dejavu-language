@@ -1,0 +1,60 @@
+# Gate checks for dejavu-language.
+# - push / PR to `dev` → run this workflow
+# - release-npm calls this via workflow_call; publish only runs after it succeeds
+
+name: ci
+
+on:
+  push:
+    branches:
+      - dev
+  pull_request:
+    branches:
+      - dev
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        if: github.event_name != 'workflow_call'
+        uses: actions/checkout@v4
+
+      # release-npm calls this workflow; build always from this repo's `dev`.
+      - name: Checkout dev
+        if: github.event_name == 'workflow_call'
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript tests
+        run: pnpm --filter @dejavu/engine test
+
+      - name: IR conformance
+        run: pnpm conformance
+
+      - name: Publish bundle smoke (@doki-land/dejavu)
+        run: pnpm --filter @doki-land/dejavu run build:publish
