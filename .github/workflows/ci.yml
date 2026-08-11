@@ -42,6 +42,9 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      - name: Typecheck (@dejavu/engine, excludes legacy)
+        run: pnpm --filter @dejavu/engine typecheck
+
       - name: TypeScript tests
         run: pnpm --filter @dejavu/engine test
 

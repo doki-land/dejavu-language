@@ -1,7 +1,10 @@
 /**
- * @deprecated Legacy AST engine. New hosts must use the IR path (`@dejavu/engine` / `dejavu`).
- * Kept temporarily for reference and emergency fallback; not used by Doki.
- * Will be removed after Template Contract 1.0 freezes and conformance is green.
+ * @deprecated Legacy AST engine. Isolated from the formal package surface:
+ * - not in `tsconfig.json` include (use `pnpm typecheck:legacy` only)
+ * - not exported from `@dejavu/engine` package.json
+ *
+ * New hosts must use the IR path (`@dejavu/engine` / `@doki-land/dejavu`).
+ * Kept as in-tree reference until Template Contract 1.0 freezes and conformance is green.
  */
 export { DejavuEngine, engine } from "./engine";
 export {
