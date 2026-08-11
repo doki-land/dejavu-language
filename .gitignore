@@ -13,7 +13,6 @@ time-travel.*
 
 # Node
 node_modules/
-pnpm-lock.yaml
 
 # Shared noise
 *.log
