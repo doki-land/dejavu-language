@@ -2,21 +2,22 @@
 
 **One template language, shared IR, host-specific runtimes.**
 
-Dejavu is a template engine with a frozen, host-independent contract: parse source into IR, then render with a JSON-compatible context. TypeScript, Rust, C#, Kotlin, and Python hosts consume the same semantics; application code on TypeScript uses the public facade `@doki-land/dejavu`.
+Dejavu separates template intent from the host runtime. Write a template once, then pick the binding that fits your app. A shared IR keeps behavior aligned across TypeScript, Rust, C#, Kotlin, and Python.
 
-📦 Repository: [doki-land/dejavu-language](https://github.com/doki-land/dejavu-language/tree/dev) (`dev` branch).
+Repository: [`doki-land/dejavu-language`](https://github.com/doki-land/dejavu-language/tree/dev) (`dev`).
 
 ```dejavu
 Hello, <% account.name %>!
 ```
 
-## ✨ Features
+## ✨ What you get
 
-- Shared **Template Contract** + **IR v1** + conformance fixtures under `specifications/`
-- Interpolation, `if` / `else if` / `else`, `loop`, `|>` filters, HTML escaping, `safe` / `raw`
-- Inheritance: `extends` / `block` / `super` / `include` with path-v1 loader resolution
+- One template language surface (Template Contract + IR v1)
+- Shared conformance fixtures under `specifications/`
+- Interpolation, `if` / `loop`, `|>` filters, HTML escaping, `safe` / `raw`
+- Inheritance: `extends` / `block` / `super` / `include` + path-v1 loader
 - AOT where a host supports it; runtime rendering otherwise
-- Host adapters stay outside the public application facade
+- Host adapters kept separate from the public `@doki-land/dejavu` facade
 
 ## 🚀 Quick start (TypeScript)
 
@@ -31,7 +32,7 @@ const out = render(parse("Hello, <% name %>!"), { name: "World" });
 // → Hello, World!
 ```
 
-Install and API notes for other hosts live under each `projects/dejavu.*` tree. Do not depend on `@dejavu/*` or other engine-layer packages from application code.
+Install and API notes for other hosts live under each `projects/dejavu.*` tree. Application code should not depend on `@dejavu/*` engine-layer packages.
 
 ## 🧩 Hosts
 
@@ -44,9 +45,9 @@ Install and API notes for other hosts live under each `projects/dejavu.*` tree. 
 | Python | `dejavu` | Binding |
 | CLI | `dejavu` binary | Where packaged |
 
-Cross-host completeness is recorded in [`documentation/compatibility.md`](./documentation/compatibility.md) — not implied by directory presence alone.
+Cross-host status: [`documentation/compatibility.md`](./documentation/compatibility.md).
 
-## 📁 Repository layout
+## 🗂 Repository layout
 
 | Path | Role |
 | --- | --- |
@@ -69,9 +70,9 @@ Cross-host completeness is recorded in [`documentation/compatibility.md`](./docu
 | Compatibility | [`documentation/compatibility.md`](./documentation/compatibility.md) |
 | Release checklist | [`documentation/contribute/release.md`](./documentation/contribute/release.md) |
 
-## 🛠️ Development
+## 🛠 Development
 
-Requires Node.js 20+ and pnpm 10 (see `packageManager` in root `package.json`).
+Requires Node.js 20+ and pnpm 10 (`packageManager` in root `package.json`).
 
 ```bash
 pnpm install
@@ -79,8 +80,6 @@ pnpm fmt:check
 pnpm test
 pnpm conformance
 ```
-
-Workspace packages for the TypeScript host live under `projects/dejavu.ts/` (`pnpm-workspace.yaml`).
 
 ## 📦 Package scope
 
