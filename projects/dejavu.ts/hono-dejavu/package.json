@@ -1,6 +1,6 @@
 {
   "name": "hono-dejavu",
-  "version": "0.0.1",
+  "version": "0.0.0",
   "description": "Hono adapter for Dejavu — depends on the public @doki-land/dejavu facade",
   "type": "module",
   "license": "MPL-2.0",

@@ -1,6 +1,6 @@
 {
   "name": "@dejavu/types",
-  "version": "0.0.1",
+  "version": "0.0.0",
   "private": true,
   "description": "Internal Dejavu IR types — applications must depend on @doki-land/dejavu only",
   "type": "module",

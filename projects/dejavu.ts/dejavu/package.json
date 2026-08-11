@@ -1,6 +1,6 @@
 {
   "name": "@doki-land/dejavu",
-  "version": "0.0.1",
+  "version": "0.0.0",
   "description": "Dejavu template engine — public TypeScript/JavaScript API",
   "type": "module",
   "license": "MPL-2.0",
