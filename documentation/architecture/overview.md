@@ -5,7 +5,7 @@
 ```text
 应用或框架适配器
         ↓
-公共 facade：@doki-land/dejavu
+公共 facade：@doki-land/dejavu  /  dejavu::*（Rust） / 各语言同名入口
         ↓
 parser：source → IR
         ↓
@@ -15,6 +15,8 @@ renderer：IR + Context → output
 ```
 
 宿主可以用自己的语言实现 parser、renderer 和绑定 API，但可观察语言行为由共享 Contract、IR schema 和 conformance fixture 定义。
+
+TypeScript 应用入口固定为 `@doki-land/dejavu`；Rust 为 `dejavu` crate（`use dejavu::*`）。`@doki-land/dejavu-engine` 仅服务 Doki 产品宿主。
 
 ## 责任边界
 

@@ -14,8 +14,11 @@ const direct = Dejavu.renderSource("Hello, <% account.name %>!", {
 });
 ```
 
-公开 facade 还负责 `check`、`withTemplates` 和公开 loader 类型。`@doki-land/dejavu-engine`、language、types
-等实现包不得成为普通应用教程的依赖入口。
+公开 facade 还负责 `check`、`withTemplates` 和公开 loader 类型。
+
+- 普通应用：**只**依赖 `@doki-land/dejavu`
+- 内部实现包：`@dejavu/engine`、`@dejavu/language`、`@dejavu/types`（不得出现在应用教程）
+- Doki 产品绑定：`@doki-land/dejavu-engine`（宿主适配器，不是通用应用入口）
 
 维护 facade 时必须验证：
 

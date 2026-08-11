@@ -1,8 +1,11 @@
 /**
- * Public TypeScript surface: `import { Dejavu, parse, render } from "dejavu"`.
+ * Public TypeScript surface: `import { Dejavu, parse, render } from "@doki-land/dejavu"`.
  *
  * Internal packages (`@dejavu/language`, `@dejavu/types`, `@dejavu/engine`) are
- * implementation details — app code should depend on **`dejavu`** only.
+ * implementation details — application code must depend on **`@doki-land/dejavu` only**.
+ *
+ * Doki's product binding is `@doki-land/dejavu-engine` (host adapter), not this facade's
+ * replacement for general apps.
  */
 
 export {
@@ -27,11 +30,17 @@ export {
     type IrNode,
     type IrValue,
     type Language,
+    type TemplateConfig,
     type RenderOptions,
     type TemplateLoader,
     type TemplateLoadResult,
     type TemplateResolveOk,
+    type TemplateDiagnostic,
+    type TemplateDiagnosticCode,
     type CanonicalId,
+    type TemplateRootConfig,
+    type PathTemplateLoaderOptions,
+    type CatalogTemplateLoaderOptions,
     type ParseOptions,
     type SafeHtmlValue,
 } from "@dejavu/engine";
@@ -49,7 +58,7 @@ import {
     type RenderOptions,
 } from "@dejavu/engine";
 
-/** Canonical user-facing facade (mirrors `Dejavu` in other hosts). */
+/** Canonical user-facing facade (mirrors `Dejavu` / `dejavu::*` in other hosts). */
 export const Dejavu = {
     parse(source: string, options?: { file?: string; language?: Language }): IrDocument {
         return parseToIr(source, options);

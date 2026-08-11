@@ -38,14 +38,15 @@ Install and API notes for other hosts live under each `projects/dejavu.*` tree. 
 
 ## 🧩 Hosts
 
-| Host       | Public surface      | Notes                      |
-|------------|---------------------|----------------------------|
-| TypeScript | `@doki-land/dejavu` | Primary application facade |
-| Rust       | `dejavu` crate      | Embed / CLI                |
-| C#         | `Dejavu`            | .NET binding               |
-| Kotlin     | `dejavu`            | JVM / tooling              |
-| Python     | `dejavu`            | Binding                    |
-| CLI        | `dejavu` binary     | Where packaged             |
+| Host       | Public surface                         | Notes                                      |
+|------------|----------------------------------------|--------------------------------------------|
+| TypeScript | `@doki-land/dejavu`                    | Application facade                         |
+| Rust       | `dejavu` (`use dejavu::*`)             | Application facade                         |
+| C#         | `Dejavu`                               | .NET binding                               |
+| Kotlin     | `dejavu`                               | JVM / tooling                              |
+| Python     | `dejavu`                               | Binding                                    |
+| CLI        | `dejavu` binary                        | From `dejavu-tools`                        |
+| Doki only  | `@doki-land/dejavu-engine`             | Product host adapter — not general apps    |
 
 Cross-host status: [`documentation/compatibility.md`](./documentation/compatibility.md).
 
@@ -85,11 +86,13 @@ pnpm conformance
 
 ## 📦 Package scope
 
-| Package                                                  | Audience                        |
-|----------------------------------------------------------|---------------------------------|
-| `@doki-land/dejavu`                                      | Applications                    |
-| `@dejavu/engine`, `@dejavu/language`, `@dejavu/types`, … | Binding / core maintainers only |
-| Host adapters (`hono-dejavu`, …)                         | Framework integration           |
+| Package                                                  | Audience                                   |
+|----------------------------------------------------------|--------------------------------------------|
+| `@doki-land/dejavu`                                      | TypeScript applications                    |
+| `dejavu` (crates.io)                                     | Rust applications (`use dejavu::*`)        |
+| `@dejavu/engine`, `@dejavu/language`, `@dejavu/types`, … | Binding / core maintainers only            |
+| `@doki-land/dejavu-engine`                               | Doki product host adapter only             |
+| Host adapters (`hono-dejavu`, …)                         | Framework integration                      |
 
 ## 📄 License
 

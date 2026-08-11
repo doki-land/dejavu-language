@@ -18,7 +18,14 @@ Dejavu 的语言契约与宿主实现分离：每个宿主可以使用自己的 
 
 ## 公共 facade
 
-应用依赖 `@doki-land/dejavu`。宿主绑定可以依赖 `@doki-land/dejavu-engine` 等实现包，但不能把这些内部模块当成应用 API。
+| 宿主 | 应用入口 |
+|------|----------|
+| TypeScript | `@doki-land/dejavu` |
+| Rust | `dejavu` crate（`use dejavu::Dejavu` / `use dejavu::*`） |
+| 其他 | 同名 `dejavu` / `Dejavu` 包 |
+
+`@dejavu/*` 与各语言内部 crate（`dejavu-engine`、`dejavu-ir` 等）是实现层。
+`@doki-land/dejavu-engine` 是 **Doki 产品**的宿主绑定，不是通用 TypeScript 应用入口。
 
 ```text
 source.dejavu
