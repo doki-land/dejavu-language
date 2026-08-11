@@ -1,48 +1,30 @@
-# ✨ Dejavu
+# Dejavu
 
-**One template surface, consistent across hosts.**
-
-Dejavu separates template intent from the host runtime. Write a template once, then pick the binding that fits your app.
-A shared IR keeps behavior aligned.
-
-## 👀 At a glance
+Dejavu parses templates into a shared intermediate representation and renders that IR with a JSON-compatible context. The current contract covers interpolation, conditions, loops, filters, HTML escaping, inheritance, includes, and template loading.
 
 ```dejavu
-Hello, <% name %>!
+Hello, <% account.name %>!
 ```
 
-Templates stay close to the output they describe. The intermediate representation (IR) carries shared semantics across
-hosts.
+Application developers using TypeScript import the public facade from `@doki-land/dejavu`. Engine-layer packages are for binding and core maintainers, not ordinary application code.
 
-## ✨ What you get
+## Documentation
 
-- One template language surface
-- Shared IR and conformance fixtures
-- AOT compilation where a host supports it; runtime rendering otherwise
-- Host adapters kept separate from the public `dejavu` facade
+- [English user documentation](./projects/dejavu.ts/homepage/documents/en-us/index.md)
+- [Simplified Chinese user documentation](./projects/dejavu.ts/homepage/documents/zh-hans/index.md)
+- [Contributor and core developer documentation](./documentation/index.md)
+- [Host-independent specifications](./specifications/)
+- [Implementation compatibility](./documentation/compatibility.md)
 
-## 🧩 Hosts
+The specification defines required behavior; the compatibility page records which host implementations have verified that behavior. Do not infer implementation completeness from the list of host directories.
 
-| Host       | Public surface  |
-|------------|-----------------|
-| TypeScript | `dejavu`        |
-| Rust       | `dejavu`        |
-| C#         | `Dejavu`        |
-| Kotlin     | `dejavu`        |
-| CLI        | `dejavu` binary |
+## Repository layout
 
-Install and API details live under each host tree.
+- `projects/dejavu.ts`, `.rs`, `.cs`, `.kt`, `.py`: host implementations and bindings
+- `specifications/`: Template Contract, IR schema, and conformance fixtures
+- `documentation/`: contributor workflows and implementation notes
+- `projects/dejavu.ts/homepage/documents/`: external user documentation
 
-## 📚 Documentation
-
-| Kind           | Start here                                                                                                                                                            |
-|----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Developer docs | [`documentation/index.md`](./documentation/index.md)                                                                                                                  |
-| User docs      | [`documents/en-us/index.md`](./projects/dejavu.ts/homepage/documents/en-us/index.md) · [`zh-hans/index.md`](./projects/dejavu.ts/homepage/documents/zh-hans/index.md) |
-| Specs          | [`specifications/`](./specifications/)                                                                                                                                |
-
-Map: [`documentation/readme.md`](./documentation/readme.md).
-
-## 📄 License
+## License
 
 [MPL-2.0](./License.md)
