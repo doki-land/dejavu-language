@@ -1,4 +1,4 @@
-# Publish @doki-land/dejavu (and related TS packages) when a semver tag is pushed.
+# Publish @doki-land/dejavu when a semver tag is pushed.
 # Trusted Publisher on npmjs.com must use workflow filename: release-npm.yml
 #
 # Repo: doki-land/dejavu-language
@@ -56,87 +56,71 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Pin package versions to tag
-        run: |
-          node <<'NODE'
-          const fs = require("fs");
-          const version = process.env.VERSION;
-          const pkgs = [
-            "projects/dejavu.ts/dejavu/package.json",
-            "projects/dejavu.ts/hono-dejavu/package.json",
-          ];
-          for (const p of pkgs) {
-            const j = JSON.parse(fs.readFileSync(p, "utf8"));
-            j.version = version;
-            if (j.private) delete j.private;
-            j.publishConfig = { ...(j.publishConfig || {}), access: "public" };
-            j.repository = {
-              type: "git",
-              url: "git+https://github.com/doki-land/dejavu-language.git",
-              directory: p.replace(/\/package\.json$/, ""),
-            };
-            fs.writeFileSync(p, JSON.stringify(j, null, 2) + "\n");
-            console.log(`${j.name}@${j.version}`);
-          }
-          NODE
+      - name: Pin + prepare @doki-land/dejavu
         env:
           VERSION: ${{ steps.ver.outputs.version }}
-
-      - name: Guard — refuse non-0.0.0 accidental versions on smoke tags
         run: |
-          node -e "
-          const fs=require('fs');
-          const want=process.env.WANT;
-          for (const p of [
-            'projects/dejavu.ts/dejavu/package.json',
-            'projects/dejavu.ts/hono-dejavu/package.json',
-          ]) {
-            const j=JSON.parse(fs.readFileSync(p,'utf8'));
-            if (j.version!==want) { console.error(p, j.version, '!=', want); process.exit(1); }
-            console.log(j.name+'@'+j.version);
-          }
-          "
-        env:
-          WANT: ${{ steps.ver.outputs.version }}
+          set -euo pipefail
+          PKG=projects/dejavu.ts/dejavu
 
-      - name: Build facade
-        run: |
-          pnpm --filter @dejavu/types build
-          pnpm --filter @dejavu/language build
-          pnpm --filter @dejavu/engine build
-          pnpm --filter @doki-land/dejavu build
+          # Bundle workspace engine into dist so publish has no workspace: deps.
+          (cd "$PKG" && pnpm dlx tsup@8.5.1 src/index.ts --format esm --dts --outDir dist --no-external)
+
+          node <<'NODE'
+          const fs = require("fs");
+          const path = "projects/dejavu.ts/dejavu/package.json";
+          const version = process.env.VERSION;
+          const j = JSON.parse(fs.readFileSync(path, "utf8"));
+          j.name = "@doki-land/dejavu";
+          j.version = version;
+          delete j.private;
+          delete j.dependencies;
+          delete j.devDependencies;
+          delete j.peerDependencies;
+          j.main = "./dist/index.js";
+          j.types = "./dist/index.d.ts";
+          j.exports = {
+            ".": {
+              types: "./dist/index.d.ts",
+              import: "./dist/index.js",
+            },
+          };
+          j.files = ["dist"];
+          j.publishConfig = { ...(j.publishConfig || {}), access: "public" };
+          j.repository = {
+            type: "git",
+            url: "git+https://github.com/doki-land/dejavu-language.git",
+            directory: "projects/dejavu.ts/dejavu",
+          };
+          j.homepage = "https://github.com/doki-land/dejavu-language/tree/dev";
+          fs.writeFileSync(path, JSON.stringify(j, null, 2) + "\n");
+          console.log(`${j.name}@${j.version}`);
+          if (j.version !== version) process.exit(1);
+          NODE
 
       - name: Publish to npm (OIDC)
         run: |
           set -u
-          publish_one() {
-            local dir="$1"
-            local name version
-            name="$(node -p "require('./${dir}/package.json').name")"
-            version="$(node -p "require('./${dir}/package.json').version")"
-            echo "::group::npm publish ${name}@${version}"
-            set +e
-            out="$(cd "$dir" && npm publish --access public 2>&1)"
-            status=$?
-            set -e
-            printf '%s\n' "$out"
-            if [ "$status" -eq 0 ]; then
-              echo "published ${name}@${version}"
-              echo "::endgroup::"
-              return 0
-            fi
-            if printf '%s\n' "$out" | grep -Eqi \
-              'cannot publish over|previously published|EPUBLISHCONFLICT|You cannot publish over the previously published versions'; then
-              echo "::notice::${name}@${version} already on npm — skip (not an error)"
-              echo "::endgroup::"
-              return 0
-            fi
-            echo "::error::npm publish failed for ${name}@${version} (exit ${status})"
+          dir="projects/dejavu.ts/dejavu"
+          name="$(node -p "require('./${dir}/package.json').name")"
+          version="$(node -p "require('./${dir}/package.json').version")"
+          echo "::group::npm publish ${name}@${version}"
+          set +e
+          out="$(cd "$dir" && npm publish --access public 2>&1)"
+          status=$?
+          set -e
+          printf '%s\n' "$out"
+          if [ "$status" -eq 0 ]; then
+            echo "published ${name}@${version}"
             echo "::endgroup::"
-            return "$status"
-          }
-          failed=0
-          publish_one projects/dejavu.ts/dejavu || failed=1
-          # hono adapter is optional for smoke; still pin/publish when ready
-          # publish_one projects/dejavu.ts/hono-dejavu || failed=1
-          exit "$failed"
+            exit 0
+          fi
+          if printf '%s\n' "$out" | grep -Eqi \
+            'cannot publish over|previously published|EPUBLISHCONFLICT|You cannot publish over the previously published versions'; then
+            echo "::notice::${name}@${version} already on npm — skip (not an error)"
+            echo "::endgroup::"
+            exit 0
+          fi
+          echo "::error::npm publish failed for ${name}@${version} (exit ${status})"
+          echo "::endgroup::"
+          exit "$status"
