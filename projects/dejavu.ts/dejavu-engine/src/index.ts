@@ -1,4 +1,4 @@
-import {parseToIr} from "@dejavu/language";
+import { parseToIr } from "@dejavu/language";
 import {
     normalizeIrJson,
     type IrDocument,
@@ -7,10 +7,10 @@ import {
     type RenderOptions,
     type TemplateLoader,
 } from "@dejavu/types";
-import {MapTemplateLoader} from "./loader";
-import {renderIr} from "./render";
+import { MapTemplateLoader } from "./loader";
+import { renderIr } from "./render";
 
-export {renderIr} from "./render";
+export { renderIr } from "./render";
 export {
     CatalogTemplateLoader,
     MapTemplateLoader,
@@ -28,7 +28,7 @@ export {
     parseCanonicalId,
     canonicalId,
 } from "./resolve";
-export {parseToIr} from "@dejavu/language";
+export { parseToIr } from "@dejavu/language";
 export {
     normalizeIrJson,
     normalizeValue,
@@ -60,8 +60,7 @@ export class DejavuEngine {
     constructor(options?: { language?: Language; loader?: TemplateLoader }) {
         this.language = options?.language;
         this.loader =
-            options?.loader ??
-            new MapTemplateLoader(new Map(), {language: this.language});
+            options?.loader ?? new MapTemplateLoader(new Map(), { language: this.language });
     }
 
     setLanguage(language: Language): this {
@@ -95,14 +94,17 @@ export class DejavuEngine {
             return this;
         }
 
-        const doc = parseToIr(source, {file: name, language: lang});
-        this.loader = new MapTemplateLoader(new Map([[name, doc]]), {language: lang});
+        const doc = parseToIr(source, { file: name, language: lang });
+        this.loader = new MapTemplateLoader(new Map([[name, doc]]), { language: lang });
         return this;
     }
 
-    parse(source: string, fileOrOpts?: string | { file?: string; language?: Language }): IrDocument {
+    parse(
+        source: string,
+        fileOrOpts?: string | { file?: string; language?: Language },
+    ): IrDocument {
         if (typeof fileOrOpts === "string") {
-            return parseToIr(source, {file: fileOrOpts, language: this.language});
+            return parseToIr(source, { file: fileOrOpts, language: this.language });
         }
         return parseToIr(source, {
             file: fileOrOpts?.file,
@@ -130,8 +132,8 @@ export class DejavuEngine {
         options: RenderOptions & { language?: Language } = {},
     ): string {
         const name = options.name ?? "<main>";
-        const doc = this.parse(source, {file: name, language: options.language});
-        return this.render(doc, ctx, {...options, name});
+        const doc = this.parse(source, { file: name, language: options.language });
+        return this.render(doc, ctx, { ...options, name });
     }
 
     renderTemplate(
@@ -151,10 +153,10 @@ export class DejavuEngine {
 
     check(source: string, language?: Language): { valid: boolean; errors: string[] } {
         try {
-            parseToIr(source, {language: language ?? this.language});
-            return {valid: true, errors: []};
+            parseToIr(source, { language: language ?? this.language });
+            return { valid: true, errors: [] };
         } catch (e) {
-            return {valid: false, errors: [String(e)]};
+            return { valid: false, errors: [String(e)] };
         }
     }
 

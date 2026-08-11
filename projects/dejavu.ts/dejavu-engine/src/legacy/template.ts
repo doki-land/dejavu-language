@@ -1,5 +1,5 @@
-import {engine} from "./engine";
-import type {DejavuLanguage} from "./language";
+import { engine } from "./engine";
+import type { DejavuLanguage } from "./language";
 
 /** 注册模板 */
 export function registerTemplate(name: string, source: string, language?: DejavuLanguage): void {

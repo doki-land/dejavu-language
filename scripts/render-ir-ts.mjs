@@ -3,10 +3,10 @@
  * Conformance helper via public package `dejavu`.
  * Usage: node scripts/render-ir-ts.mjs <ir.json> <ctx.json>
  */
-import {readFileSync} from "node:fs";
-import {spawnSync} from "node:child_process";
-import {join, dirname} from "node:path";
-import {fileURLToPath} from "node:url";
+import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const irPath = process.argv[2];
@@ -34,9 +34,9 @@ if (r.status === 0) {
 }
 
 // Fallback: load public facade path failed — evaluate IR with local minimal renderer
-const {renderIr} = await import(
+const { renderIr } = await import(
     new URL("../projects/dejavu.ts/packages/dejavu-engine/src/index.ts", import.meta.url).href
-    ).catch(() => ({renderIr: null}));
+).catch(() => ({ renderIr: null }));
 
 const ir = JSON.parse(readFileSync(irPath, "utf8"));
 const ctx = JSON.parse(readFileSync(ctxPath, "utf8"));
@@ -44,14 +44,14 @@ if (typeof renderIr === "function") {
     process.stdout.write(renderIr(ir, ctx));
 } else {
     // last-resort inline (kept in previous runner revisions)
-    const {createRequire} = await import("node:module");
+    const { createRequire } = await import("node:module");
     const require = createRequire(import.meta.url);
     // Pure fallback duplicated evaluator
     process.stdout.write(fallbackRender(ir, ctx));
 }
 
 function fallbackRender(doc, ctx) {
-    const scope = {...ctx};
+    const scope = { ...ctx };
 
     function str(v) {
         if (v === null || v === undefined) return "";

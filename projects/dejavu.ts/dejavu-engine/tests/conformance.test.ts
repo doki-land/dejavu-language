@@ -1,8 +1,8 @@
-import {describe, it, expect} from "vitest";
-import {readFileSync, readdirSync} from "node:fs";
-import {join, dirname} from "node:path";
-import {fileURLToPath} from "node:url";
-import {compareIrJson, engine, normalizeIrJson, renderIr, type IrDocument} from "../src";
+import { describe, it, expect } from "vitest";
+import { readFileSync, readdirSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { compareIrJson, engine, normalizeIrJson, renderIr, type IrDocument } from "../src";
 
 const root = join(
     dirname(fileURLToPath(import.meta.url)),
@@ -10,7 +10,7 @@ const root = join(
 );
 
 describe("specifications/conformance/t1", () => {
-    const cases = readdirSync(root, {withFileTypes: true})
+    const cases = readdirSync(root, { withFileTypes: true })
         .filter((d) => d.isDirectory())
         .map((d) => d.name)
         .sort();

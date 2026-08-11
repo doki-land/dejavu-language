@@ -5,11 +5,11 @@
  *   node scripts/format.mjs           # write
  *   node scripts/format.mjs --check   # check only
  */
-import {execFileSync} from "node:child_process";
-import {existsSync, readdirSync} from "node:fs";
-import {createRequire} from "node:module";
-import {dirname, join} from "node:path";
-import {fileURLToPath} from "node:url";
+import { execFileSync } from "node:child_process";
+import { existsSync, readdirSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const rootDir = join(dirname(fileURLToPath(import.meta.url)), "..");
 const checkOnly = process.argv.includes("--check");
@@ -21,7 +21,7 @@ const checkOnly = process.argv.includes("--check");
  */
 function runFile(file, args, cwd = rootDir) {
     console.log(`$ ${file} ${args.join(" ")}`);
-    execFileSync(file, args, {cwd, stdio: "inherit", env: process.env});
+    execFileSync(file, args, { cwd, stdio: "inherit", env: process.env });
 }
 
 function rustManifests() {
@@ -29,7 +29,7 @@ function rustManifests() {
     if (!existsSync(projects)) {
         return [];
     }
-    return readdirSync(projects, {withFileTypes: true})
+    return readdirSync(projects, { withFileTypes: true })
         .filter((d) => d.isDirectory())
         .map((d) => join("projects", d.name, "Cargo.toml"))
         .filter((rel) => existsSync(join(rootDir, rel)));
@@ -44,7 +44,7 @@ function workspacePackageNames(manifestRel) {
     const raw = execFileSync(
         "cargo",
         ["metadata", "--no-deps", "--format-version", "1", `--manifest-path=${manifestRel}`],
-        {cwd: rootDir, encoding: "utf8", env: process.env},
+        { cwd: rootDir, encoding: "utf8", env: process.env },
     );
     const meta = JSON.parse(raw);
     const members = new Set(meta.workspace_members);

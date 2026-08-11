@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import {readFileSync, writeFileSync} from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import cac from "cac";
-import {engine, renderIr, type IrDocument} from "@dejavu/engine";
+import { engine, renderIr, type IrDocument } from "@dejavu/engine";
 
 const cli = cac("dejavu");
 
@@ -16,7 +16,7 @@ cli.command("parse <file>", "Parse template and emit IR JSON")
 
 cli.command("render <file>", "Render from IR JSON or source")
     .option("--from-ir", "Treat input as IR JSON")
-    .option("--ctx <file>", "Context JSON file", {default: ""})
+    .option("--ctx <file>", "Context JSON file", { default: "" })
     .action((file: string, opts: { fromIr?: boolean; ctx?: string }) => {
         const raw = readFileSync(file, "utf8");
         const ctx = opts.ctx ? JSON.parse(readFileSync(opts.ctx, "utf8")) : {};

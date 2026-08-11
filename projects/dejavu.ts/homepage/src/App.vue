@@ -209,7 +209,7 @@
 </template>
 
 <script setup lang="ts">
-import {onMounted, onUnmounted, ref} from "vue";
+import { onMounted, onUnmounted, ref } from "vue";
 import DejavuEditor from "@/components/DejavuEditor.vue";
 import Header from "@/components/Header.vue";
 import Footer from "@/components/Footer.vue";
@@ -217,69 +217,69 @@ import Footer from "@/components/Footer.vue";
 type Section = "home" | "playground" | "ecosystem";
 
 const PATHS: Record<Section, string> = {
-  home: "/",
-  playground: "/playground",
-  ecosystem: "/ecosystem",
+    home: "/",
+    playground: "/playground",
+    ecosystem: "/ecosystem",
 };
 
 const currentSection = ref<Section>("home");
 
 const principles = [
-  {
-    title: "Readable source",
-    body: "Interpolation and control flow stay close to the text your team edits.",
-    token: "<%= value %>",
-  },
-  {
-    title: "Shared IR",
-    body: "A versioned intermediate representation is the contract between parser and host.",
-    token: "IR / v1",
-  },
-  {
-    title: "Predictable render",
-    body: "The same source and context produce the same output, whichever host runs it.",
-    token: "render(IR, ctx)",
-  },
+    {
+        title: "Readable source",
+        body: "Interpolation and control flow stay close to the text your team edits.",
+        token: "<%= value %>",
+    },
+    {
+        title: "Shared IR",
+        body: "A versioned intermediate representation is the contract between parser and host.",
+        token: "IR / v1",
+    },
+    {
+        title: "Predictable render",
+        body: "The same source and context produce the same output, whichever host runs it.",
+        token: "render(IR, ctx)",
+    },
 ];
 
 const hosts = [
-  {
-    id: "cs",
-    name: "C# / .NET",
-    glyph: ".N",
-    package: "Dejavu",
-    snippet: "var html = Dj.RenderSource(source, ctx);",
-  },
-  {
-    id: "kt",
-    name: "Kotlin",
-    glyph: "Kt",
-    package: "dejavu",
-    snippet: "val html = Dejavu.renderSource(source, ctx)",
-  },
-  {
-    id: "py",
-    name: "Python",
-    glyph: "Py",
-    package: "dejavu (PyPI)",
-    snippet: "html = Dejavu.render_source(source, ctx)",
-    note: "Scaffold / evolving",
-  },
-  {
-    id: "rs",
-    name: "Rust",
-    glyph: "Rs",
-    package: "dejavu (crates.io)",
-    snippet: "let html = Dejavu::render_source(source, ctx);",
-    note: "Optional CLI: dejavu-tools",
-  },
-  {
-    id: "ts",
-    name: "TypeScript",
-    glyph: "TS",
-    package: "dejavu (npm)",
-    snippet: "const html = Dejavu.renderSource(source, ctx);",
-  },
+    {
+        id: "cs",
+        name: "C# / .NET",
+        glyph: ".N",
+        package: "Dejavu",
+        snippet: "var html = Dj.RenderSource(source, ctx);",
+    },
+    {
+        id: "kt",
+        name: "Kotlin",
+        glyph: "Kt",
+        package: "dejavu",
+        snippet: "val html = Dejavu.renderSource(source, ctx)",
+    },
+    {
+        id: "py",
+        name: "Python",
+        glyph: "Py",
+        package: "dejavu (PyPI)",
+        snippet: "html = Dejavu.render_source(source, ctx)",
+        note: "Scaffold / evolving",
+    },
+    {
+        id: "rs",
+        name: "Rust",
+        glyph: "Rs",
+        package: "dejavu (crates.io)",
+        snippet: "let html = Dejavu::render_source(source, ctx);",
+        note: "Optional CLI: dejavu-tools",
+    },
+    {
+        id: "ts",
+        name: "TypeScript",
+        glyph: "TS",
+        package: "dejavu (npm)",
+        snippet: "const html = Dejavu.renderSource(source, ctx);",
+    },
 ];
 
 const heroTemplateCode = ref(
@@ -292,38 +292,38 @@ const templateCode = ref(getStartedTemplateCode.value);
 const outputResult = ref("Click Run to preview output");
 
 function pathToSection(pathname: string): Section {
-  const path = pathname.replace(/\/+$/, "") || "/";
-  if (path === "/playground") return "playground";
-  if (path === "/ecosystem") return "ecosystem";
-  return "home";
+    const path = pathname.replace(/\/+$/, "") || "/";
+    if (path === "/playground") return "playground";
+    if (path === "/ecosystem") return "ecosystem";
+    return "home";
 }
 
 function syncFromLocation() {
-  currentSection.value = pathToSection(window.location.pathname);
+    currentSection.value = pathToSection(window.location.pathname);
 }
 
 function navigate(section: string) {
-  if (!(section in PATHS)) return;
-  const next = section as Section;
-  currentSection.value = next;
-  if (window.location.pathname !== PATHS[next])
-    window.history.pushState({section: next}, "", PATHS[next]);
-  window.scrollTo({top: 0, behavior: "smooth"});
+    if (!(section in PATHS)) return;
+    const next = section as Section;
+    currentSection.value = next;
+    if (window.location.pathname !== PATHS[next])
+        window.history.pushState({ section: next }, "", PATHS[next]);
+    window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function runPlayground() {
-  outputResult.value =
-      "Playground runtime wiring is in progress.\n\nTemplate:\n" + templateCode.value;
+    outputResult.value =
+        "Playground runtime wiring is in progress.\n\nTemplate:\n" + templateCode.value;
 }
 
 function resetPlayground() {
-  templateCode.value = getStartedTemplateCode.value;
-  outputResult.value = "Click Run to preview output";
+    templateCode.value = getStartedTemplateCode.value;
+    outputResult.value = "Click Run to preview output";
 }
 
 onMounted(() => {
-  syncFromLocation();
-  window.addEventListener("popstate", syncFromLocation);
+    syncFromLocation();
+    window.addEventListener("popstate", syncFromLocation);
 });
 onUnmounted(() => window.removeEventListener("popstate", syncFromLocation));
 </script>

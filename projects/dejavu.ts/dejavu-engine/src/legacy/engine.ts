@@ -2,10 +2,10 @@
  * DejaVu Engine 类
  * 提供模板管理和渲染功能
  */
-import {DejavuRenderer, RendererConfig} from "./renderer";
-import {parse} from "./parser";
-import type {Program} from "./ast";
-import type {DejavuLanguage} from "./language";
+import { DejavuRenderer, RendererConfig } from "./renderer";
+import { parse } from "./parser";
+import type { Program } from "./ast";
+import type { DejavuLanguage } from "./language";
 
 /**
  * 模板条目接口
@@ -45,7 +45,7 @@ export class DejavuEngine {
     public registerTemplate(name: string, source: string, language?: DejavuLanguage): void {
         const program = parse(source, language);
         const rendererConfig = this.createRendererConfig(language);
-        this.templates.set(name, {program, rendererConfig});
+        this.templates.set(name, { program, rendererConfig });
         this.templateRegistry.set(name, program);
     }
 

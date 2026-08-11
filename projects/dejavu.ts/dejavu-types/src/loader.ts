@@ -1,6 +1,6 @@
 /** Template loading + render options for inheritance / inclusion (path-v1). */
 
-import type {IrDocument, IrValue, Language} from "./ir";
+import type { IrDocument, IrValue, Language } from "./ir";
 
 /** Capability id for the Loader & Resolution chapter. */
 export const LOADER_RESOLUTION_PATH_V1 = "path-v1" as const;
@@ -53,11 +53,7 @@ export interface TemplateLoader {
 
     load(ref: string, options?: { from?: CanonicalId }): IrDocument;
 
-    register?(
-        path: string,
-        source: string | IrDocument,
-        root?: string,
-    ): void;
+    register?(path: string, source: string | IrDocument, root?: string): void;
 
     has?(ref: string, options?: { from?: CanonicalId }): boolean;
 
@@ -86,4 +82,4 @@ export type ParseOptions = {
     language?: Language;
 };
 
-export type {IrDocument, IrValue, Language};
+export type { IrDocument, IrValue, Language };

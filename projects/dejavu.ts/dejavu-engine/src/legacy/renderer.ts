@@ -46,10 +46,10 @@ import {
     IncludeStatement,
     Comment,
 } from "./ast";
-import {FilterRegistry, Filter, filterRegistry} from "./filter";
-import {RecursionDepthError, LoopIterationError} from "./error-types";
-import {TemplateConfig, DEFAULT_TEMPLATE_CONFIG} from "./language";
-import {htmlEscape} from "./escape";
+import { FilterRegistry, Filter, filterRegistry } from "./filter";
+import { RecursionDepthError, LoopIterationError } from "./error-types";
+import { TemplateConfig, DEFAULT_TEMPLATE_CONFIG } from "./language";
+import { htmlEscape } from "./escape";
 
 /**
  * 原始值包装类
@@ -145,7 +145,7 @@ export class DejavuRenderer {
      * @param config 渲染器配置
      */
     constructor(config: Partial<RendererConfig> = {}) {
-        this.config = {...DEFAULT_RENDERER_CONFIG, ...config};
+        this.config = { ...DEFAULT_RENDERER_CONFIG, ...config };
     }
 
     /**
@@ -174,7 +174,7 @@ export class DejavuRenderer {
      */
     private createContext(initialScope: Record<string, any> = {}): RenderContext {
         return {
-            scope: {...initialScope},
+            scope: { ...initialScope },
             recursionDepth: 0,
             maxRecursionDepth: this.config.template.maxRecursionDepth,
             maxLoopIterations: this.config.template.maxLoopIterations,
@@ -641,7 +641,7 @@ export class DejavuRenderer {
             case NodeType.BlockDeclaration:
                 const blockDecl = node as BlockDeclaration;
                 return this.renderBlockStatement(
-                    {type: NodeType.BlockStatement, body: blockDecl.body} as BlockStatement,
+                    { type: NodeType.BlockStatement, body: blockDecl.body } as BlockStatement,
                     context,
                 );
 
@@ -659,7 +659,7 @@ export class DejavuRenderer {
                     throw new Error(`Template not found: ${templateName}`);
                 }
                 const includeContext = includeStmt.context
-                    ? {...context.scope, ...this.evaluateExpression(includeStmt.context, context)}
+                    ? { ...context.scope, ...this.evaluateExpression(includeStmt.context, context) }
                     : context.scope;
                 return this.render(template, includeContext);
 

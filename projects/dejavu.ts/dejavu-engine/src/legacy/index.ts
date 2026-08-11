@@ -3,16 +3,16 @@
  * Kept temporarily for reference and emergency fallback; not used by Doki.
  * Will be removed after Template Contract 1.0 freezes and conformance is green.
  */
-export {DejavuEngine, engine} from "./engine";
+export { DejavuEngine, engine } from "./engine";
 export {
     registerTemplate,
     renderTemplate,
     checkTemplate,
 } from "./template";
-export {DejavuRenderer, renderer} from "./renderer";
-export type {RenderContext} from "./renderer";
-export {FilterRegistry, filterRegistry} from "./filter";
-export type {Filter} from "./filter";
+export { DejavuRenderer, renderer } from "./renderer";
+export type { RenderContext } from "./renderer";
+export { FilterRegistry, filterRegistry } from "./filter";
+export type { Filter } from "./filter";
 export * from "./ast";
 export * from "./token";
 export * from "./lexer";

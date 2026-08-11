@@ -3,9 +3,11 @@
  * Contract: specifications/template-contract/v1.md — Loader & Resolution.
  */
 
-import type {TemplateDiagnostic, TemplateDiagnosticCode} from "@dejavu/types";
+import type { TemplateDiagnostic, TemplateDiagnosticCode } from "@dejavu/types";
 
-export type CatalogEntry = string | { /* IrDocument duck */ readonly type?: string; [k: string]: unknown };
+export type CatalogEntry =
+    | string
+    | { /* IrDocument duck */ readonly type?: string; [k: string]: unknown };
 
 export type CatalogRoot = {
     name: string;
@@ -64,7 +66,7 @@ export function parseCanonicalId(
     const root = rootsByName.get(m[1]!) ?? rootsByScheme.get(m[1]!);
     if (!root) return null;
     try {
-        return {root, path: posixNormalize(m[2]!)};
+        return { root, path: posixNormalize(m[2]!) };
     } catch {
         return null;
     }
@@ -80,14 +82,10 @@ function diag(
     ref: string,
     extra?: Partial<TemplateDiagnostic>,
 ): TemplateDiagnostic {
-    return {code, message, ref, ...extra};
+    return { code, message, ref, ...extra };
 }
 
-function probeRoot(
-    root: CatalogRoot,
-    path: string,
-    extensions: string[],
-): ResolveHit | null {
+function probeRoot(root: CatalogRoot, path: string, extensions: string[]): ResolveHit | null {
     let normalized: string;
     try {
         normalized = posixNormalize(path);
@@ -96,11 +94,9 @@ function probeRoot(
     }
     const knownExts = extensions.filter((e) => e.length > 0);
     const hasKnownExt = knownExts.some((e) => normalized.endsWith(e));
-    const candidates = hasKnownExt
-        ? [normalized]
-        : extensions.map((ext) => `${normalized}${ext}`);
+    const candidates = hasKnownExt ? [normalized] : extensions.map((ext) => `${normalized}${ext}`);
     for (const key of candidates) {
-        if (root.files.has(key)) return {root, path: key};
+        if (root.files.has(key)) return { root, path: key };
     }
     return null;
 }
@@ -132,11 +128,7 @@ export function resolveTemplateRef(
         if (!root) {
             return {
                 ok: false,
-                diagnostic: diag(
-                    "unknown_scheme",
-                    `unknown template scheme: ${scheme}`,
-                    ref,
-                ),
+                diagnostic: diag("unknown_scheme", `unknown template scheme: ${scheme}`, ref),
             };
         }
         const hit = probeRoot(root, path, extensions);
@@ -148,7 +140,7 @@ export function resolveTemplateRef(
                 }),
             };
         }
-        return {ok: true, hit};
+        return { ok: true, hit };
     }
 
     if (raw.startsWith("./") || raw.startsWith("../")) {
@@ -170,7 +162,7 @@ export function resolveTemplateRef(
                     "invalid_ref",
                     `relative template ref '${ref}' cannot resolve against non-canonical from '${from}'`,
                     ref,
-                    {from},
+                    { from },
                 ),
             };
         }
@@ -184,7 +176,7 @@ export function resolveTemplateRef(
                     "relative_escape_root",
                     `template path escapes root: ${ref}`,
                     ref,
-                    {from},
+                    { from },
                 ),
             };
         }
@@ -196,11 +188,11 @@ export function resolveTemplateRef(
                     "template_not_found",
                     `template not found: ${ref} (from ${from})`,
                     ref,
-                    {from, searched: [fromHit.root.name]},
+                    { from, searched: [fromHit.root.name] },
                 ),
             };
         }
-        return {ok: true, hit};
+        return { ok: true, hit };
     }
 
     const ranked = [...roots].sort((a, b) => b.priority - a.priority);
@@ -208,16 +200,14 @@ export function resolveTemplateRef(
     for (const root of ranked) {
         searched.push(root.name);
         const hit = probeRoot(root, raw, extensions);
-        if (hit) return {ok: true, hit};
+        if (hit) return { ok: true, hit };
     }
     const fromHint = from ? ` (from ${from})` : "";
     return {
         ok: false,
-        diagnostic: diag(
-            "template_not_found",
-            `template not found: ${ref}${fromHint}`,
-            ref,
-            {from, searched},
-        ),
+        diagnostic: diag("template_not_found", `template not found: ${ref}${fromHint}`, ref, {
+            from,
+            searched,
+        }),
     };
 }

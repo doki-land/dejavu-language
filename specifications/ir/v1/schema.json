@@ -4,11 +4,7 @@
     "title": "Dejavu IR v1",
     "description": "Dejavu 模板（T1）的跨语言中间表示。",
     "type": "object",
-    "required": [
-        "irVersion",
-        "language",
-        "body"
-    ],
+    "required": ["irVersion", "language", "body"],
     "additionalProperties": false,
     "properties": {
         "irVersion": {
@@ -24,10 +20,7 @@
     "$defs": {
         "Span": {
             "type": "object",
-            "required": [
-                "start",
-                "end"
-            ],
+            "required": ["start", "end"],
             "additionalProperties": false,
             "properties": {
                 "start": {
@@ -42,28 +35,16 @@
         },
         "Trim": {
             "type": "string",
-            "enum": [
-                "none",
-                "ws",
-                "nl",
-                "ws_nl",
-                "all"
-            ]
+            "enum": ["none", "ws", "nl", "ws_nl", "all"]
         },
         "Language": {
             "type": "object",
-            "required": [
-                "syntaxMode",
-                "template"
-            ],
+            "required": ["syntaxMode", "template"],
             "additionalProperties": false,
             "properties": {
                 "syntaxMode": {
                     "type": "string",
-                    "enum": [
-                        "template",
-                        "programming"
-                    ]
+                    "enum": ["template", "programming"]
                 },
                 "template": {
                     "$ref": "#/$defs/TemplateConfig"
@@ -108,10 +89,7 @@
         },
         "Template": {
             "type": "object",
-            "required": [
-                "type",
-                "children"
-            ],
+            "required": ["type", "children"],
             "additionalProperties": false,
             "properties": {
                 "type": {
@@ -164,10 +142,7 @@
         },
         "Text": {
             "type": "object",
-            "required": [
-                "type",
-                "value"
-            ],
+            "required": ["type", "value"],
             "additionalProperties": false,
             "properties": {
                 "type": {
@@ -183,10 +158,7 @@
         },
         "Comment": {
             "type": "object",
-            "required": [
-                "type",
-                "value"
-            ],
+            "required": ["type", "value"],
             "additionalProperties": false,
             "properties": {
                 "type": {
@@ -202,11 +174,7 @@
         },
         "Interpolation": {
             "type": "object",
-            "required": [
-                "type",
-                "expression",
-                "trim"
-            ],
+            "required": ["type", "expression", "trim"],
             "additionalProperties": false,
             "properties": {
                 "type": {
@@ -229,12 +197,7 @@
         },
         "StmtElseIf": {
             "type": "object",
-            "required": [
-                "type",
-                "test",
-                "consequent",
-                "trim"
-            ],
+            "required": ["type", "test", "consequent", "trim"],
             "additionalProperties": false,
             "properties": {
                 "type": {
@@ -259,13 +222,7 @@
         },
         "StmtIf": {
             "type": "object",
-            "required": [
-                "type",
-                "test",
-                "consequent",
-                "elseIfs",
-                "trim"
-            ],
+            "required": ["type", "test", "consequent", "elseIfs", "trim"],
             "additionalProperties": false,
             "properties": {
                 "type": {
@@ -302,13 +259,7 @@
         },
         "StmtFor": {
             "type": "object",
-            "required": [
-                "type",
-                "item",
-                "iterable",
-                "body",
-                "trim"
-            ],
+            "required": ["type", "item", "iterable", "body", "trim"],
             "additionalProperties": false,
             "properties": {
                 "type": {
@@ -341,12 +292,7 @@
         },
         "StmtBlock": {
             "type": "object",
-            "required": [
-                "type",
-                "name",
-                "body",
-                "trim"
-            ],
+            "required": ["type", "name", "body", "trim"],
             "additionalProperties": false,
             "properties": {
                 "type": {
@@ -372,11 +318,7 @@
         },
         "StmtExtends": {
             "type": "object",
-            "required": [
-                "type",
-                "parent",
-                "trim"
-            ],
+            "required": ["type", "parent", "trim"],
             "additionalProperties": false,
             "properties": {
                 "type": {
@@ -395,11 +337,7 @@
         },
         "StmtInclude": {
             "type": "object",
-            "required": [
-                "type",
-                "path",
-                "trim"
-            ],
+            "required": ["type", "path", "trim"],
             "additionalProperties": false,
             "properties": {
                 "type": {
@@ -418,10 +356,7 @@
         },
         "StmtSuper": {
             "type": "object",
-            "required": [
-                "type",
-                "trim"
-            ],
+            "required": ["type", "trim"],
             "additionalProperties": false,
             "properties": {
                 "type": {
@@ -437,11 +372,7 @@
         },
         "StmtRaw": {
             "type": "object",
-            "required": [
-                "type",
-                "value",
-                "trim"
-            ],
+            "required": ["type", "value", "trim"],
             "additionalProperties": false,
             "properties": {
                 "type": {
@@ -488,22 +419,14 @@
         },
         "ExprLiteral": {
             "type": "object",
-            "required": [
-                "type",
-                "value"
-            ],
+            "required": ["type", "value"],
             "additionalProperties": false,
             "properties": {
                 "type": {
                     "const": "Expr.Literal"
                 },
                 "value": {
-                    "type": [
-                        "null",
-                        "boolean",
-                        "number",
-                        "string"
-                    ]
+                    "type": ["null", "boolean", "number", "string"]
                 },
                 "span": {
                     "$ref": "#/$defs/Span"
@@ -512,10 +435,7 @@
         },
         "ExprIdentifier": {
             "type": "object",
-            "required": [
-                "type",
-                "name"
-            ],
+            "required": ["type", "name"],
             "additionalProperties": false,
             "properties": {
                 "type": {
@@ -532,11 +452,7 @@
         },
         "ExprMember": {
             "type": "object",
-            "required": [
-                "type",
-                "object",
-                "property"
-            ],
+            "required": ["type", "object", "property"],
             "additionalProperties": false,
             "properties": {
                 "type": {
@@ -556,11 +472,7 @@
         },
         "ExprIndex": {
             "type": "object",
-            "required": [
-                "type",
-                "object",
-                "index"
-            ],
+            "required": ["type", "object", "index"],
             "additionalProperties": false,
             "properties": {
                 "type": {
@@ -579,11 +491,7 @@
         },
         "ExprCall": {
             "type": "object",
-            "required": [
-                "type",
-                "callee",
-                "arguments"
-            ],
+            "required": ["type", "callee", "arguments"],
             "additionalProperties": false,
             "properties": {
                 "type": {
@@ -605,12 +513,7 @@
         },
         "ExprBinary": {
             "type": "object",
-            "required": [
-                "type",
-                "operator",
-                "left",
-                "right"
-            ],
+            "required": ["type", "operator", "left", "right"],
             "additionalProperties": false,
             "properties": {
                 "type": {
@@ -648,11 +551,7 @@
         },
         "ExprUnary": {
             "type": "object",
-            "required": [
-                "type",
-                "operator",
-                "argument"
-            ],
+            "required": ["type", "operator", "argument"],
             "additionalProperties": false,
             "properties": {
                 "type": {
@@ -660,11 +559,7 @@
                 },
                 "operator": {
                     "type": "string",
-                    "enum": [
-                        "!",
-                        "-",
-                        "+"
-                    ]
+                    "enum": ["!", "-", "+"]
                 },
                 "argument": {
                     "$ref": "#/$defs/Expr"
@@ -676,12 +571,7 @@
         },
         "ExprPipe": {
             "type": "object",
-            "required": [
-                "type",
-                "expression",
-                "filter",
-                "arguments"
-            ],
+            "required": ["type", "expression", "filter", "arguments"],
             "additionalProperties": false,
             "properties": {
                 "type": {
@@ -707,14 +597,7 @@
         },
         "Value": {
             "description": "运行时 Value / Context 条目的 JSON 编码。",
-            "type": [
-                "null",
-                "boolean",
-                "number",
-                "string",
-                "array",
-                "object"
-            ],
+            "type": ["null", "boolean", "number", "string", "array", "object"],
             "items": {
                 "$ref": "#/$defs/Value"
             },
@@ -730,10 +613,7 @@
         },
         "Diagnostic": {
             "type": "object",
-            "required": [
-                "code",
-                "message"
-            ],
+            "required": ["code", "message"],
             "additionalProperties": false,
             "properties": {
                 "code": {
@@ -747,11 +627,7 @@
                 },
                 "severity": {
                     "type": "string",
-                    "enum": [
-                        "error",
-                        "warning",
-                        "info"
-                    ]
+                    "enum": ["error", "warning", "info"]
                 }
             }
         }

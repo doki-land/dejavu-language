@@ -1,5 +1,5 @@
-import {ParseError} from "./error";
-import type {CodeToken, CodeTokenKind} from "./token";
+import { ParseError } from "./error";
+import type { CodeToken, CodeTokenKind } from "./token";
 
 /**
  * Hand-written lexer for code inside `<% ... %>`.
@@ -23,7 +23,7 @@ export function lexCode(
         text = "",
         value?: boolean | null,
     ) => {
-        tokens.push({kind, text, value, start, end});
+        tokens.push({ kind, text, value, start, end });
     };
 
     const fail = (start: number, length: number, message: string) => {

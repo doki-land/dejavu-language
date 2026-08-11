@@ -2,7 +2,7 @@
  * DejaVu 模板引擎语言配置
  */
 
-import {Filter} from "./filter";
+import { Filter } from "./filter";
 
 /**
  * 语法模式枚举
@@ -62,7 +62,7 @@ export class DejavuLanguage {
     /** 语法模式 */
     syntaxMode: SyntaxMode = SyntaxMode.Template;
     /** 模板配置 */
-    template: TemplateConfig = {...DEFAULT_TEMPLATE_CONFIG};
+    template: TemplateConfig = { ...DEFAULT_TEMPLATE_CONFIG };
 
     /**
      * 创建新的 DejaVu 语言配置
@@ -87,7 +87,7 @@ export class DejavuLanguage {
      * @returns 当前实例
      */
     withTemplate(template: Partial<TemplateConfig>): this {
-        this.template = {...this.template, ...template};
+        this.template = { ...this.template, ...template };
         return this;
     }
 
@@ -97,7 +97,7 @@ export class DejavuLanguage {
      * @returns 当前实例
      */
     withCustomFilters(filters: Record<string, Filter>): this {
-        this.template.customFilters = {...this.template.customFilters, ...filters};
+        this.template.customFilters = { ...this.template.customFilters, ...filters };
         return this;
     }
 }

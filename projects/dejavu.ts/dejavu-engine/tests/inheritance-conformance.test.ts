@@ -1,8 +1,8 @@
-import {describe, expect, it} from "vitest";
-import {existsSync, readFileSync, readdirSync} from "node:fs";
-import {join, dirname} from "node:path";
-import {fileURLToPath} from "node:url";
-import {DejavuEngine, type Language} from "../src";
+import { describe, expect, it } from "vitest";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { DejavuEngine, type Language } from "../src";
 
 const root = join(
     dirname(fileURLToPath(import.meta.url)),
@@ -10,7 +10,7 @@ const root = join(
 );
 
 describe("specifications/conformance/inheritance", () => {
-    const cases = readdirSync(root, {withFileTypes: true})
+    const cases = readdirSync(root, { withFileTypes: true })
         .filter((d) => d.isDirectory())
         .map((d) => d.name)
         .sort();
@@ -29,7 +29,7 @@ describe("specifications/conformance/inheritance", () => {
                 language = JSON.parse(readFileSync(languagePath, "utf8")) as Language;
             }
 
-            const eng = new DejavuEngine(language ? {language} : undefined);
+            const eng = new DejavuEngine(language ? { language } : undefined);
             for (const file of readdirSync(templatesDir)) {
                 const source = readFileSync(join(templatesDir, file), "utf8");
                 eng.registerTemplate(file, source);

@@ -46,44 +46,44 @@ export type IrNode =
     | { type: "Text"; value: string; span?: Span }
     | { type: "Comment"; value: string; span?: Span }
     | {
-    type: "Interpolation";
-    expression: IrNode;
-    trim: Trim;
-    raw?: boolean;
-    span?: Span;
-}
+          type: "Interpolation";
+          expression: IrNode;
+          trim: Trim;
+          raw?: boolean;
+          span?: Span;
+      }
     | {
-    type: "Stmt.If";
-    test: IrNode;
-    consequent: IrNode[];
-    elseIfs: IrNode[];
-    alternate?: IrNode[];
-    trim: Trim;
-    span?: Span;
-}
+          type: "Stmt.If";
+          test: IrNode;
+          consequent: IrNode[];
+          elseIfs: IrNode[];
+          alternate?: IrNode[];
+          trim: Trim;
+          span?: Span;
+      }
     | {
-    type: "Stmt.ElseIf";
-    test: IrNode;
-    consequent: IrNode[];
-    trim: Trim;
-    span?: Span;
-}
+          type: "Stmt.ElseIf";
+          test: IrNode;
+          consequent: IrNode[];
+          trim: Trim;
+          span?: Span;
+      }
     | {
-    type: "Stmt.For";
-    item: string;
-    index?: string;
-    iterable: IrNode;
-    body: IrNode[];
-    trim: Trim;
-    span?: Span;
-}
+          type: "Stmt.For";
+          item: string;
+          index?: string;
+          iterable: IrNode;
+          body: IrNode[];
+          trim: Trim;
+          span?: Span;
+      }
     | {
-    type: "Stmt.Block";
-    name: string;
-    body: IrNode[];
-    trim: Trim;
-    span?: Span;
-}
+          type: "Stmt.Block";
+          name: string;
+          body: IrNode[];
+          trim: Trim;
+          span?: Span;
+      }
     | { type: "Stmt.Extends"; parent: IrNode; trim: Trim; span?: Span }
     | { type: "Stmt.Include"; path: IrNode; trim: Trim; span?: Span }
     | { type: "Stmt.Super"; trim: Trim; span?: Span }
@@ -94,17 +94,17 @@ export type IrNode =
     | { type: "Expr.Index"; object: IrNode; index: IrNode; span?: Span }
     | { type: "Expr.Call"; callee: IrNode; arguments: IrNode[]; span?: Span }
     | {
-    type: "Expr.Binary";
-    operator: string;
-    left: IrNode;
-    right: IrNode;
-    span?: Span;
-}
+          type: "Expr.Binary";
+          operator: string;
+          left: IrNode;
+          right: IrNode;
+          span?: Span;
+      }
     | { type: "Expr.Unary"; operator: string; argument: IrNode; span?: Span }
     | {
-    type: "Expr.Pipe";
-    expression: IrNode;
-    filter: string;
-    arguments: IrNode[];
-    span?: Span;
-};
+          type: "Expr.Pipe";
+          expression: IrNode;
+          filter: string;
+          arguments: IrNode[];
+          span?: Span;
+      };

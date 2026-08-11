@@ -1,4 +1,4 @@
-import type {IrValue} from "./ir";
+import type { IrValue } from "./ir";
 
 export type FilterFn = (value: IrValue, args: IrValue[]) => IrValue;
 
@@ -11,7 +11,7 @@ export type SafeHtmlValue = {
 };
 
 export function markSafe(html: string): SafeHtmlValue {
-    return {[SAFE_HTML_KEY]: true, html};
+    return { [SAFE_HTML_KEY]: true, html };
 }
 
 export function isSafeHtml(v: IrValue): v is SafeHtmlValue {

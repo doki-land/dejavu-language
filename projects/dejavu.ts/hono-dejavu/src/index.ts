@@ -1,4 +1,4 @@
-import {Dejavu, type IrDocument, type IrValue} from "dejavu";
+import { Dejavu, type IrDocument, type IrValue } from "dejavu";
 
 export type DejavuContext = Record<string, IrValue>;
 
@@ -21,7 +21,7 @@ export function dejavuHtml(body: string, init?: ResponseInit): Response {
     if (!headers.has("content-type")) {
         headers.set("content-type", "text/html; charset=utf-8");
     }
-    return new Response(body, {...init, headers});
+    return new Response(body, { ...init, headers });
 }
 
 export function dejavuHtmlFromIr(
@@ -40,4 +40,4 @@ export function dejavuHtmlFromSource(
     return dejavuHtml(htmlFromSource(source, ctx), init);
 }
 
-export {Dejavu};
+export { Dejavu };

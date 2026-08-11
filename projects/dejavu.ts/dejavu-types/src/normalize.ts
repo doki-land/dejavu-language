@@ -1,4 +1,4 @@
-import type {IrValue} from "./ir";
+import type { IrValue } from "./ir";
 
 /** Normalize IR JSON for semantic equality (see specifications/ir/v1/normalize.md). */
 export function normalizeValue(value: unknown): unknown {

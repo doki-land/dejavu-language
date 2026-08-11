@@ -1,7 +1,7 @@
-import {describe, expect, it} from "vitest";
-import {DejavuEngine, markSafe} from "../src/index";
-import {readFileSync, readdirSync} from "node:fs";
-import {join} from "node:path";
+import { describe, expect, it } from "vitest";
+import { DejavuEngine, markSafe } from "../src/index";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 
 const dokiLang = {
     syntaxMode: "template" as const,
@@ -29,7 +29,7 @@ const themeDirs = [
 describe("theme corpus parses on IR", () => {
     for (const dir of themeDirs) {
         it(dir.split("/").slice(-3).join("/"), () => {
-            const eng = new DejavuEngine({language: dokiLang});
+            const eng = new DejavuEngine({ language: dokiLang });
             for (const f of readdirSync(dir)) {
                 if (!f.endsWith(".html")) continue;
                 const src = readFileSync(join(dir, f), "utf8");
@@ -37,7 +37,7 @@ describe("theme corpus parses on IR", () => {
                 eng.registerTemplate(f.replace(/\.html$/i, ""), src);
             }
             const ctx = {
-                site: {title: "T", lang: "zh", author: "A", description: "D"},
+                site: { title: "T", lang: "zh", author: "A", description: "D" },
                 page: {
                     title: "P",
                     date: "2024-01-15",

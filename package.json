@@ -1,38 +1,38 @@
 {
-  "name": "@doki-land/dejavu-language",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Dejavu template language monorepo — shared IR, contract, conformance, and multi-host implementations",
-  "type": "module",
-  "packageManager": "pnpm@10.0.0",
-  "license": "MPL-2.0",
-  "author": "Doki Land",
-  "homepage": "https://github.com/doki-land/dejavu-language/tree/dev",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/doki-land/dejavu-language.git"
-  },
-  "bugs": {
-    "url": "https://github.com/doki-land/dejavu-language/issues"
-  },
-  "engines": {
-    "node": ">=20"
-  },
-  "keywords": [
-    "dejavu",
-    "template",
-    "ir",
-    "conformance",
-    "doki-land"
-  ],
-  "scripts": {
-    "fmt": "node scripts/format.mjs",
-    "fmt:check": "node scripts/format.mjs --check",
-    "conformance": "node scripts/conformance-runner.mjs",
-    "conformance:ir": "node scripts/conformance-runner.mjs",
-    "test": "node scripts/test.mjs"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.4.8"
-  }
+    "name": "@doki-land/dejavu-language",
+    "version": "0.0.0",
+    "private": true,
+    "description": "Dejavu template language monorepo — shared IR, contract, conformance, and multi-host implementations",
+    "type": "module",
+    "packageManager": "pnpm@10.0.0",
+    "license": "MPL-2.0",
+    "author": "Doki Land",
+    "homepage": "https://github.com/doki-land/dejavu-language/tree/dev",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/doki-land/dejavu-language.git"
+    },
+    "bugs": {
+        "url": "https://github.com/doki-land/dejavu-language/issues"
+    },
+    "engines": {
+        "node": ">=20"
+    },
+    "keywords": [
+        "dejavu",
+        "template",
+        "ir",
+        "conformance",
+        "doki-land"
+    ],
+    "scripts": {
+        "fmt": "node scripts/format.mjs",
+        "fmt:check": "node scripts/format.mjs --check",
+        "conformance": "node scripts/conformance-runner.mjs",
+        "conformance:ir": "node scripts/conformance-runner.mjs",
+        "test": "node scripts/test.mjs"
+    },
+    "devDependencies": {
+        "@biomejs/biome": "^2.4.8"
+    }
 }

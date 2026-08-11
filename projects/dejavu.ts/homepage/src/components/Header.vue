@@ -23,9 +23,9 @@ defineProps<{ currentSection: string }>();
 defineEmits<{ sectionChange: [section: string] }>();
 
 const items = [
-  {id: "home", index: "01", label: "Home"},
-  {id: "playground", index: "02", label: "Playground"},
-  {id: "ecosystem", index: "03", label: "Ecosystem"},
+    { id: "home", index: "01", label: "Home" },
+    { id: "playground", index: "02", label: "Playground" },
+    { id: "ecosystem", index: "03", label: "Ecosystem" },
 ];
 </script>
 

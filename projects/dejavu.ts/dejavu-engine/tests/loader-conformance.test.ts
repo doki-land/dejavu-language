@@ -1,12 +1,8 @@
-import {describe, expect, it} from "vitest";
-import {existsSync, readFileSync, readdirSync, statSync} from "node:fs";
-import {join, dirname, relative} from "node:path";
-import {fileURLToPath} from "node:url";
-import {
-    CatalogTemplateLoader,
-    TemplateLoaderError,
-    type TemplateRootConfig,
-} from "../src/index";
+import { describe, expect, it } from "vitest";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { join, dirname, relative } from "node:path";
+import { fileURLToPath } from "node:url";
+import { CatalogTemplateLoader, TemplateLoaderError, type TemplateRootConfig } from "../src/index";
 
 const root = join(
     dirname(fileURLToPath(import.meta.url)),
@@ -36,7 +32,7 @@ function loadCase(dir: string): CatalogTemplateLoader {
                 files.set(rel, readFileSync(join(rootDir, rel), "utf8"));
             }
         }
-        return {...r, files};
+        return { ...r, files };
     });
     return new CatalogTemplateLoader({
         roots,
@@ -46,7 +42,7 @@ function loadCase(dir: string): CatalogTemplateLoader {
 }
 
 describe("specifications/conformance/loader", () => {
-    const cases = readdirSync(root, {withFileTypes: true})
+    const cases = readdirSync(root, { withFileTypes: true })
         .filter((d) => d.isDirectory())
         .map((d) => d.name)
         .sort();
@@ -57,9 +53,7 @@ describe("specifications/conformance/loader", () => {
             const loader = loadCase(dir);
             const entry = readFileSync(join(dir, "entry.txt"), "utf8").trim();
             const fromPath = join(dir, "from.txt");
-            const from = existsSync(fromPath)
-                ? readFileSync(fromPath, "utf8").trim()
-                : undefined;
+            const from = existsSync(fromPath) ? readFileSync(fromPath, "utf8").trim() : undefined;
 
             const errPath = join(dir, "expected.error.json");
             if (existsSync(errPath)) {
@@ -69,7 +63,7 @@ describe("specifications/conformance/loader", () => {
                     from?: string;
                 };
                 try {
-                    loader.resolve(entry, from ? {from} : undefined);
+                    loader.resolve(entry, from ? { from } : undefined);
                     expect.fail("expected TemplateLoaderError");
                 } catch (e) {
                     expect(e).toBeInstanceOf(TemplateLoaderError);
@@ -82,7 +76,7 @@ describe("specifications/conformance/loader", () => {
             }
 
             const expectedId = readFileSync(join(dir, "expected.id.txt"), "utf8").trim();
-            const hit = loader.resolve(entry, from ? {from} : undefined);
+            const hit = loader.resolve(entry, from ? { from } : undefined);
             expect(hit.id).toBe(expectedId);
         });
     }

@@ -2,8 +2,8 @@
  * DejaVu 模板引擎语法分析器
  */
 
-import {Token, TokenType} from "./token";
-import {Lexer, createLexer} from "./lexer";
+import { Token, TokenType } from "./token";
+import { Lexer, createLexer } from "./lexer";
 import {
     Program,
     Statement,
@@ -89,8 +89,8 @@ import {
     createPipeExpression,
     createIncludeStatement,
 } from "./ast";
-import {DejavuLanguage, language as defaultLanguage} from "./language";
-import {ParseError, SourceRange, createError, ErrorCode, ErrorSuggestion} from "./error-types";
+import { DejavuLanguage, language as defaultLanguage } from "./language";
+import { ParseError, SourceRange, createError, ErrorCode, ErrorSuggestion } from "./error-types";
 
 type BlockBody = (Statement | Expression | Text | Comment)[];
 
@@ -486,7 +486,7 @@ export class Parser {
         } else if (this.isToken(TokenType.END) || this.isToken(TokenType.CASE)) {
             this.throwError(
                 ErrorCode.E008_INVALID_EXPRESSION,
-                {detail: `期望标识符或 ( 在循环语句中，但发现 ${this.currentToken.type}`},
+                { detail: `期望标识符或 ( 在循环语句中，但发现 ${this.currentToken.type}` },
                 this.currentToken.loc,
             );
         }
@@ -588,7 +588,7 @@ export class Parser {
             } else if (!this.isToken(TokenType.RIGHT_PAREN)) {
                 this.throwError(
                     ErrorCode.E002_EXPECTED_TOKEN,
-                    {expected: ", 或 )", found: this.currentToken.type},
+                    { expected: ", 或 )", found: this.currentToken.type },
                     this.currentToken.loc,
                 );
             }
@@ -978,7 +978,7 @@ export class Parser {
             } else if (!this.isToken(TokenType.RIGHT_PAREN)) {
                 this.throwError(
                     ErrorCode.E002_EXPECTED_TOKEN,
-                    {expected: ", 或 )", found: this.currentToken.type},
+                    { expected: ", 或 )", found: this.currentToken.type },
                     this.currentToken.loc,
                 );
             }
@@ -1016,7 +1016,7 @@ export class Parser {
             } else {
                 this.throwError(
                     ErrorCode.E002_EXPECTED_TOKEN,
-                    {expected: "标识符 或 )", found: this.currentToken.type},
+                    { expected: "标识符 或 )", found: this.currentToken.type },
                     this.currentToken.loc,
                 );
             }
@@ -1271,7 +1271,7 @@ export class Parser {
             this.isToken(TokenType.MULTIPLY) ||
             this.isToken(TokenType.DIVIDE) ||
             this.isToken(TokenType.MODULO)
-            ) {
+        ) {
             const operator = this.currentToken.value;
             this.advance();
             const right = this.parseRangeExpression();
@@ -1385,9 +1385,9 @@ export class Parser {
             default:
                 this.throwError(
                     ErrorCode.E001_UNEXPECTED_TOKEN,
-                    {token: this.currentToken.type, expected: "表达式"},
+                    { token: this.currentToken.type, expected: "表达式" },
                     this.currentToken.loc,
-                    [{message: "检查此处是否有语法错误"}],
+                    [{ message: "检查此处是否有语法错误" }],
                 );
         }
     }
@@ -1399,9 +1399,9 @@ export class Parser {
         if (!this.isToken(TokenType.IDENTIFIER)) {
             this.throwError(
                 ErrorCode.E006_INVALID_IDENTIFIER,
-                {identifier: this.currentToken.value || this.currentToken.type},
+                { identifier: this.currentToken.value || this.currentToken.type },
                 this.currentToken.loc,
-                [{message: "此处需要一个有效的标识符"}],
+                [{ message: "此处需要一个有效的标识符" }],
             );
         }
         const token = this.currentToken;
@@ -1535,7 +1535,7 @@ export class Parser {
             } else if (!this.isToken(TokenType.RIGHT_BRACKET)) {
                 this.throwError(
                     ErrorCode.E002_EXPECTED_TOKEN,
-                    {expected: ", 或 ]", found: this.currentToken.type},
+                    { expected: ", 或 ]", found: this.currentToken.type },
                     this.currentToken.loc,
                 );
             }
@@ -1568,7 +1568,7 @@ export class Parser {
                 } else {
                     this.throwError(
                         ErrorCode.E002_EXPECTED_TOKEN,
-                        {expected: ": 或 , 或 }", found: this.currentToken.type},
+                        { expected: ": 或 , 或 }", found: this.currentToken.type },
                         this.currentToken.loc,
                     );
                 }
@@ -1587,14 +1587,14 @@ export class Parser {
                 } else {
                     this.throwError(
                         ErrorCode.E002_EXPECTED_TOKEN,
-                        {expected: ":", found: this.currentToken.type},
+                        { expected: ":", found: this.currentToken.type },
                         this.currentToken.loc,
                     );
                 }
             } else {
                 this.throwError(
                     ErrorCode.E002_EXPECTED_TOKEN,
-                    {expected: "标识符 或 字符串", found: this.currentToken.type},
+                    { expected: "标识符 或 字符串", found: this.currentToken.type },
                     this.currentToken.loc,
                 );
             }
@@ -1604,7 +1604,7 @@ export class Parser {
             } else if (!this.isToken(TokenType.RIGHT_BRACE)) {
                 this.throwError(
                     ErrorCode.E002_EXPECTED_TOKEN,
-                    {expected: ", 或 }", found: this.currentToken.type},
+                    { expected: ", 或 }", found: this.currentToken.type },
                     this.currentToken.loc,
                 );
             }
@@ -1633,7 +1633,7 @@ export class Parser {
             } else if (!this.isToken(TokenType.RIGHT_PAREN)) {
                 this.throwError(
                     ErrorCode.E002_EXPECTED_TOKEN,
-                    {expected: ", 或 )", found: this.currentToken.type},
+                    { expected: ", 或 )", found: this.currentToken.type },
                     this.currentToken.loc,
                 );
             }
@@ -1642,8 +1642,8 @@ export class Parser {
         this.advance();
 
         const callExpr = createCallExpression(callee, args, {
-            start: startLoc?.start || {line: 0, column: 0},
-            end: this.currentToken.loc?.end || {line: 0, column: 0},
+            start: startLoc?.start || { line: 0, column: 0 },
+            end: this.currentToken.loc?.end || { line: 0, column: 0 },
         });
 
         const expr = this.parsePostfixExpression(callExpr);
@@ -1719,7 +1719,7 @@ export class Parser {
         if (!this.isToken(type)) {
             this.throwError(
                 ErrorCode.E002_EXPECTED_TOKEN,
-                {expected, found: this.currentToken.type},
+                { expected, found: this.currentToken.type },
                 this.currentToken.loc,
             );
         }
@@ -1772,7 +1772,7 @@ export class Parser {
         if (!startLoc) return undefined;
         return {
             start: startLoc.start,
-            end: this.currentToken.loc?.end || {line: 0, column: 0},
+            end: this.currentToken.loc?.end || { line: 0, column: 0 },
         };
     }
 }

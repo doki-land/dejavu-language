@@ -68,7 +68,7 @@ export const Dejavu = {
         options: RenderOptions = {},
     ): string {
         const name = options.name ?? "<main>";
-        return renderIr(parseToIr(source, {file: name}), ctx, {...options, name});
+        return renderIr(parseToIr(source, { file: name }), ctx, { ...options, name });
     },
     check(source: string): { valid: boolean; errors: string[] } {
         return new DejavuEngine().check(source);
@@ -78,7 +78,7 @@ export const Dejavu = {
         templates: Record<string, string>,
         options?: { language?: Language },
     ): DejavuEngine {
-        const eng = new DejavuEngine({language: options?.language});
+        const eng = new DejavuEngine({ language: options?.language });
         for (const [name, source] of Object.entries(templates)) {
             eng.registerTemplate(name, source);
         }

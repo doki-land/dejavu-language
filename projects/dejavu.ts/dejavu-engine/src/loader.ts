@@ -1,4 +1,4 @@
-import {parseToIr} from "@dejavu/language";
+import { parseToIr } from "@dejavu/language";
 import type {
     CanonicalId,
     IrDocument,
@@ -15,7 +15,7 @@ import {
     resolveTemplateRef,
 } from "./resolve";
 
-export type {CatalogRoot, CatalogEntry} from "./resolve";
+export type { CatalogRoot, CatalogEntry } from "./resolve";
 export {
     resolveTemplateRef,
     posixNormalize,
@@ -95,11 +95,7 @@ export class CatalogTemplateLoader implements TemplateLoader {
         return this.roots;
     }
 
-    register(
-        path: string,
-        source: string | IrDocument,
-        rootName: string = this.defaultRoot,
-    ): void {
+    register(path: string, source: string | IrDocument, rootName: string = this.defaultRoot): void {
         this.set(path, source, rootName);
     }
 
@@ -146,21 +142,21 @@ export class CatalogTemplateLoader implements TemplateLoader {
         if (!result.ok) {
             throw new TemplateLoaderError(result.diagnostic);
         }
-        const {root, path} = result.hit;
+        const { root, path } = result.hit;
         const id = canonicalId(root.name, path);
         let document = this.cache.get(id);
         if (!document) {
             const entry = root.files.get(path)!;
             document =
                 typeof entry === "string"
-                    ? parseToIr(entry, {file: id, language: this.language})
+                    ? parseToIr(entry, { file: id, language: this.language })
                     : (entry as unknown as IrDocument);
             this.cache.set(id, document);
         }
         const sourcePath = root.basePath
             ? `${root.basePath.replace(/\\/g, "/").replace(/\/$/, "")}/${path}`
             : undefined;
-        return {id, root: root.name, path, sourcePath, document};
+        return { id, root: root.name, path, sourcePath, document };
     }
 
     load(ref: string, options?: { from?: CanonicalId }): IrDocument {
@@ -169,8 +165,7 @@ export class CatalogTemplateLoader implements TemplateLoader {
 }
 
 /** Alias — same implementation as CatalogTemplateLoader. */
-export class PathTemplateLoader extends CatalogTemplateLoader {
-}
+export class PathTemplateLoader extends CatalogTemplateLoader {}
 
 export type PathTemplateLoaderOptions = CatalogTemplateLoaderOptions;
 
@@ -179,10 +174,7 @@ export type PathTemplateLoaderOptions = CatalogTemplateLoaderOptions;
  * Bare names resolve via the `map` root; canonical ids are `map:{path}`.
  */
 export class MapTemplateLoader extends CatalogTemplateLoader {
-    constructor(
-        templates: Map<string, string | IrDocument>,
-        options?: { language?: Language },
-    ) {
+    constructor(templates: Map<string, string | IrDocument>, options?: { language?: Language }) {
         super({
             language: options?.language,
             defaultRoot: "map",

@@ -3,15 +3,15 @@
  * Tiny ESM bridge used by scripts/conformance-runner.mjs
  * Args: <ir.json> <ctx.json>
  */
-import {readFileSync} from "node:fs";
-import {pathToFileURL} from "node:url";
-import {join, dirname} from "node:path";
-import {fileURLToPath} from "node:url";
+import { readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const engineUrl = pathToFileURL(join(__dirname, "../../dejavu-engine/src/index.ts")).href;
 
-const [{renderIr}] = await Promise.all([
+const [{ renderIr }] = await Promise.all([
     import(engineUrl).catch(async () => {
         // Node strip-types / tsx fallbacks handled by caller; try relative built path
         return import(pathToFileURL(join(__dirname, "../../dejavu-engine/src/index.ts")).href);

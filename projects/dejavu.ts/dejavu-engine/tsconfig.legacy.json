@@ -4,8 +4,6 @@
         "rootDir": "src/legacy",
         "noEmit": true
     },
-    "include": [
-        "src/legacy"
-    ],
+    "include": ["src/legacy"],
     "exclude": []
 }

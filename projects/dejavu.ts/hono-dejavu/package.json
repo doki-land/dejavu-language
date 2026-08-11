@@ -1,50 +1,50 @@
 {
-  "name": "hono-dejavu",
-  "version": "0.0.0",
-  "description": "Hono adapter for Dejavu — depends on the public @doki-land/dejavu facade",
-  "type": "module",
-  "license": "MPL-2.0",
-  "author": "Doki Land",
-  "homepage": "https://github.com/doki-land/dejavu-language/tree/dev/projects/dejavu.ts/hono-dejavu",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/doki-land/dejavu-language.git",
-    "directory": "projects/dejavu.ts/hono-dejavu"
-  },
-  "bugs": {
-    "url": "https://github.com/doki-land/dejavu-language/issues"
-  },
-  "engines": {
-    "node": ">=20"
-  },
-  "keywords": [
-    "dejavu",
-    "hono",
-    "template",
-    "doki-land"
-  ],
-  "main": "src/index.ts",
-  "exports": {
-    ".": "./src/index.ts"
-  },
-  "files": [
-    "dist",
-    "src"
-  ],
-  "publishConfig": {
-    "access": "public"
-  },
-  "scripts": {
-    "typecheck": "node_modules/.bin/tsc --noEmit"
-  },
-  "dependencies": {
-    "@doki-land/dejavu": "workspace:*"
-  },
-  "peerDependencies": {
-    "hono": "^4.0.0"
-  },
-  "devDependencies": {
-    "hono": "^4.0.0",
-    "typescript": "^5.8.0"
-  }
+    "name": "hono-dejavu",
+    "version": "0.0.0",
+    "description": "Hono adapter for Dejavu — depends on the public @doki-land/dejavu facade",
+    "type": "module",
+    "license": "MPL-2.0",
+    "author": "Doki Land",
+    "homepage": "https://github.com/doki-land/dejavu-language/tree/dev/projects/dejavu.ts/hono-dejavu",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/doki-land/dejavu-language.git",
+        "directory": "projects/dejavu.ts/hono-dejavu"
+    },
+    "bugs": {
+        "url": "https://github.com/doki-land/dejavu-language/issues"
+    },
+    "engines": {
+        "node": ">=20"
+    },
+    "keywords": [
+        "dejavu",
+        "hono",
+        "template",
+        "doki-land"
+    ],
+    "main": "src/index.ts",
+    "exports": {
+        ".": "./src/index.ts"
+    },
+    "files": [
+        "dist",
+        "src"
+    ],
+    "publishConfig": {
+        "access": "public"
+    },
+    "scripts": {
+        "typecheck": "node_modules/.bin/tsc --noEmit"
+    },
+    "dependencies": {
+        "@doki-land/dejavu": "workspace:*"
+    },
+    "peerDependencies": {
+        "hono": "^4.0.0"
+    },
+    "devDependencies": {
+        "hono": "^4.0.0",
+        "typescript": "^5.8.0"
+    }
 }

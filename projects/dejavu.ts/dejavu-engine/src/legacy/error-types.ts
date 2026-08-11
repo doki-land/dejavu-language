@@ -158,179 +158,179 @@ export const ErrorMessages: Record<
         title: "意外的标记",
         template: "意外的标记 {token}，期望 {expected}",
         defaultSuggestions: [
-            {message: "检查此处是否有语法错误"},
-            {message: "确认是否遗漏了必要的符号"},
+            { message: "检查此处是否有语法错误" },
+            { message: "确认是否遗漏了必要的符号" },
         ],
     },
     [ErrorCode.E002_EXPECTED_TOKEN]: {
         title: "缺少标记",
         template: "期望 {expected}，但发现 {found}",
         defaultSuggestions: [
-            {message: "添加缺少的标记 {expected}"},
-            {message: "检查语法是否正确"},
+            { message: "添加缺少的标记 {expected}" },
+            { message: "检查语法是否正确" },
         ],
     },
     [ErrorCode.E003_UNCLOSED_STRING]: {
         title: "未闭合的字符串",
         template: "字符串字面量未闭合，缺少结束引号",
         defaultSuggestions: [
-            {message: '添加结束引号 " 来闭合字符串'},
-            {message: "检查字符串中是否有未转义的引号"},
-            {message: '如需在字符串中使用引号，请使用 \\" 进行转义'},
+            { message: '添加结束引号 " 来闭合字符串' },
+            { message: "检查字符串中是否有未转义的引号" },
+            { message: '如需在字符串中使用引号，请使用 \\" 进行转义' },
         ],
     },
     [ErrorCode.E004_UNCLOSED_COMMENT]: {
         title: "未闭合的注释",
         template: "注释未闭合，缺少结束标记 {end}",
         defaultSuggestions: [
-            {message: "添加结束标记 {end} 来闭合注释"},
-            {message: "检查注释的开始和结束标记是否匹配"},
+            { message: "添加结束标记 {end} 来闭合注释" },
+            { message: "检查注释的开始和结束标记是否匹配" },
         ],
     },
     [ErrorCode.E005_UNCLOSED_DELIMITER]: {
         title: "未闭合的定界符",
         template: "模板定界符未闭合，缺少结束标记 {end}",
         defaultSuggestions: [
-            {message: "添加结束标记 {end} 来闭合模板代码块"},
-            {message: "检查模板语法是否正确"},
+            { message: "添加结束标记 {end} 来闭合模板代码块" },
+            { message: "检查模板语法是否正确" },
         ],
     },
     [ErrorCode.E006_INVALID_IDENTIFIER]: {
         title: "无效的标识符",
         template: "无效的标识符 {identifier}",
         defaultSuggestions: [
-            {message: "标识符必须以字母或下划线开头"},
-            {message: "标识符只能包含字母、数字和下划线"},
-            {message: "检查是否误用了关键字作为标识符"},
+            { message: "标识符必须以字母或下划线开头" },
+            { message: "标识符只能包含字母、数字和下划线" },
+            { message: "检查是否误用了关键字作为标识符" },
         ],
     },
     [ErrorCode.E007_INVALID_NUMBER]: {
         title: "无效的数字",
         template: "无效的数字字面量 {value}",
         defaultSuggestions: [
-            {message: "检查数字格式是否正确"},
-            {message: "确保小数点后有数字"},
+            { message: "检查数字格式是否正确" },
+            { message: "确保小数点后有数字" },
         ],
     },
     [ErrorCode.E008_INVALID_EXPRESSION]: {
         title: "无效的表达式",
         template: "无效的表达式: {detail}",
         defaultSuggestions: [
-            {message: "检查表达式语法是否正确"},
-            {message: "确认运算符使用是否正确"},
-            {message: "检查括号是否匹配"},
+            { message: "检查表达式语法是否正确" },
+            { message: "确认运算符使用是否正确" },
+            { message: "检查括号是否匹配" },
         ],
     },
     [ErrorCode.E009_MISSING_END]: {
         title: "缺少结束语句",
         template: "{construct} 语句缺少对应的 end {construct}",
         defaultSuggestions: [
-            {message: "添加 end {construct} 来闭合语句块"},
-            {message: "检查语句块的嵌套是否正确"},
+            { message: "添加 end {construct} 来闭合语句块" },
+            { message: "检查语句块的嵌套是否正确" },
         ],
     },
     [ErrorCode.E010_UNDEFINED_VARIABLE]: {
         title: "未定义的变量",
         template: "变量 {name} 未定义",
         defaultSuggestions: [
-            {message: "检查变量名是否拼写正确"},
-            {message: "确保变量在使用前已声明"},
-            {message: "使用 let 关键字声明变量: let {name} = value"},
+            { message: "检查变量名是否拼写正确" },
+            { message: "确保变量在使用前已声明" },
+            { message: "使用 let 关键字声明变量: let {name} = value" },
         ],
     },
     [ErrorCode.E011_UNDEFINED_FUNCTION]: {
         title: "未定义的函数",
         template: "函数 {name} 未定义",
         defaultSuggestions: [
-            {message: "检查函数名是否拼写正确"},
-            {message: "确保函数已定义"},
-            {message: "使用 micro 关键字定义函数"},
+            { message: "检查函数名是否拼写正确" },
+            { message: "确保函数已定义" },
+            { message: "使用 micro 关键字定义函数" },
         ],
     },
     [ErrorCode.E012_TEMPLATE_NOT_FOUND]: {
         title: "模板未找到",
         template: "模板 {name} 未找到",
         defaultSuggestions: [
-            {message: "检查模板名称是否正确"},
-            {message: "确保模板文件存在"},
-            {message: "检查模板目录配置是否正确"},
+            { message: "检查模板名称是否正确" },
+            { message: "确保模板文件存在" },
+            { message: "检查模板目录配置是否正确" },
         ],
     },
     [ErrorCode.E013_INVALID_ASSIGNMENT]: {
         title: "无效的赋值",
         template: "无法对表达式进行赋值",
         defaultSuggestions: [
-            {message: "只能对变量进行赋值"},
-            {message: "检查左侧是否为有效的变量名"},
+            { message: "只能对变量进行赋值" },
+            { message: "检查左侧是否为有效的变量名" },
         ],
     },
     [ErrorCode.E014_INVALID_OPERATOR]: {
         title: "无效的运算符",
         template: "运算符 {operator} 在此上下文中无效",
         defaultSuggestions: [
-            {message: "检查运算符使用是否正确"},
-            {message: "确认操作数类型是否匹配"},
+            { message: "检查运算符使用是否正确" },
+            { message: "确认操作数类型是否匹配" },
         ],
     },
     [ErrorCode.E015_MISSING_OPERATOR]: {
         title: "缺少运算符",
         template: "表达式缺少运算符",
         defaultSuggestions: [
-            {message: "在两个表达式之间添加运算符"},
-            {message: "检查是否遗漏了逗号分隔符"},
+            { message: "在两个表达式之间添加运算符" },
+            { message: "检查是否遗漏了逗号分隔符" },
         ],
     },
     [ErrorCode.E016_INVALID_TYPE]: {
         title: "类型错误",
         template: "类型不匹配: {detail}",
         defaultSuggestions: [
-            {message: "检查值的类型是否正确"},
-            {message: "使用类型转换函数进行转换"},
+            { message: "检查值的类型是否正确" },
+            { message: "使用类型转换函数进行转换" },
         ],
     },
     [ErrorCode.E017_CIRCULAR_REFERENCE]: {
         title: "循环引用",
         template: "检测到循环引用: {chain}",
         defaultSuggestions: [
-            {message: "移除循环依赖"},
-            {message: "检查模板继承链是否存在循环"},
+            { message: "移除循环依赖" },
+            { message: "检查模板继承链是否存在循环" },
         ],
     },
     [ErrorCode.E018_RECURSION_DEPTH_EXCEEDED]: {
         title: "递归深度超限",
         template: "递归深度 {depth} 超过了最大限制 {maxDepth}",
         defaultSuggestions: [
-            {message: "检查是否存在无限递归"},
-            {message: "考虑使用迭代替代递归"},
-            {message: "如确需更深递归，可调整 maxRecursionDepth 配置"},
+            { message: "检查是否存在无限递归" },
+            { message: "考虑使用迭代替代递归" },
+            { message: "如确需更深递归，可调整 maxRecursionDepth 配置" },
         ],
     },
     [ErrorCode.E019_LOOP_ITERATION_EXCEEDED]: {
         title: "循环迭代次数超限",
         template: "循环迭代次数 {iterations} 超过了最大限制 {maxIterations}",
         defaultSuggestions: [
-            {message: "检查是否存在无限循环"},
-            {message: "确保循环条件能够正确终止"},
-            {message: "如确需更多迭代，可调整 maxLoopIterations 配置"},
+            { message: "检查是否存在无限循环" },
+            { message: "确保循环条件能够正确终止" },
+            { message: "如确需更多迭代，可调整 maxLoopIterations 配置" },
         ],
     },
     [ErrorCode.E100_IO_ERROR]: {
         title: "IO 错误",
         template: "文件操作失败: {detail}",
-        defaultSuggestions: [{message: "检查文件权限"}, {message: "确保磁盘空间充足"}],
+        defaultSuggestions: [{ message: "检查文件权限" }, { message: "确保磁盘空间充足" }],
     },
     [ErrorCode.E101_CONFIG_ERROR]: {
         title: "配置错误",
         template: "配置文件错误: {detail}",
         defaultSuggestions: [
-            {message: "检查配置文件格式是否正确"},
-            {message: "确保所有必需的配置项都已设置"},
+            { message: "检查配置文件格式是否正确" },
+            { message: "确保所有必需的配置项都已设置" },
         ],
     },
     [ErrorCode.E102_FILE_NOT_FOUND]: {
         title: "文件未找到",
         template: "文件 {path} 不存在",
-        defaultSuggestions: [{message: "检查文件路径是否正确"}, {message: "确保文件存在"}],
+        defaultSuggestions: [{ message: "检查文件路径是否正确" }, { message: "确保文件存在" }],
     },
 };
 
@@ -446,11 +446,11 @@ export function unexpectedTokenError(
 ): StructuredError {
     return createError(
         ErrorCode.E001_UNEXPECTED_TOKEN,
-        {token: found, expected},
+        { token: found, expected },
         {
             range,
             sourceLine,
-            suggestions: [{message: `检查此处是否有语法错误，期望 ${expected}`}],
+            suggestions: [{ message: `检查此处是否有语法错误，期望 ${expected}` }],
         },
     );
 }
@@ -465,11 +465,11 @@ export function missingEndError(
 ): StructuredError {
     return createError(
         ErrorCode.E009_MISSING_END,
-        {construct},
+        { construct },
         {
             range,
             sourceLine,
-            suggestions: [{message: `添加 end ${construct} 来闭合此语句`}],
+            suggestions: [{ message: `添加 end ${construct} 来闭合此语句` }],
         },
     );
 }
@@ -484,13 +484,13 @@ export function undefinedVariableError(
 ): StructuredError {
     return createError(
         ErrorCode.E010_UNDEFINED_VARIABLE,
-        {name},
+        { name },
         {
             range,
             sourceLine,
             suggestions: [
-                {message: `检查变量名是否拼写正确`},
-                {message: `确保变量在使用前已定义`},
+                { message: `检查变量名是否拼写正确` },
+                { message: `确保变量在使用前已定义` },
             ],
         },
     );
@@ -502,9 +502,9 @@ export function undefinedVariableError(
 export function templateNotFoundError(name: string): StructuredError {
     return createError(
         ErrorCode.E012_TEMPLATE_NOT_FOUND,
-        {name},
+        { name },
         {
-            suggestions: [{message: `检查模板名称是否正确`}, {message: `确保模板已注册`}],
+            suggestions: [{ message: `检查模板名称是否正确` }, { message: `确保模板已注册` }],
         },
     );
 }
@@ -515,9 +515,9 @@ export function templateNotFoundError(name: string): StructuredError {
 export function fileNotFoundError(path: string): StructuredError {
     return createError(
         ErrorCode.E102_FILE_NOT_FOUND,
-        {path},
+        { path },
         {
-            suggestions: [{message: `检查文件路径是否正确`}, {message: `确保文件存在`}],
+            suggestions: [{ message: `检查文件路径是否正确` }, { message: `确保文件存在` }],
         },
     );
 }
@@ -528,9 +528,9 @@ export function fileNotFoundError(path: string): StructuredError {
 export function configError(detail: string, suggestions?: ErrorSuggestion[]): StructuredError {
     return createError(
         ErrorCode.E101_CONFIG_ERROR,
-        {detail},
+        { detail },
         {
-            suggestions: suggestions || [{message: "检查配置文件格式是否正确"}],
+            suggestions: suggestions || [{ message: "检查配置文件格式是否正确" }],
         },
     );
 }

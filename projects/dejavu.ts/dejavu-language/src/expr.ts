@@ -1,7 +1,7 @@
-import type {IrNode} from "@dejavu/types";
-import {ParseError} from "./error";
-import {lexCode} from "./lexer";
-import type {CodeToken, CodeTokenKind} from "./token";
+import type { IrNode } from "@dejavu/types";
+import { ParseError } from "./error";
+import { lexCode } from "./lexer";
+import type { CodeToken, CodeTokenKind } from "./token";
 
 /** Pratt-style expression parser over a [`CodeToken`] stream. */
 export class ExprParser {
@@ -15,7 +15,7 @@ export class ExprParser {
         this.source = source;
         this.file = file;
         this.base = base;
-        this.tokens = lexCode(input, {source, file, base});
+        this.tokens = lexCode(input, { source, file, base });
         for (const t of this.tokens) {
             if (t.kind === "CodeEnd") {
                 throw new ParseError("unexpected `%>` inside expression", {
@@ -51,10 +51,10 @@ export class ExprParser {
 
     private peekSpan(): { start: number; length: number } {
         const t = this.tokens[this.pos];
-        if (t) return {start: this.base + t.start, length: Math.max(1, t.end - t.start)};
+        if (t) return { start: this.base + t.start, length: Math.max(1, t.end - t.start) };
         const last = this.tokens.at(-1);
         const end = this.base + (last?.end ?? 0);
-        return {start: end, length: 1};
+        return { start: end, length: 1 };
     }
 
     private bump(): CodeToken | undefined {
@@ -82,7 +82,7 @@ export class ExprParser {
             if (this.peekKind() === "LParen") {
                 this.bump();
                 if (this.peekKind() !== "RParen") {
-                    for (; ;) {
+                    for (;;) {
                         args.push(this.parsePipe());
                         if (this.peekKind() === "Comma") {
                             this.bump();
@@ -108,7 +108,7 @@ export class ExprParser {
                     args.push(this.parseOr());
                 }
             }
-            left = {type: "Expr.Pipe", expression: left, filter, arguments: args};
+            left = { type: "Expr.Pipe", expression: left, filter, arguments: args };
         }
         return left;
     }
@@ -117,7 +117,7 @@ export class ExprParser {
         let left = this.parseAnd();
         while (this.peekKind() === "OrOr") {
             this.bump();
-            left = {type: "Expr.Binary", operator: "||", left, right: this.parseAnd()};
+            left = { type: "Expr.Binary", operator: "||", left, right: this.parseAnd() };
         }
         return left;
     }
@@ -126,7 +126,7 @@ export class ExprParser {
         let left = this.parseCmp();
         while (this.peekKind() === "AndAnd") {
             this.bump();
-            left = {type: "Expr.Binary", operator: "&&", left, right: this.parseCmp()};
+            left = { type: "Expr.Binary", operator: "&&", left, right: this.parseCmp() };
         }
         return left;
     }
@@ -138,33 +138,33 @@ export class ExprParser {
             kind === "EqEq"
                 ? "=="
                 : kind === "NotEq"
-                    ? "!="
-                    : kind === "LessEq"
-                        ? "<="
-                        : kind === "GreaterEq"
-                            ? ">="
-                            : kind === "Less"
-                                ? "<"
-                                : kind === "Greater"
-                                    ? ">"
-                                    : kind === "In"
-                                        ? "in"
-                                        : null;
+                  ? "!="
+                  : kind === "LessEq"
+                    ? "<="
+                    : kind === "GreaterEq"
+                      ? ">="
+                      : kind === "Less"
+                        ? "<"
+                        : kind === "Greater"
+                          ? ">"
+                          : kind === "In"
+                            ? "in"
+                            : null;
         if (op) {
             this.bump();
-            return {type: "Expr.Binary", operator: op, left, right: this.parseAdd()};
+            return { type: "Expr.Binary", operator: op, left, right: this.parseAdd() };
         }
         return left;
     }
 
     private parseAdd(): IrNode {
         let left = this.parseMul();
-        for (; ;) {
+        for (;;) {
             const kind = this.peekKind();
             if (kind === "Plus" || kind === "Minus") {
                 const op = kind === "Plus" ? "+" : "-";
                 this.bump();
-                left = {type: "Expr.Binary", operator: op, left, right: this.parseMul()};
+                left = { type: "Expr.Binary", operator: op, left, right: this.parseMul() };
             } else break;
         }
         return left;
@@ -172,12 +172,12 @@ export class ExprParser {
 
     private parseMul(): IrNode {
         let left = this.parseUnary();
-        for (; ;) {
+        for (;;) {
             const kind = this.peekKind();
             if (kind === "Star" || kind === "Slash" || kind === "Percent") {
                 const op = kind === "Star" ? "*" : kind === "Slash" ? "/" : "%";
                 this.bump();
-                left = {type: "Expr.Binary", operator: op, left, right: this.parseUnary()};
+                left = { type: "Expr.Binary", operator: op, left, right: this.parseUnary() };
             } else break;
         }
         return left;
@@ -188,18 +188,18 @@ export class ExprParser {
         if (kind === "Bang" || kind === "Minus" || kind === "Plus") {
             const op = kind === "Bang" ? "!" : kind === "Minus" ? "-" : "+";
             this.bump();
-            return {type: "Expr.Unary", operator: op, argument: this.parseUnary()};
+            return { type: "Expr.Unary", operator: op, argument: this.parseUnary() };
         }
         return this.parsePostfix();
     }
 
     private parsePostfix(): IrNode {
         let left = this.parsePrimary();
-        for (; ;) {
+        for (;;) {
             const kind = this.peekKind();
             if (kind === "Dot") {
                 this.bump();
-                left = {type: "Expr.Member", object: left, property: this.expectIdent()};
+                left = { type: "Expr.Member", object: left, property: this.expectIdent() };
             } else if (kind === "LBracket") {
                 this.bump();
                 const index = this.parsePipe();
@@ -211,12 +211,12 @@ export class ExprParser {
                         length: span.length,
                     });
                 }
-                left = {type: "Expr.Index", object: left, index};
+                left = { type: "Expr.Index", object: left, index };
             } else if (kind === "LParen") {
                 this.bump();
                 const args: IrNode[] = [];
                 if (this.peekKind() !== "RParen") {
-                    for (; ;) {
+                    for (;;) {
                         args.push(this.parsePipe());
                         if (this.peekKind() === "Comma") {
                             this.bump();
@@ -233,7 +233,7 @@ export class ExprParser {
                         length: span.length,
                     });
                 }
-                left = {type: "Expr.Call", callee: left, arguments: args};
+                left = { type: "Expr.Call", callee: left, arguments: args };
             } else break;
         }
         return left;
@@ -251,11 +251,11 @@ export class ExprParser {
         }
         switch (t.kind) {
             case "String":
-                return {type: "Expr.Literal", value: t.text};
+                return { type: "Expr.Literal", value: t.text };
             case "Bool":
-                return {type: "Expr.Literal", value: Boolean(t.value)};
+                return { type: "Expr.Literal", value: Boolean(t.value) };
             case "Null":
-                return {type: "Expr.Literal", value: null};
+                return { type: "Expr.Literal", value: null };
             case "Number": {
                 const num = Number(t.text);
                 if (Number.isNaN(num)) {
@@ -265,10 +265,10 @@ export class ExprParser {
                         length: t.end - t.start,
                     });
                 }
-                return {type: "Expr.Literal", value: num};
+                return { type: "Expr.Literal", value: num };
             }
             case "Ident":
-                return {type: "Expr.Identifier", name: t.text};
+                return { type: "Expr.Identifier", name: t.text };
             case "LParen": {
                 const e = this.parsePipe();
                 if (this.bump()?.kind !== "RParen") {

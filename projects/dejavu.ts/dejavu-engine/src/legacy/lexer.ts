@@ -2,8 +2,8 @@
  * DejaVu 模板引擎词法分析器
  */
 
-import {Token, TokenType, createToken} from "./token";
-import {DejavuLanguage, language as defaultLanguage} from "./language";
+import { Token, TokenType, createToken } from "./token";
+import { DejavuLanguage, language as defaultLanguage } from "./language";
 
 /**
  * 词法分析器类
@@ -316,7 +316,7 @@ export class Lexer {
         while (
             this.position < this.source.length &&
             this.isIdentifierPart(this.source[this.position])
-            ) {
+        ) {
             this.position++;
             this.column++;
         }
@@ -635,7 +635,7 @@ export class Lexer {
                 while (
                     this.position < this.source.length &&
                     this.isDigit(this.source[this.position])
-                    ) {
+                ) {
                     this.position++;
                     this.column++;
                 }

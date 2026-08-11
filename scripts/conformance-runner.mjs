@@ -5,10 +5,10 @@
  * Hard gate: same expected.ir.json + context.ctx.json ⇒ identical stdout
  * from every available host language.
  */
-import {spawnSync} from "node:child_process";
-import {readFileSync, readdirSync, existsSync, writeFileSync, mkdirSync} from "node:fs";
-import {join, dirname} from "node:path";
-import {fileURLToPath} from "node:url";
+import { spawnSync } from "node:child_process";
+import { readFileSync, readdirSync, existsSync, writeFileSync, mkdirSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -16,7 +16,7 @@ const T1 = join(ROOT, "specifications", "conformance", "t1");
 const TMP = join(ROOT, ".conformance-tmp");
 
 function cases() {
-    return readdirSync(T1, {withFileTypes: true})
+    return readdirSync(T1, { withFileTypes: true })
         .filter((d) => d.isDirectory())
         .map((d) => d.name)
         .sort();
@@ -69,7 +69,7 @@ const adapters = {
     py: {
         label: "Python",
         render(c) {
-            mkdirSync(TMP, {recursive: true});
+            mkdirSync(TMP, { recursive: true });
             const script = join(TMP, `render_${c.name}.py`);
             writeFileSync(
                 script,
@@ -169,7 +169,7 @@ function main() {
     console.log("Hard invariant: identical render(DejavuIR, Context) across languages\n");
 
     for (const name of cases()) {
-        const c = {...loadCase(name), name};
+        const c = { ...loadCase(name), name };
         console.log(`## ${name}`);
         const outputs = {};
         for (const lang of langs) {

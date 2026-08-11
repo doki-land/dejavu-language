@@ -6,9 +6,9 @@
 
 <script setup lang="ts">
 defineProps<{
-  code: string;
-  lang: string;
-  theme?: string;
+    code: string;
+    lang: string;
+    theme?: string;
 }>();
 </script>
 

@@ -18,7 +18,7 @@ function loadTemplate(
     from: CanonicalId,
     onDependency?: (id: CanonicalId) => void,
 ): TemplateResolveOk {
-    const loaded = loader.resolve(ref, {from});
+    const loaded = loader.resolve(ref, { from });
     onDependency?.(loaded.id);
     return loaded;
 }
@@ -47,7 +47,7 @@ export function renderIr(
     ctx: Record<string, IrValue> = {},
     options: RenderOptions = {},
 ): string {
-    const scope = {...ctx};
+    const scope = { ...ctx };
     let name: CanonicalId = options.name ?? "<main>";
     // Canonicalize entry name when possible so relative includes get a valid `from`.
     if (options.loader && name !== "<main>" && !/^[A-Za-z][A-Za-z0-9_+-]*:/.test(name)) {
@@ -119,7 +119,9 @@ function resolveInheritance(
     const ext = findExtends(children);
     if (!ext) return doc;
     if (!env.loader) {
-        throw new Error("extends/include/super require a template loader (not in T1 minimal render)");
+        throw new Error(
+            "extends/include/super require a template loader (not in T1 minimal render)",
+        );
     }
     if (visiting.has(name)) {
         throw new Error(`circular template inheritance involving '${name}'`);
@@ -129,24 +131,16 @@ function resolveInheritance(
     const parentRef = requireStringPath(evalExpr(ext.parent, scope, env), "extends");
     const parent = loadTemplate(env.loader, parentRef, name, env.onDependency);
     if (visiting.has(parent.id)) {
-        throw new Error(
-            `circular template inheritance: ${[...visiting, parent.id].join(" -> ")}`,
-        );
+        throw new Error(`circular template inheritance: ${[...visiting, parent.id].join(" -> ")}`);
     }
-    const parentResolved = resolveInheritance(
-        parent.document,
-        scope,
-        env,
-        parent.id,
-        visiting,
-    );
+    const parentResolved = resolveInheritance(parent.document, scope, env, parent.id, visiting);
     visiting.delete(name);
 
     const childBlocks = collectBlocks(children);
     const mergedChildren = applyBlocks(templateChildren(parentResolved), childBlocks);
     return {
         ...parentResolved,
-        body: {type: "Template", children: mergedChildren},
+        body: { type: "Template", children: mergedChildren },
     };
 }
 
@@ -155,7 +149,7 @@ function applyBlocks(nodes: IrNode[], overrides: Map<string, IrNode[]>): IrNode[
         if (n.type === "Stmt.Block") {
             const override = overrides.get(n.name);
             if (!override) {
-                return {...n, body: applyBlocks(n.body, overrides)};
+                return { ...n, body: applyBlocks(n.body, overrides) };
             }
             const parentDefault = applyBlocks(n.body, overrides);
             const merged: BlockNode = {
@@ -168,7 +162,7 @@ function applyBlocks(nodes: IrNode[], overrides: Map<string, IrNode[]>): IrNode[
             return merged;
         }
         if (n.type === "Template") {
-            return {...n, children: applyBlocks(n.children, overrides)};
+            return { ...n, children: applyBlocks(n.children, overrides) };
         }
         if (n.type === "Stmt.If") {
             return {
@@ -176,14 +170,14 @@ function applyBlocks(nodes: IrNode[], overrides: Map<string, IrNode[]>): IrNode[
                 consequent: applyBlocks(n.consequent, overrides),
                 elseIfs: n.elseIfs.map((ei) =>
                     ei.type === "Stmt.ElseIf"
-                        ? {...ei, consequent: applyBlocks(ei.consequent, overrides)}
+                        ? { ...ei, consequent: applyBlocks(ei.consequent, overrides) }
                         : ei,
                 ),
-                ...(n.alternate ? {alternate: applyBlocks(n.alternate, overrides)} : {}),
+                ...(n.alternate ? { alternate: applyBlocks(n.alternate, overrides) } : {}),
             };
         }
         if (n.type === "Stmt.For") {
-            return {...n, body: applyBlocks(n.body, overrides)};
+            return { ...n, body: applyBlocks(n.body, overrides) };
         }
         return n;
     });
@@ -246,7 +240,7 @@ function renderNode(node: IrNode, scope: Record<string, IrValue>, env: RenderEnv
         case "Stmt.Block": {
             const block = node as BlockNode;
             const nextEnv: RenderEnv = block.__parentDefault
-                ? {...env, parentBlocks: [...env.parentBlocks, block.__parentDefault]}
+                ? { ...env, parentBlocks: [...env.parentBlocks, block.__parentDefault] }
                 : env;
             return block.body.map((c) => renderNode(c, scope, nextEnv)).join("");
         }

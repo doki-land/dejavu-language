@@ -6,10 +6,10 @@ import {
     type ParseOptions,
     type Trim,
 } from "@dejavu/types";
-import {ParseError} from "./error";
-import {parseExpr} from "./expr";
-import {lexCode} from "./lexer";
-import type {CodeToken} from "./token";
+import { ParseError } from "./error";
+import { parseExpr } from "./expr";
+import { lexCode } from "./lexer";
+import type { CodeToken } from "./token";
 
 type TrimMode = Trim;
 
@@ -33,20 +33,20 @@ function sliceFromTokens(
     contentBase: number,
     tokens: CodeToken[],
 ): { slice: string; abs: number } {
-    if (tokens.length === 0) return {slice: "", abs: contentBase};
+    if (tokens.length === 0) return { slice: "", abs: contentBase };
     const start = tokens[0]!.start;
     const end = tokens.at(-1)!.end;
-    return {slice: content.slice(start, end), abs: contentBase + start};
+    return { slice: content.slice(start, end), abs: contentBase + start };
 }
 
 function classifyCode(content: string, contentBase: number, tokens: CodeToken[]): CodeHead {
     if (tokens.length === 0) {
-        return {kind: "expr", exprSlice: "", exprAbs: contentBase};
+        return { kind: "expr", exprSlice: "", exprAbs: contentBase };
     }
     const t0 = tokens[0]!;
     if (t0.kind === "Ident" && t0.text === "if") {
-        const {slice, abs} = sliceFromTokens(content, contentBase, tokens.slice(1));
-        return {kind: "if", testSlice: slice, testAbs: abs};
+        const { slice, abs } = sliceFromTokens(content, contentBase, tokens.slice(1));
+        return { kind: "if", testSlice: slice, testAbs: abs };
     }
     if (t0.kind === "Ident" && t0.text === "loop") {
         if (tokens[1]?.kind !== "Ident") {
@@ -63,28 +63,28 @@ function classifyCode(content: string, contentBase: number, tokens: CodeToken[])
             });
         }
         const item = tokens[1]!.text;
-        const {slice, abs} = sliceFromTokens(content, contentBase, tokens.slice(3));
-        return {kind: "loop", item, iterSlice: slice, iterAbs: abs};
+        const { slice, abs } = sliceFromTokens(content, contentBase, tokens.slice(3));
+        return { kind: "loop", item, iterSlice: slice, iterAbs: abs };
     }
     if (t0.kind === "Ident" && t0.text === "extends") {
-        const {slice, abs} = sliceFromTokens(content, contentBase, tokens.slice(1));
+        const { slice, abs } = sliceFromTokens(content, contentBase, tokens.slice(1));
         if (!slice) {
             throw new ParseError("extends requires a parent template expression", {
                 start: contentBase + t0.start,
                 length: Math.max(1, t0.end - t0.start),
             });
         }
-        return {kind: "extends", parentSlice: slice, parentAbs: abs};
+        return { kind: "extends", parentSlice: slice, parentAbs: abs };
     }
     if (t0.kind === "Ident" && t0.text === "include") {
-        const {slice, abs} = sliceFromTokens(content, contentBase, tokens.slice(1));
+        const { slice, abs } = sliceFromTokens(content, contentBase, tokens.slice(1));
         if (!slice) {
             throw new ParseError("include requires a path expression", {
                 start: contentBase + t0.start,
                 length: Math.max(1, t0.end - t0.start),
             });
         }
-        return {kind: "include", pathSlice: slice, pathAbs: abs};
+        return { kind: "include", pathSlice: slice, pathAbs: abs };
     }
     if (t0.kind === "Ident" && t0.text === "block") {
         if (tokens[1]?.kind !== "Ident") {
@@ -99,17 +99,17 @@ function classifyCode(content: string, contentBase: number, tokens: CodeToken[])
                 length: 1,
             });
         }
-        return {kind: "block", name: tokens[1]!.text};
+        return { kind: "block", name: tokens[1]!.text };
     }
     if (t0.kind === "Ident" && t0.text === "super" && tokens.length === 1) {
-        return {kind: "super"};
+        return { kind: "super" };
     }
     if (t0.kind === "Ident" && t0.text === "else") {
         if (tokens[1]?.kind === "Ident" && tokens[1].text === "if") {
-            const {slice, abs} = sliceFromTokens(content, contentBase, tokens.slice(2));
-            return {kind: "else_if", testSlice: slice, testAbs: abs};
+            const { slice, abs } = sliceFromTokens(content, contentBase, tokens.slice(2));
+            return { kind: "else_if", testSlice: slice, testAbs: abs };
         }
-        if (tokens.length === 1) return {kind: "else"};
+        if (tokens.length === 1) return { kind: "else" };
         throw new ParseError("unexpected tokens after `else`", {
             start: contentBase + tokens[1]!.start,
             length: 1,
@@ -117,27 +117,26 @@ function classifyCode(content: string, contentBase: number, tokens: CodeToken[])
     }
     if (t0.kind === "Ident" && t0.text === "end") {
         if (tokens[1]?.kind === "Ident" && tokens[1].text === "if" && tokens.length === 2) {
-            return {kind: "end_if"};
+            return { kind: "end_if" };
         }
         if (tokens[1]?.kind === "Ident" && tokens[1].text === "loop" && tokens.length === 2) {
-            return {kind: "end_loop"};
+            return { kind: "end_loop" };
         }
         if (tokens[1]?.kind === "Ident" && tokens[1].text === "block" && tokens.length === 2) {
-            return {kind: "end_block"};
+            return { kind: "end_block" };
         }
         throw new ParseError("expected `end if`, `end loop`, or `end block`", {
             start: contentBase + t0.start,
             length: Math.max(1, (tokens.at(-1)?.end ?? t0.end) - t0.start),
         });
     }
-    const {slice, abs} = sliceFromTokens(content, contentBase, tokens);
-    return {kind: "expr", exprSlice: slice, exprAbs: abs};
+    const { slice, abs } = sliceFromTokens(content, contentBase, tokens);
+    return { kind: "expr", exprSlice: slice, exprAbs: abs };
 }
 
 /** Parse template source into Dejavu IR (T1 + inheritance surface). */
 export function parseToIr(source: string, options: ParseOptions | string = {}): IrDocument {
-    const opts: ParseOptions =
-        typeof options === "string" ? {file: options} : options ?? {};
+    const opts: ParseOptions = typeof options === "string" ? { file: options } : (options ?? {});
     const file = opts.file ?? "template.dejavu";
     const language = structuredClone(opts.language ?? DEFAULT_LANGUAGE);
     return {
@@ -204,7 +203,7 @@ class TemplateParser {
 
             // Escape: codeStart + "!" → literal codeStart (e.g. `<%!` → `<%`)
             if (source.startsWith(cs + "!", i)) {
-                children.push({type: "Text", value: cs});
+                children.push({ type: "Text", value: cs });
                 i += cs.length + 1;
                 continue;
             }
@@ -252,7 +251,7 @@ class TemplateParser {
                         trim: block.trim,
                     });
                 } else if (head.kind === "super") {
-                    children.push({type: "Stmt.Super", trim: block.trim});
+                    children.push({ type: "Stmt.Super", trim: block.trim });
                 } else if (
                     head.kind === "end_if" ||
                     head.kind === "end_loop" ||
@@ -284,11 +283,11 @@ class TemplateParser {
 
             const next = this.nextMarkup(i);
             if (next === null) {
-                children.push({type: "Text", value: source.slice(i)});
+                children.push({ type: "Text", value: source.slice(i) });
                 break;
             }
             if (next > i) {
-                children.push({type: "Text", value: source.slice(i, next)});
+                children.push({ type: "Text", value: source.slice(i, next) });
                 i = next;
             } else {
                 i += 1;
@@ -313,7 +312,7 @@ class TemplateParser {
         const elseIfs: IrNode[] = [];
         let alternate: IrNode[] | undefined;
 
-        for (; ;) {
+        for (;;) {
             const block = this.readCodeBlock(i);
             const h = classifyCode(block.content, block.contentBase, block.tokens);
             if (h.kind === "else_if") {
@@ -324,7 +323,7 @@ class TemplateParser {
                     base: h.testAbs,
                 });
                 const [body, n] = this.parseBody(i, ["else_if", "else", "end_if"]);
-                elseIfs.push({type: "Stmt.ElseIf", test: t, consequent: body, trim: "none"});
+                elseIfs.push({ type: "Stmt.ElseIf", test: t, consequent: body, trim: "none" });
                 i = n;
             } else if (h.kind === "else") {
                 i = block.next;
@@ -359,7 +358,7 @@ class TemplateParser {
                 test,
                 consequent,
                 elseIfs,
-                ...(alternate ? {alternate} : {}),
+                ...(alternate ? { alternate } : {}),
                 trim,
             },
             i,
@@ -386,7 +385,7 @@ class TemplateParser {
                 length: 1,
             });
         }
-        return [{type: "Stmt.For", item: head.item, iterable, body, trim}, end.next];
+        return [{ type: "Stmt.For", item: head.item, iterable, body, trim }, end.next];
     }
 
     private parseBlock(
@@ -404,7 +403,7 @@ class TemplateParser {
                 length: 1,
             });
         }
-        return [{type: "Stmt.Block", name: head.name, body, trim}, end.next];
+        return [{ type: "Stmt.Block", name: head.name, body, trim }, end.next];
     }
 
     private readCodeBlock(i: number): {
@@ -432,12 +431,12 @@ class TemplateParser {
                 mod === "_"
                     ? "ws"
                     : mod === "-"
-                        ? "nl"
-                        : mod === "~"
-                            ? "ws_nl"
-                            : mod === "="
-                                ? "all"
-                                : "none";
+                      ? "nl"
+                      : mod === "~"
+                        ? "ws_nl"
+                        : mod === "="
+                          ? "all"
+                          : "none";
             j++;
         }
         const end = this.findDelimiter(j, ce);
@@ -467,7 +466,7 @@ class TemplateParser {
             file: this.file,
             base: contentBase,
         }).filter((t) => t.kind !== "CodeEnd");
-        return {tokens, content, contentBase, trim, next: end + ce.length};
+        return { tokens, content, contentBase, trim, next: end + ce.length };
     }
 
     private findDelimiter(from: number, delim: string): number {
@@ -499,7 +498,7 @@ class TemplateParser {
     }
 }
 
-export {parseExpr} from "./expr";
-export {ParseError} from "./error";
-export {lexCode} from "./lexer";
-export type {CodeToken, CodeTokenKind} from "./token";
+export { parseExpr } from "./expr";
+export { ParseError } from "./error";
+export { lexCode } from "./lexer";
+export type { CodeToken, CodeTokenKind } from "./token";
