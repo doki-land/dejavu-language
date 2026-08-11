@@ -25,8 +25,11 @@ jobs:
     timeout-minutes: 45
 
     steps:
+      # Tag only supplies the version number; build always from this repo's `dev`.
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: dev
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
