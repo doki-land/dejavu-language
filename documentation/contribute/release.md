@@ -8,7 +8,8 @@
 
 - 公共 npm 包使用 `@doki-land/*` 作用域；TypeScript 应用入口是 `@doki-land/dejavu`。
 - Rust 应用入口是 `dejavu` crate（`use dejavu::*`）；不要引导用户依赖 `dejavu-engine` / `dejavu-ir` 等内部 crate。
-- `@doki-land/dejavu-engine` 只作为 Doki 产品宿主绑定发布，不是通用应用入口。
+- `@doki-land/dejavu-engine` 只作为 Doki 产品宿主**库**绑定发布，不是通用应用入口，也不提供 LSP。
+- **LSP / 完整 IDE 体验只通过 Rust 二进制**：`dejavu lsp`（GitHub Release / GHCR / 本地构建）。不要发布 TypeScript/Node language server。
 - package exports 指向实际构建产物，不把 workspace 源文件当成发布产物。
 - 内部 engine/language/types 包没有被用户教程误写成应用依赖。
 - Contract、IR schema、fixture 和实现版本关系已记录。

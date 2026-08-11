@@ -1,14 +1,10 @@
 //! Dejavu tools CLI
 //!
-//! Command line interface for Dejavu template engine tools.
+//! Library hosts (TypeScript / Python / C# / Kotlin / …) expose **library APIs only**.
+//! Full editor experience (LSP) is provided by this Rust binary: `dejavu lsp`.
 
 use clap::Parser;
 use std::path::PathBuf;
-
-// 引用dejavu相关库
-// 注意：实际使用时需要根据项目结构调整导入路径
-// use dejavu_types::*;
-// use dejavu::*;
 
 /// 主函数入口
 #[tokio::main(flavor = "current_thread")]
@@ -25,6 +21,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Check(args) => {
             CheckCommand::execute(args).await?;
         }
+        Commands::Lsp(args) => {
+            LspCommand::execute(args).await?;
+        }
     }
 
     Ok(())
@@ -33,7 +32,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// Dejavu CLI
 #[derive(Parser, Debug)]
 #[command(name = "dejavu")]
-#[command(about = "Dejavu template engine tools", long_about = None)]
+#[command(
+    about = "Dejavu template engine tools (library hosts + Rust LSP binary)",
+    long_about = None
+)]
 pub struct DejavuCli {
     /// Subcommand
     #[command(subcommand)]
@@ -49,6 +51,8 @@ pub enum Commands {
     Dev(DevArgs),
     /// 检查模板
     Check(CheckArgs),
+    /// Language Server Protocol (stdio) — the only supported IDE entry
+    Lsp(LspArgs),
 }
 
 /// 编译参数
@@ -87,15 +91,25 @@ pub struct CheckArgs {
     pub source: Option<PathBuf>,
 }
 
+/// LSP 参数
+#[derive(Parser, Debug)]
+pub struct LspArgs {
+    /// Use stdio transport (default for editors)
+    #[arg(long, default_value_t = true)]
+    pub stdio: bool,
+}
+
 /// 编译命令
 pub struct BuildCommand;
 
 impl BuildCommand {
     /// 执行编译命令
     pub async fn execute(args: BuildArgs) -> Result<(), Box<dyn std::error::Error>> {
-        println!("Building templates from {:?} to {:?}", args.source, args.output);
+        println!(
+            "Building templates from {:?} to {:?}",
+            args.source, args.output
+        );
         println!("Clean: {}", args.clean);
-        // 这里将实现编译逻辑
         Ok(())
     }
 }
@@ -108,7 +122,6 @@ impl DevCommand {
     pub async fn execute(args: DevArgs) -> Result<(), Box<dyn std::error::Error>> {
         println!("Starting dev server on port {}", args.port);
         println!("Watching files in {:?}", args.source);
-        // 这里将实现开发服务器逻辑
         Ok(())
     }
 }
@@ -120,7 +133,23 @@ impl CheckCommand {
     /// 执行检查命令
     pub async fn execute(args: CheckArgs) -> Result<(), Box<dyn std::error::Error>> {
         println!("Checking templates in {:?}", args.source);
-        // 这里将实现检查逻辑
         Ok(())
+    }
+}
+
+/// LSP command — sole supported IDE / language-server entry for all hosts.
+pub struct LspCommand;
+
+impl LspCommand {
+    /// Run the language server (stdio).
+    pub async fn execute(args: LspArgs) -> Result<(), Box<dyn std::error::Error>> {
+        let _ = args.stdio;
+        // Protocol surface is owned by this binary. Full LSP handlers land here;
+        // editors must not ship parallel TypeScript/Python/… language servers.
+        eprintln!(
+            "dejavu lsp: language server entry is ready on this binary; \
+             protocol handlers are not fully implemented yet"
+        );
+        Err("dejavu lsp: not fully implemented yet — install/update this Rust binary for IDE support".into())
     }
 }

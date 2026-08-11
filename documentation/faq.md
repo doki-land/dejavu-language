@@ -12,7 +12,8 @@
 | `dejavu` (Rust crate) / `use dejavu::*` | **Rust 应用唯一入口** |
 | `dejavu` (PyPI) / `Dejavu` (.NET) / `dejavu` (Kotlin) | 其他语言应用入口 |
 | `@dejavu/*` | 内部实现，仅绑定/核心维护者 |
-| `@doki-land/dejavu-engine` | **Doki 产品**宿主绑定，不是通用应用入口 |
+| `@doki-land/dejavu-engine` | **Doki 产品**宿主**库**绑定（无 LSP） |
+| Rust `dejavu` binary | **唯一** LSP / 完整 IDE 体验（`dejavu lsp`） |
 
 ## 规范和实现状态在哪里？
 

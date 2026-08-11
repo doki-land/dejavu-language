@@ -45,8 +45,8 @@ Install and API notes for other hosts live under each `projects/dejavu.*` tree. 
 | C#         | `Dejavu`                               | .NET binding                               |
 | Kotlin     | `dejavu`                               | JVM / tooling                              |
 | Python     | `dejavu`                               | Binding                                    |
-| CLI        | `dejavu` binary                        | From `dejavu-tools`                        |
-| Doki only  | `@doki-land/dejavu-engine`             | Product host adapter — not general apps    |
+| CLI / LSP  | `dejavu` binary (`dejavu lsp`)         | Sole IDE path — not shipped in TS/Py/…     |
+| Doki only  | `@doki-land/dejavu-engine`             | Product host **library** adapter           |
 
 Cross-host status: [`documentation/compatibility.md`](./documentation/compatibility.md).
 

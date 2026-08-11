@@ -36,5 +36,5 @@ TypeScript 应用入口固定为 `@doki-land/dejavu`；Rust 为 `dejavu` crate�
 - loader 的依赖、循环检测和诊断使用 canonical id，而不是原始引用字符串。
 - HTML 插值默认转义；绕过转义必须由显式 `safe` / `raw` 或宿主安全值完成。
 
-实现细节见[同构分层](./isomorphic-layers.md)
+实现细节见[同构分层](./isomorphic-layers.md)、[宿主表面与 LSP](./host-surface-and-lsp.md)
 ，规范行为见 [Template Contract](../../specifications/template-contract/v1.md)。

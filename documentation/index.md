@@ -17,6 +17,7 @@
 
 - [架构总览](./architecture/overview.md)
 - [同构分层](./architecture/isomorphic-layers.md)
+- [宿主表面与 LSP](./architecture/host-surface-and-lsp.md)
 - [Template Contract](../specifications/template-contract/v1.md)
 - [IR v1](../specifications/ir/v1/readme.md)
 - [语法实现状态](./grammar/index.md)
@@ -26,7 +27,7 @@
 
 1. 先修改或确认规范，再修改实现。
 2. 可观察行为必须有 conformance 或单元测试。
-3. 公共应用 API：TypeScript 用 `@doki-land/dejavu`，Rust 用 `dejavu::*`；实现包只供绑定维护者使用。
+3. 公共应用 API：TypeScript 用 `@doki-land/dejavu`，Rust 用 `dejavu::*`；**LSP 只由 Rust `dejavu lsp` 提供**；实现包只供绑定维护者使用。
 4. 规范描述宿主无关行为；宿主差异写入实现状态，不写进语言语义。
 
 ## 文档写作
