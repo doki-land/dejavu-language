@@ -37,9 +37,14 @@
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",
+    "build:publish": "tsup --config tsup.publish.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@dejavu/engine": "workspace:*"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "typescript": "^5.8.0"
   }
 }

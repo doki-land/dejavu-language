@@ -63,8 +63,8 @@ jobs:
           set -euo pipefail
           PKG=projects/dejavu.ts/dejavu
 
-          # Bundle workspace engine into dist so publish has no workspace: deps.
-          (cd "$PKG" && pnpm dlx tsup@8.5.1 src/index.ts --format esm --dts --outDir dist --no-external)
+          # Bundle workspace engine into dist (config uses noExternal; avoid broken --no-external CLI).
+          pnpm --filter @doki-land/dejavu run build:publish
 
           node <<'NODE'
           const fs = require("fs");
