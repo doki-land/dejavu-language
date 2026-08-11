@@ -52,14 +52,14 @@ implied by directory presence alone.
 
 ## Repository layout
 
-| Path                                 | Role                                      |
-|--------------------------------------|-------------------------------------------|
-| `projects/dejavu.ts`                 | TypeScript packages, homepage, user docs  |
-| `projects/dejavu.rs`                 | Rust crates                               |
-| `projects/dejavu.cs` / `.kt` / `.py` | Other host trees                          |
+| Path                                 | Role                                     |
+|--------------------------------------|------------------------------------------|
+| `projects/dejavu.ts`                 | TypeScript packages, homepage, user docs |
+| `projects/dejavu.rs`                 | Rust crates                              |
+| `projects/dejavu.cs` / `.kt` / `.py` | Other host trees                         |
 | `specifications/`                    | Contract, IR schema, conformance fixtures |
-| `documentation/`                     | Contributor / maintainer docs             |
-| `scripts/`                           | Format, test, conformance runners         |
+| `documentation/`                     | Contributor / maintainer docs            |
+| `scripts/`                           | Format, test, conformance runners        |
 
 ## Documentation
 
