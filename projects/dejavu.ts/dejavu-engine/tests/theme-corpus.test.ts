@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { DejavuEngine, markSafe } from "../src/index";
-import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const dokiLang = {
     syntaxMode: "template" as const,
@@ -15,20 +16,28 @@ const dokiLang = {
     },
 };
 
-const themeDirs = [
-    "E:/Spark 游戏引擎/doki-engine/examples/example-theme/templates",
-    "E:/Spark 游戏引擎/doki-engine/packages/theme-template/templates",
-    "E:/Spark 游戏引擎/doki-engine/examples/static-site/templates",
-    "E:/Spark 游戏引擎/doki-engine/examples/docs-site/templates",
-    "E:/Spark 游戏引擎/doki-engine/examples/blog-site/templates",
-    "E:/Spark 游戏引擎/doki-engine/themes/default/templates",
-    "E:/Spark 游戏引擎/doki-engine/examples/mvp-site/templates",
-    "E:/Spark 游戏引擎/doki-engine/examples/init-site/templates",
+/** Optional sibling checkout: `<repo>/../doki-engine`. Absent in CI → suite skipped. */
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
+const dokiRoot = join(repoRoot, "..", "doki-engine");
+
+const themeRelDirs = [
+    "examples/example-theme/templates",
+    "packages/theme-template/templates",
+    "examples/static-site/templates",
+    "examples/docs-site/templates",
+    "examples/blog-site/templates",
+    "themes/default/templates",
+    "examples/mvp-site/templates",
+    "examples/init-site/templates",
 ];
 
-describe("theme corpus parses on IR", () => {
-    for (const dir of themeDirs) {
-        it(dir.split("/").slice(-3).join("/"), () => {
+const themeDirs = themeRelDirs
+    .map((rel) => ({ rel, dir: join(dokiRoot, rel) }))
+    .filter(({ dir }) => existsSync(dir));
+
+describe.skipIf(themeDirs.length === 0)("theme corpus parses on IR", () => {
+    for (const { rel, dir } of themeDirs) {
+        it(rel, () => {
             const eng = new DejavuEngine({ language: dokiLang });
             for (const f of readdirSync(dir)) {
                 if (!f.endsWith(".html")) continue;
