@@ -1,0 +1,89 @@
+# Pack the Rust `dejavu` CLI (dejavu-tools) and publish/update a GitHub Release.
+# Independent of release-npm / publish-docker.
+#
+# Asset: dejavu-vX.Y.Z-linux-x64.zip  (contains `dejavu/dejavu`)
+# Flow: tag → ci → cargo build --release -p dejavu-tools --bin dejavu → GitHub Release
+# Tag supplies the version number; checkout / build always use this repo's `dev`.
+
+name: publish-artifacts
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+concurrency:
+  group: publish-artifacts-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  artifacts:
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - name: Resolve version from tag
+        id: ver
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]]; then
+            echo "Tag must be vX.Y.Z (got: $GITHUB_REF_NAME)" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          echo "zip=dejavu-v${VERSION}-linux-x64.zip" >> "$GITHUB_OUTPUT"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: projects/dejavu.rs -> target
+
+      - name: Build dejavu CLI
+        run: |
+          set -euo pipefail
+          cargo build --release \
+            --manifest-path projects/dejavu.rs/Cargo.toml \
+            -p dejavu-tools \
+            --bin dejavu
+          strip projects/dejavu.rs/target/release/dejavu
+          ./projects/dejavu.rs/target/release/dejavu --help
+
+      - name: Pack zip
+        run: |
+          set -euo pipefail
+          mkdir -p dist-artifacts/dejavu
+          cp projects/dejavu.rs/target/release/dejavu dist-artifacts/dejavu/dejavu
+          chmod +x dist-artifacts/dejavu/dejavu
+          (
+            cd dist-artifacts
+            zip -9 "${{ steps.ver.outputs.zip }}" dejavu/dejavu
+          )
+          ls -la "dist-artifacts/${{ steps.ver.outputs.zip }}"
+
+      - name: GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: ${{ steps.ver.outputs.tag }}
+          generate_release_notes: true
+          # Re-running on the same tag updates assets — not an error.
+          files: |
+            dist-artifacts/${{ steps.ver.outputs.zip }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

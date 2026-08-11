@@ -1,0 +1,7 @@
+# Build context is projects/dejavu.rs
+target
+**/target
+.git
+.gitignore
+*.md
+.env*

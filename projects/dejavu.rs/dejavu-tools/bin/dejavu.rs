@@ -11,9 +11,9 @@ use std::path::PathBuf;
 // use dejavu::*;
 
 /// 主函数入口
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let cli = DokiCli::parse();
+    let cli = DejavuCli::parse();
 
     match cli.command {
         Commands::Build(args) => {
@@ -30,12 +30,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Doki CLI 主命令
+/// Dejavu CLI
 #[derive(Parser, Debug)]
-#[command(name = "doki")]
-#[command(about = "Dejavu 模板引擎工具", long_about = None)]
-pub struct DokiCli {
-    /// 子命令
+#[command(name = "dejavu")]
+#[command(about = "Dejavu template engine tools", long_about = None)]
+pub struct DejavuCli {
+    /// Subcommand
     #[command(subcommand)]
     pub command: Commands,
 }

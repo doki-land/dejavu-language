@@ -5,8 +5,12 @@ version.workspace = true
 authors.workspace = true
 description = "Command-line tools for the Dejavu template engine"
 license.workspace = true
-repository = "https://github.com/doki-land/dejavu-engine/tree/dev/projects/dejavu.rs/dejavu-tools"
+repository = "https://github.com/doki-land/dejavu-language/tree/dev/projects/dejavu.rs/dejavu-tools"
 edition.workspace = true
+
+[[bin]]
+name = "dejavu"
+path = "bin/dejavu.rs"
 
 [dependencies]
 clap = { workspace = true }
