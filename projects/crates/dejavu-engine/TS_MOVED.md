@@ -1,6 +1,6 @@
 # TypeScript engine moved
 
-The TypeScript implementation lives only under `projects/dejavu.ts/packages/` and is a **native TypeScript stack** (no
+The TypeScript implementation lives only under `projects/packages/` and is a **native TypeScript stack** (no
 WASM/WASI bridge).
 
 | Package            | Role                          |
@@ -14,4 +14,4 @@ Cross-language contract: repo-root `specifications/ir` + `../../../specification
 
 Legacy hand-written lexer/parser/renderer copies (migration reference only) may remain under:
 
-`../../dejavu.ts/dejavu-engine/src/legacy/`
+`../../packages/dejavu-engine/src/legacy/`

@@ -1,7 +1,7 @@
 # Runtime image for the `dejavu` CLI (Rust dejavu-tools).
 #
 # Build from repo root:
-#   docker build -f projects/dejavu.rs/Dockerfile -t dejavu:local projects/dejavu.rs
+#   docker build -f Dockerfile -t dejavu:local .
 #
 # Image (CI): ghcr.io/doki-land/dejavu
 
