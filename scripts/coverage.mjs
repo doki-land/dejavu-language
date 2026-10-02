@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const rootDir = join(dirname(fileURLToPath(import.meta.url)), "..");
-const rustManifest = join("projects", "dejavu.rs", "Cargo.toml");
+const rustManifest = "Cargo.toml";
 
 /**
  * @param {string} cmd
@@ -27,12 +27,12 @@ try {
 
     console.log("\n--- 运行 Rust 覆盖率测试 ---");
     runCommand(
-        `cargo tarpaulin --out Html --output-dir ./projects/dejavu.rs/target/coverage --manifest-path ${rustManifest}`,
+        `cargo tarpaulin --out Html --output-dir ./target/coverage --manifest-path ${rustManifest}`,
     );
 
     console.log("\n=== 覆盖率测试完成 ===");
-    console.log("TypeScript 覆盖率报告: projects/dejavu.ts/packages/*/coverage");
-    console.log("Rust 覆盖率报告: projects/dejavu.rs/target/coverage/tarpaulin-report.html");
+    console.log("TypeScript 覆盖率报告: projects/packages/*/coverage");
+    console.log("Rust 覆盖率报告: target/coverage/tarpaulin-report.html");
 } catch (error) {
     console.error("\n!!! 覆盖率测试失败 !!!");
     console.error(error);

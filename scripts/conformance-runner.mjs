@@ -110,7 +110,7 @@ sys.stdout.write(Dejavu.render(ir, ctx))
     rs: {
         label: "Rust",
         render(c) {
-            const manifest = join(ROOT, "projects/dejavu.rs/Cargo.toml");
+            const manifest = join(ROOT, "Cargo.toml");
             if (!existsSync(manifest)) return null;
             const r = run("cargo", [
                 "run",

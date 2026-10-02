@@ -51,23 +51,20 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: projects/dejavu.rs -> target
+          workspaces: . -> target
 
       - name: Build dejavu CLI
         run: |
           set -euo pipefail
-          cargo build --release \
-            --manifest-path projects/dejavu.rs/Cargo.toml \
-            -p dejavu-tools \
-            --bin dejavu
-          strip projects/dejavu.rs/target/release/dejavu
-          ./projects/dejavu.rs/target/release/dejavu --help
+          cargo build --release -p dejavu-tools --bin dejavu
+          strip target/release/dejavu
+          ./target/release/dejavu --help
 
       - name: Pack zip
         run: |
           set -euo pipefail
           mkdir -p dist-artifacts/dejavu
-          cp projects/dejavu.rs/target/release/dejavu dist-artifacts/dejavu/dejavu
+          cp target/release/dejavu dist-artifacts/dejavu/dejavu
           chmod +x dist-artifacts/dejavu/dejavu
           (
             cd dist-artifacts

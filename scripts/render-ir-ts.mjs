@@ -15,7 +15,7 @@ const ctxPath = process.argv[3];
 const loader = `
 import { readFileSync } from "node:fs";
 import { Dejavu } from ${JSON.stringify(
-    join(root, "projects/dejavu.ts/packages/dejavu/src/index.ts").replace(/\\/g, "/"),
+    join(root, "projects/packages/dejavu/src/index.ts").replace(/\\/g, "/"),
 )};
 const ir = JSON.parse(readFileSync(${JSON.stringify(irPath)}, "utf8"));
 const ctx = JSON.parse(readFileSync(${JSON.stringify(ctxPath)}, "utf8"));
@@ -23,7 +23,7 @@ process.stdout.write(Dejavu.render(ir, ctx));
 `;
 
 const r = spawnSync("pnpm", ["exec", "tsx", "--eval", loader], {
-    cwd: join(root, "projects/dejavu.ts"),
+    cwd: root,
     encoding: "utf8",
     shell: true,
 });
@@ -35,7 +35,7 @@ if (r.status === 0) {
 
 // Fallback: load public facade path failed — evaluate IR with local minimal renderer
 const { renderIr } = await import(
-    new URL("../projects/dejavu.ts/packages/dejavu-engine/src/index.ts", import.meta.url).href
+    new URL("../projects/packages/dejavu-engine/src/index.ts", import.meta.url).href
 ).catch(() => ({ renderIr: null }));
 
 const ir = JSON.parse(readFileSync(irPath, "utf8"));

@@ -32,7 +32,7 @@
             "scripts/**",
             "specifications/**",
             "conformance/**",
-            "projects/dejavu.ts/**",
+            "projects/packages/**",
             "!**/node_modules/**",
             "!**/dist/**",
             "!**/build/**",

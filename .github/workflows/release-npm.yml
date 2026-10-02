@@ -68,14 +68,14 @@ jobs:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
           set -euo pipefail
-          PKG=projects/dejavu.ts/dejavu
+          PKG=projects/packages/dejavu
 
           # Bundle workspace engine into dist (config uses noExternal; avoid broken --no-external CLI).
           pnpm --filter @doki-land/dejavu run build:publish
 
           node <<'NODE'
           const fs = require("fs");
-          const path = "projects/dejavu.ts/dejavu/package.json";
+          const path = "projects/packages/dejavu/package.json";
           const version = process.env.VERSION;
           const j = JSON.parse(fs.readFileSync(path, "utf8"));
           j.name = "@doki-land/dejavu";
@@ -97,7 +97,7 @@ jobs:
           j.repository = {
             type: "git",
             url: "git+https://github.com/doki-land/dejavu-language.git",
-            directory: "projects/dejavu.ts/dejavu",
+            directory: "projects/packages/dejavu",
           };
           j.homepage = "https://github.com/doki-land/dejavu-language/tree/dev";
           fs.writeFileSync(path, JSON.stringify(j, null, 2) + "\n");
@@ -108,7 +108,7 @@ jobs:
       - name: Publish to npm (OIDC)
         run: |
           set -u
-          dir="projects/dejavu.ts/dejavu"
+          dir="projects/packages/dejavu"
           name="$(node -p "require('./${dir}/package.json').name")"
           version="$(node -p "require('./${dir}/package.json').version")"
           echo "::group::npm publish ${name}@${version}"

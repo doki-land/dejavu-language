@@ -54,8 +54,8 @@ Cross-host status: [`documentation/compatibility.md`](./documentation/compatibil
 
 | Path                                 | Role                                      |
 |--------------------------------------|-------------------------------------------|
-| `projects/dejavu.ts`                 | TypeScript packages, homepage, user docs  |
-| `projects/dejavu.rs`                 | Rust crates                               |
+| `projects/packages`                 | TypeScript packages, homepage, user docs  |
+| `projects/crates`                 | Rust crates                               |
 | `projects/dejavu.cs` / `.kt` / `.py` | Other host trees                          |
 | `specifications/`                    | Contract, IR schema, conformance fixtures |
 | `documentation/`                     | Contributor / maintainer docs             |
@@ -65,8 +65,8 @@ Cross-host status: [`documentation/compatibility.md`](./documentation/compatibil
 
 | Kind                | Start here                                                                                                  |
 |---------------------|-------------------------------------------------------------------------------------------------------------|
-| User docs (en-us)   | [`projects/dejavu.ts/homepage/documents/en-us`](./projects/dejavu.ts/homepage/documents/en-us/index.md)     |
-| User docs (zh-hans) | [`projects/dejavu.ts/homepage/documents/zh-hans`](./projects/dejavu.ts/homepage/documents/zh-hans/index.md) |
+| User docs (en-us)   | [`projects/packages/homepage/documents/en-us`](./projects/packages/homepage/documents/en-us/index.md)     |
+| User docs (zh-hans) | [`projects/packages/homepage/documents/zh-hans`](./projects/packages/homepage/documents/zh-hans/index.md) |
 | Developer docs      | [`documentation/index.md`](./documentation/index.md)                                                        |
 | Doc map             | [`documentation/readme.md`](./documentation/readme.md)                                                      |
 | Specs               | [`specifications/`](./specifications/)                                                                      |

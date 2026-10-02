@@ -1,15 +1,15 @@
 {
-    "name": "@doki-land/dejavu",
+    "name": "hono-dejavu",
     "version": "0.0.0",
-    "description": "Dejavu template engine — public TypeScript/JavaScript API",
+    "description": "Hono adapter for Dejavu — depends on the public @doki-land/dejavu facade",
     "type": "module",
     "license": "MPL-2.0",
     "author": "Doki Land",
-    "homepage": "https://github.com/doki-land/dejavu-language/tree/dev/projects/dejavu.ts/dejavu",
+    "homepage": "https://github.com/doki-land/dejavu-language/tree/dev/projects/packages/hono-dejavu",
     "repository": {
         "type": "git",
         "url": "git+https://github.com/doki-land/dejavu-language.git",
-        "directory": "projects/dejavu.ts/dejavu"
+        "directory": "projects/packages/hono-dejavu"
     },
     "bugs": {
         "url": "https://github.com/doki-land/dejavu-language/issues"
@@ -19,12 +19,11 @@
     },
     "keywords": [
         "dejavu",
+        "hono",
         "template",
-        "ir",
         "doki-land"
     ],
     "main": "src/index.ts",
-    "types": "./src/index.ts",
     "exports": {
         ".": "./src/index.ts"
     },
@@ -36,15 +35,16 @@
         "access": "public"
     },
     "scripts": {
-        "build": "tsup src/index.ts --format esm --dts",
-        "build:publish": "tsup --config tsup.publish.config.ts",
-        "typecheck": "tsc --noEmit"
+        "typecheck": "node_modules/.bin/tsc --noEmit"
     },
     "dependencies": {
-        "@dejavu/engine": "workspace:*"
+        "@doki-land/dejavu": "workspace:*"
+    },
+    "peerDependencies": {
+        "hono": "^4.0.0"
     },
     "devDependencies": {
-        "tsup": "^8.5.1",
+        "hono": "^4.0.0",
         "typescript": "^5.8.0"
     }
 }

@@ -27,10 +27,10 @@ pnpm conformance
 
 | 任务                         | 位置                                                  |
 |------------------------------|-------------------------------------------------------|
-| TypeScript parser            | `projects/dejavu.ts/dejavu-language`                  |
-| TypeScript renderer / loader | `projects/dejavu.ts/dejavu-engine`                    |
-| 公共 TypeScript facade       | `projects/dejavu.ts/dejavu`                           |
-| Rust parser / renderer       | `projects/dejavu.rs/dejavu-language`、`dejavu-engine` |
+| TypeScript parser            | `projects/packages/dejavu-language`                  |
+| TypeScript renderer / loader | `projects/packages/dejavu-engine`                    |
+| 公共 TypeScript facade       | `projects/packages/dejavu`                           |
+| Rust parser / renderer       | `projects/crates/dejavu-language`、`dejavu-engine` |
 | IR schema 和金样             | `specifications/ir`、`specifications/conformance`     |
 
 ## Windows 已知问题

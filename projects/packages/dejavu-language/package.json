@@ -1,16 +1,16 @@
 {
-    "name": "@dejavu/types",
+    "name": "@dejavu/language",
     "version": "0.0.0",
     "private": true,
-    "description": "Internal Dejavu IR types — applications must depend on @doki-land/dejavu only",
+    "description": "Internal Dejavu language frontend — applications must depend on @doki-land/dejavu only",
     "type": "module",
     "license": "MPL-2.0",
     "author": "Doki Land",
-    "homepage": "https://github.com/doki-land/dejavu-language/tree/dev/projects/dejavu.ts/dejavu-types",
+    "homepage": "https://github.com/doki-land/dejavu-language/tree/dev/projects/packages/dejavu-language",
     "repository": {
         "type": "git",
         "url": "git+https://github.com/doki-land/dejavu-language.git",
-        "directory": "projects/dejavu.ts/dejavu-types"
+        "directory": "projects/packages/dejavu-language"
     },
     "bugs": {
         "url": "https://github.com/doki-land/dejavu-language/issues"
@@ -23,5 +23,8 @@
     "scripts": {
         "build": "tsup src/index.ts --format esm --dts",
         "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@dejavu/types": "workspace:*"
     }
 }

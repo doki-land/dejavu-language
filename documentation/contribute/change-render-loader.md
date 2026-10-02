@@ -14,8 +14,8 @@
 从仓库根目录执行：
 
 ```bash
-pnpm --dir projects/dejavu.ts/dejavu-engine typecheck
-pnpm --dir projects/dejavu.ts/dejavu-engine test
+pnpm --dir projects/packages/dejavu-engine typecheck
+pnpm --dir projects/packages/dejavu-engine test
 pnpm conformance
 ```
 
@@ -23,10 +23,10 @@ pnpm conformance
 
 ## 修改位置
 
-- 渲染：`projects/dejavu.ts/dejavu-engine/src/render.ts`
-- loader：`projects/dejavu.ts/dejavu-engine/src/loader.ts`
-- 路径解析：`projects/dejavu.ts/dejavu-engine/src/resolve.ts`
-- 共享 loader 类型：`projects/dejavu.ts/dejavu-types/src/`
+- 渲染：`projects/packages/dejavu-engine/src/render.ts`
+- loader：`projects/packages/dejavu-engine/src/loader.ts`
+- 路径解析：`projects/packages/dejavu-engine/src/resolve.ts`
+- 共享 loader 类型：`projects/packages/dejavu-types/src/`
 - 其他宿主 renderer：各宿主对应 engine 模块
 
 ## 必须增加的测试

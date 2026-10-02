@@ -1,6 +1,6 @@
 # 解析器笔记
 
-Rust T1 语言前端位于 `projects/dejavu.rs/dejavu-language`：
+Rust T1 语言前端位于 `projects/crates/dejavu-language`：
 
 - **Lexer**: 手写（定界符内表达式，`CodeToken` / `CodeLexer`）
 - **Parser**: 手写递归下降（模板外扫描 + 表达式优先级）
@@ -10,10 +10,10 @@ Rust T1 语言前端位于 `projects/dejavu.rs/dejavu-language`：
 从仓库根目录运行：
 
 ```bash
-cargo test --manifest-path projects/dejavu.rs/Cargo.toml -p dejavu-language
+cargo test -p dejavu-language
 ```
 
-TypeScript 解析在 `projects/dejavu.ts/dejavu-language`，产出与 Contract / IR 对齐的文档。
+TypeScript 解析在 `projects/packages/dejavu-language`，产出与 Contract / IR 对齐的文档。
 
 跨语言契约与金样见 `specifications/conformance/t1` 与 `specifications/ir/v1`。  
 Oak（`oak-dejavu`）与 logos 已从仓库移除，不再作为解析实现。

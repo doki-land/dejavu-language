@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const rootDir = join(dirname(fileURLToPath(import.meta.url)), "..");
-const rustManifest = join("projects", "dejavu.rs", "Cargo.toml");
+const rustManifest = "Cargo.toml";
 
 /**
  * @param {string} cmd
@@ -23,7 +23,7 @@ console.log("=== Dejavu test suite ===\n");
 
 try {
     console.log("--- Rust ---");
-    run(`cargo test --release --manifest-path ${rustManifest}`);
+    run(`cargo test --release --manifest-path ${rustManifest} --workspace`);
 
     console.log("\n--- TypeScript ---");
     run("pnpm --filter @dejavu/engine test");

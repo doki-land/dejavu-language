@@ -2,7 +2,7 @@
 
 ## 用户文档在哪里？
 
-外部用户文档位于 `projects/dejavu.ts/homepage/documents/{en-us,zh-hans}/`，站点入口使用 `/d/*` 路径。本目录只写核心实现和贡献流程。
+外部用户文档位于 `projects/packages/homepage/documents/{en-us,zh-hans}/`，站点入口使用 `/d/*` 路径。本目录只写核心实现和贡献流程。
 
 ## 公共包和实现包怎么区分？
 
