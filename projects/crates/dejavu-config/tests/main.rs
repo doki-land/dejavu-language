@@ -1,6 +1,6 @@
 use dejavu_config::DejavuConfig;
 use std::path::PathBuf;
-use tempfile::tempdir;
+use boost_fs::temp::create_folder;
 
 #[test]
 fn test_new_config() {
@@ -10,7 +10,7 @@ fn test_new_config() {
 
 #[test]
 fn test_load_config() {
-    let temp_dir = tempdir().unwrap();
+    let temp_dir = create_folder().unwrap();
     let config_path = temp_dir.path().join("dejavu.toml");
 
     // Create a test config file
@@ -23,7 +23,7 @@ fn test_load_config() {
 
 #[test]
 fn test_load_default_config() {
-    let temp_dir = tempdir().unwrap();
+    let temp_dir = create_folder().unwrap();
     let original_dir = std::env::current_dir().unwrap();
 
     // Change to temp directory
@@ -42,7 +42,7 @@ fn test_load_default_config() {
 
 #[test]
 fn test_save_config() {
-    let temp_dir = tempdir().unwrap();
+    let temp_dir = create_folder().unwrap();
     let config_path = temp_dir.path().join("dejavu.toml");
 
     // Create a config and save it
