@@ -297,6 +297,12 @@ pub mod codes {
     pub const UNDEFINED_VARIABLE: &str = "dejavu.template.undefined-variable";
     pub const SUPER_OUTSIDE_BLOCK: &str = "dejavu.template.super-outside-block";
     pub const NOT_RENDERABLE_NODE: &str = "dejavu.template.not-renderable-node";
+    pub const EXTENDS_NOT_TOP_LEVEL: &str = "dejavu.template.extends-not-top-level";
+    pub const CALLS_NOT_SUPPORTED: &str = "dejavu.template.calls-not-supported";
+    pub const UNKNOWN_UNARY: &str = "dejavu.template.unknown-unary";
+    pub const INVALID_EXPRESSION_NODE: &str = "dejavu.template.invalid-expression-node";
+    pub const CONTEXT_NOT_OBJECT: &str = "dejavu.template.context-not-object";
+    pub const UNKNOWN_BINARY: &str = "dejavu.template.unknown-binary";
 
     // Config
     pub const CONFIG_READ_FAILED: &str = "dejavu.config.read-failed";

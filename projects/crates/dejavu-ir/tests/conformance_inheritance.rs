@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 
-use dejavu_ir::{IrDocument, IrError, TemplateLoader, default_language, render_ir_with_loader};
+use dejavu_ir::{IrDocument, IrError, TemplateLoader, codes, default_language, render_ir_with_loader};
 use serde_json::Value;
 
 fn tpl_ir(children: Vec<serde_json::Value>) -> IrDocument {
@@ -280,7 +280,10 @@ fn circular_extends_is_detected() {
     );
 
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("circular"));
+    match result.unwrap_err() {
+        IrError::Diagnostic(d) => assert_eq!(d.code, codes::CIRCULAR_EXTENDS),
+        other => panic!("expected Diagnostic, got {other:?}"),
+    }
 }
 
 // ===========================================================================
@@ -295,5 +298,14 @@ fn render_ir_without_loader_errors_on_include() {
         &Value::Object(serde_json::Map::new()),
     );
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("requires a template loader"));
+    match result.unwrap_err() {
+        IrError::Diagnostic(d) => {
+            assert_eq!(d.code, codes::MISSING_LOADER);
+            assert_eq!(
+                d.args.get("feature"),
+                Some(&dejavu_diagnostic::ArgValue::String("include".into()))
+            );
+        }
+        other => panic!("expected Diagnostic, got {other:?}"),
+    }
 }

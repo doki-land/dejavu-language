@@ -1,4 +1,4 @@
-use crate::IrError;
+use crate::{IrError, codes, diag_load, diag_render};
 use crate::types::{IrDocument, IrNode};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -88,13 +88,13 @@ impl<'a> Renderer<'a> {
             if let Some(parent_str) = extends_path {
                 // 循环检测
                 if !self.visited.insert(parent_str.clone()) {
-                    return Err(IrError::Render(format!("circular extends: {parent_str}")));
+                    return Err(diag_load(codes::CIRCULAR_EXTENDS).arg("chain", parent_str.clone()));
                 }
 
                 let loader = self
                     .loader
                     .as_deref_mut()
-                    .ok_or_else(|| IrError::Render("extends requires a template loader".to_string()))?;
+                    .ok_or_else(|| diag_load(codes::MISSING_LOADER).arg("feature", "extends"))?;
                 let parent_doc = loader.load(&parent_str)?;
 
                 // 提取 parent 原始 blocks，供 super 使用
@@ -128,7 +128,7 @@ impl<'a> Renderer<'a> {
         let loader = self
             .loader
             .as_deref_mut()
-            .ok_or_else(|| IrError::Render(format!("{feature} requires a template loader")))?;
+            .ok_or_else(|| diag_load(codes::MISSING_LOADER).arg("feature", feature))?;
         let child = loader.load(path)?;
         self.render_nodes(&child.body)
     }
@@ -170,7 +170,7 @@ impl<'a> Renderer<'a> {
                 let iter_val = self.eval(iterable)?;
                 let items = match iter_val {
                     Value::Array(a) => a,
-                    other => return Err(IrError::Render(format!("for iterable must be array, got {other}"))),
+                    other => return Err(diag_render(codes::INVALID_ITERABLE).arg("expected", "array").arg("got", format!("{other:?}"))),
                 };
                 let mut out = String::new();
                 for (i, val) in items.into_iter().enumerate() {
@@ -204,9 +204,7 @@ impl<'a> Renderer<'a> {
 
             // super：渲染 parent 同名 block 的原始内容。
             IrNode::StmtSuper { .. } => {
-                let block_name = self.current_block.clone().ok_or_else(|| {
-                    IrError::Render("super outside of a block".into())
-                })?;
+                let block_name = self.current_block.clone().ok_or_else(|| diag_render(codes::SUPER_OUTSIDE_BLOCK))?;
                 match self.parent_blocks.get(&block_name).cloned() {
                     Some(parent_body) => self.render_list(&parent_body),
                     None => Ok(String::new()), // parent 没有定义这个 block，输出空
@@ -222,10 +220,10 @@ impl<'a> Renderer<'a> {
 
             // extends：由 render_doc 集中处理，这里不应单独出现。
             IrNode::StmtExtends { .. } => {
-                Err(IrError::Render("extends must be handled at document top level".into()))
+                Err(diag_render(codes::EXTENDS_NOT_TOP_LEVEL))
             }
 
-            other => Err(IrError::Render(format!("node not renderable at top level: {other:?}"))),
+            other => Err(diag_render(codes::NOT_RENDERABLE_NODE).arg("node", format!("{other:?}"))),
         }
     }
 
@@ -264,7 +262,7 @@ impl<'a> Renderer<'a> {
                     _ => Ok(Value::Null),
                 }
             }
-            IrNode::ExprCall { .. } => Err(IrError::Render("calls not supported in T1 eval".into())),
+            IrNode::ExprCall { .. } => Err(diag_render(codes::CALLS_NOT_SUPPORTED)),
             IrNode::ExprBinary { operator, left, right, .. } => {
                 let l = self.eval(left)?;
                 let r = self.eval(right)?;
@@ -287,7 +285,7 @@ impl<'a> Renderer<'a> {
                         _ => Ok(Value::Null),
                     },
                     "+" => Ok(v),
-                    _ => Err(IrError::Render(format!("unknown unary {operator}"))),
+                    _ => Err(diag_render(codes::UNKNOWN_UNARY).arg("operator", operator)),
                 }
             }
             IrNode::ExprPipe { expression, filter, arguments, .. } => {
@@ -296,7 +294,7 @@ impl<'a> Renderer<'a> {
                 val = apply_filter(filter, val, &args?)?;
                 Ok(val)
             }
-            _ => Err(IrError::Render("invalid expression node".into())),
+            _ => Err(diag_render(codes::INVALID_EXPRESSION_NODE)),
         }
     }
 }
@@ -308,7 +306,7 @@ impl<'a> Renderer<'a> {
 fn json_object_to_map(ctx: &Value) -> Result<HashMap<String, Value>, IrError> {
     match ctx {
         Value::Object(map) => Ok(map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
-        _ => Err(IrError::Render("context must be a JSON object".into())),
+        _ => Err(diag_render(codes::CONTEXT_NOT_OBJECT)),
     }
 }
 
@@ -377,7 +375,7 @@ fn eval_binary(op: &str, l: &Value, r: &Value) -> Result<Value, IrError> {
             Value::String(s) => Ok(Value::Bool(s.contains(&value_to_string(l)))),
             _ => Ok(Value::Bool(false)),
         },
-        _ => Err(IrError::Render(format!("unknown binary {op}"))),
+        _ => Err(diag_render(codes::UNKNOWN_BINARY).arg("operator", op)),
     }
 }
 
@@ -426,7 +424,7 @@ fn apply_filter(name: &str, value: Value, args: &[Value]) -> Result<Value, IrErr
             Ok(Value::String(value_to_string(&value).replace(&from, &to)))
         }
         "raw" | "safe" => Ok(value),
-        other => Err(IrError::Render(format!("unknown filter `{other}`"))),
+        other => Err(diag_render(codes::UNKNOWN_FILTER).arg("filter", other)),
     }
 }
 
