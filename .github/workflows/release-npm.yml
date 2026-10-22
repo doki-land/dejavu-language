@@ -87,6 +87,10 @@ jobs:
             os: macos-latest           # Apple Silicon (M1+)
             rust_target: aarch64-apple-darwin
             exe: ""
+          - host: darwin-x64
+            os: macos-13               # last Intel macOS (may queue ~10min on free plan — cancel + re-dispatch if stuck)
+            rust_target: x86_64-apple-darwin
+            exe: ""
           - host: win32-x64
             os: windows-latest
             rust_target: x86_64-pc-windows-msvc
