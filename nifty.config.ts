@@ -18,6 +18,7 @@ export default defineConfig({
         npm: {
             repo: 'doki-land/dejavu-language',
             file: 'release-npm.yml',
+            env: 'NPM_PUBLISH',
         },
     },
 })
