@@ -178,7 +178,7 @@ jobs:
           set -euo pipefail
           node scripts/set-release-version.mjs "$VERSION"
 
-          expected=6
+          expected=$(find artifacts -maxdepth 1 -type d -name 'dejavu-*' | wc -l)
           staged=0
           for dir in artifacts/dejavu-*; do
             [ -d "$dir" ] || continue
