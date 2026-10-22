@@ -9,7 +9,7 @@ pub mod types;
 
 pub use native::{NativeExpr, NativeNode, NativeTemplate};
 pub use normalize::normalize_value;
-pub use render::render_ir;
+pub use render::{TemplateLoader, render_ir, render_ir_with_loader};
 pub use types::{IrDocument, IrNode, Language, TemplateConfig, default_language};
 
 use serde_json::Value;

@@ -7,6 +7,7 @@ use dejavu_language::ParseResult;
 use serde_json::Value;
 
 pub use dejavu_ir;
+pub use dejavu_ir::{TemplateLoader, render_ir_with_loader};
 pub use dejavu_language;
 pub use dejavu_types::{errors::*, parser};
 
