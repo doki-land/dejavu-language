@@ -27,7 +27,7 @@ pnpm add @doki-land/dejavu
 ```
 
 ```ts
-import {Dejavu, parse, render} from "@doki-land/dejavu";
+import {parse, render} from "@doki-land/dejavu";
 
 const out = render(parse("Hello, <% name %>!"), {name: "World"});
 // → Hello, World!
@@ -40,12 +40,13 @@ Install and API notes for other hosts live under each `projects/dejavu.*` tree. 
 
 | Host       | Public surface                         | Notes                                      |
 |------------|----------------------------------------|--------------------------------------------|
-| TypeScript | `@doki-land/dejavu`                    | Application facade                         |
+| TypeScript | `@doki-land/dejavu`                    | Application facade + CLI over the N-API engine |
 | Rust       | `dejavu` (`use dejavu::*`)             | Application facade                         |
 | C#         | `Dejavu`                               | .NET binding                               |
 | Kotlin     | `dejavu`                               | JVM / tooling                              |
 | Python     | `dejavu`                               | Binding                                    |
-| CLI / LSP  | `dejavu` binary (`dejavu lsp`)         | Sole IDE path — not shipped in TS/Py/…     |
+| CLI        | `dejavu` (`parse` / `render` / `check`) | TypeScript CLI in `@doki-land/dejavu`      |
+| LSP        | `dejavu-tools` (`dejavu lsp`)          | Rust-only placeholder — not shipped to npm |
 | Doki only  | `@doki-land/dejavu-engine`             | Product host **library** adapter           |
 
 Cross-host status: [`documentation/compatibility.md`](./documentation/compatibility.md).
@@ -75,10 +76,12 @@ Cross-host status: [`documentation/compatibility.md`](./documentation/compatibil
 
 ## 🛠 Development
 
-Requires Node.js 20+ and pnpm 10 (`packageManager` in root `package.json`).
+Requires Node.js 20+ and pnpm 10 (`packageManager` in root `package.json`), plus a Rust toolchain
+for the N-API engine addon.
 
 ```bash
 pnpm install
+pnpm napi:build
 pnpm fmt:check
 pnpm test
 pnpm conformance

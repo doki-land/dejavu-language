@@ -30,6 +30,7 @@
             "package.json",
             "biome.json",
             "scripts/**",
+            "runtimes/**",
             "specifications/**",
             "conformance/**",
             "projects/packages/**",

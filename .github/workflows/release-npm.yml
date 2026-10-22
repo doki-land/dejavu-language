@@ -159,6 +159,14 @@ jobs:
       - name: npm CLI for OIDC provenance
         run: npm install -g npm@^11.5.1
 
+      - name: Build TypeScript facade
+        run: |
+          set -euo pipefail
+          pnpm install --no-frozen-lockfile
+          pnpm --filter @doki-land/dejavu build
+          test -f runtimes/dejavu/dist/index.js
+          test -f runtimes/dejavu/dist/cli/cli.js
+
       - name: Download all 6 platform addons
         uses: actions/download-artifact@v4
         with:

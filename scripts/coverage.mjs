@@ -23,7 +23,7 @@ console.log("=== 开始运行覆盖率测试 ===\n");
 
 try {
     console.log("--- 运行 TypeScript 覆盖率测试 ---");
-    runCommand("pnpm --filter @dejavu/engine test -- --coverage");
+    runCommand("pnpm --filter @doki-land/dejavu test -- --coverage");
 
     console.log("\n--- 运行 Rust 覆盖率测试 ---");
     runCommand(

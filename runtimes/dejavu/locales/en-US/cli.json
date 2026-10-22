@@ -1,0 +1,32 @@
+{
+    "cli": {
+        "intro": "Dejavu template engine — parse, render and check templates with the N-API engine",
+        "cmd": {
+            "parse": "Parse a template file into IR (usage: dejavu parse <file> [--out <file>] [--language <id>])",
+            "render": "Render a template source or IR file (usage: dejavu render <file> [--ctx <file>] [--root <dir>])",
+            "check": "Parse templates and report diagnostics (usage: dejavu check <path...> [--extensions <list>] [--root <dir>])",
+            "version": "Print the CLI and binding contract versions"
+        },
+        "opt": {
+            "out": "Write IR to this file instead of stdout",
+            "language": "Template language id",
+            "from-ir": "Treat the input file as IR JSON",
+            "ctx": "JSON file with the render context",
+            "strict": "Fail on undefined variables",
+            "root": "Base directory for template ids (defaults to the template directory)",
+            "extensions": "Comma-separated template extensions"
+        }
+    },
+    "dejavu": {
+        "template": {
+            "template-not-found": "template `{ref}` not found (searched: {searched})",
+            "missing-loader": "no template loader configured for `{ref}`",
+            "invalid-ref": "invalid template reference `{ref}`",
+            "unknown-scheme": "unknown template scheme `{scheme}`",
+            "relative-without-from": "relative reference `{ref}` requires a canonical caller id",
+            "relative-escape-root": "relative reference `{ref}` escapes its catalog root",
+            "circular-extends": "circular extends chain through `{ref}`",
+            "circular-include": "circular include chain through `{ref}`"
+        }
+    }
+}

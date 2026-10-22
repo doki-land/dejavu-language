@@ -28,6 +28,8 @@
     "scripts": {
         "fmt": "node scripts/format.mjs",
         "fmt:check": "node scripts/format.mjs --check",
+        "napi:build": "node scripts/build/napi.mjs",
+        "napi:build:release": "node scripts/build/napi.mjs --release",
         "conformance": "node scripts/conformance-runner.mjs",
         "conformance:ir": "node scripts/conformance-runner.mjs",
         "test": "node scripts/test.mjs",

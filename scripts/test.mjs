@@ -26,7 +26,7 @@ try {
     run(`cargo test --release --manifest-path ${rustManifest} --workspace`);
 
     console.log("\n--- TypeScript ---");
-    run("pnpm --filter @dejavu/engine test");
+    run("pnpm --filter @doki-land/dejavu test");
 
     console.log("\n=== All tests passed ===");
 } catch (error) {

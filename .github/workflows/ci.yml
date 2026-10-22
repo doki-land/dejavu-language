@@ -36,23 +36,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "24"
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Install
-        run: pnpm install --no-frozen-lockfile
-
-      - name: Typecheck (@dejavu/engine, excludes legacy)
-        run: pnpm --filter @dejavu/engine typecheck
-
-      - name: TypeScript tests
-        run: pnpm --filter @dejavu/engine test
-
-      - name: IR conformance
-        run: pnpm conformance
-
-      - name: Publish bundle smoke (@doki-land/dejavu)
-        run: pnpm --filter @doki-land/dejavu run build:publish
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -62,8 +45,23 @@ jobs:
         with:
           workspaces: . -> target
 
-      - name: Build Rust dejavu CLI
-        run: |
-          set -euo pipefail
-          cargo build --release -p dejavu-tools --bin dejavu
-          ./target/release/dejavu --help
+      - name: Install
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build N-API addon
+        run: node scripts/build/napi.mjs
+
+      - name: Typecheck (@doki-land/dejavu)
+        run: pnpm --filter @doki-land/dejavu typecheck
+
+      - name: TypeScript tests (@doki-land/dejavu)
+        run: pnpm --filter @doki-land/dejavu test
+
+      - name: Build facade (@doki-land/dejavu)
+        run: pnpm --filter @doki-land/dejavu build
+
+      - name: IR conformance
+        run: pnpm conformance
+
+      - name: Rust workspace tests
+        run: cargo test --workspace
