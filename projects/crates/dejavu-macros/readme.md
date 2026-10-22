@@ -1,95 +1,56 @@
-# 🚀 DejaVu Macros
+# DejaVu Macros — 占位状态
 
-[![Crates.io](https://img.shields.io/crates/v/dejavu-macros.svg)](https://crates.io/crates/dejavu-macros)
-[![Documentation](https://docs.rs/dejavu-macros/badge.svg)](https://docs.rs/dejavu-macros)
+> **当前状态：占位实现。** 完整的 Askama 式编译期代码生成尚未恢复。
 
-**Powerful Macros for Template Engines.** `dejavu-macros` provides procedural macros for the DejaVu template engine,
-enabling compile-time template processing and seamless integration with Rust code.
+`dejavu-macros` 曾通过 Oak（dejavu 早期 AOT 编译器）提供编译期模板处理。
+该路径已被移除，当前只保留了最小占位接口。
 
-## ✨ Core Features
+## 当前可用
 
-- **🔧 Procedural Macros**：Powerful compile-time template processing
-- **⚡ Zero Runtime Overhead**：Templates compiled directly to Rust code
-- **🎯 Type Safety**：Compile-time validation of template syntax
-- **🛠️ Seamless Integration**：Templates as part of Rust codebase
-- **📦 No External Dependencies**：Self-contained macro implementation
+### `#[derive(Template)]`
 
-## 📦 Installation
-
-```toml
-[dependencies]
-dejavu-macros = "0.1"
-```
-
-## 🚀 Usage Examples
-
-### Template Macro
+生成一个 `render_hint()` 静态方法，提示使用运行时 API：
 
 ```rust
-use dejavu_macros::template;
+use dejavu_macros::Template;
 
-#[template]
-fn greeting(name: &str) -> String {
-    "Hello, <% name %>!"
-}
+#[derive(Template)]
+#[template(path = "templates/hello.dejavu")]
+struct HelloTemplate;
 
 fn main() {
-    let result = greeting("World");
-    println!("{}", result); // Hello, World!
+    assert_eq!(HelloTemplate::render_hint(), "use dejavu::Dejavu::render_source");
 }
 ```
 
-### Inline Templates
+### 运行时替代
+
+在 Askama 式 AOT 恢复前，直接使用 `dejavu::Dejavu::render_source`：
 
 ```rust
-use dejavu_macros::inline_template;
+use dejavu::Dejavu;
 
-fn main() {
-    let name = "Alice";
-    let result = inline_template!("Hello, <% name %>!");
-    println!("{}", result); // Hello, Alice!
+fn render() -> String {
+    Dejavu::render_source(
+        "Hello, <% name %>!",
+        &serde_json::json!({"name": "World"}),
+    ).unwrap()
 }
 ```
 
-### Complex Templates
+## 待恢复：Askama 式编译期代码生成
 
-```rust
-use dejavu_macros::template;
+完整的 `#[derive(Template)]` 和 `template!` 宏将在 IR-based 重写完成后恢复。
+参考 Askama 的设计：
 
-#[template]
-fn user_profile(name: &str, age: u32, is_admin: bool) -> String {
-    r#"
-    <div class="profile">
-        <h1><% name %></h1>
-        <p>Age: <% age %></p>
-        <% if is_admin %>
-        <p>Admin: Yes</p>
-        <% else %>
-        <p>Admin: No</p>
-        <% endif %>
-    </div>
-    "#
-}
+1. **类型模型**：模板如何绑定 Rust struct 字段，由 Rust 类型系统检查
+2. **模板依赖**：`include`、`extends` 等在编译时如何解析和触发重编译
+3. **语义一致性**：IR renderer 与 AOT 后端产出必须完全等价
+4. **诊断体验**：语法错误和类型错误在构建期定位到模板源文件
 
-fn main() {
-    let result = user_profile("Bob", 30, true);
-    println!("{}", result);
-}
-```
+设计草案和进度见 issue tracker。
 
-## 🏗️ Architecture
+## 为什么 Oak 路径被移除
 
-`dejavu-macros` uses the Rust procedural macro system:
-
-- **Compile-Time Processing**：Templates processed at compile time
-- **Code Generation**：Generates optimized Rust code from templates
-- **Syntax Validation**：Early error detection during compilation
-
-## 🤝 Contributing
-
-We welcome contributions! Whether it's bug reports, feature requests, or code, help us build the best macro system for
-template engines. Check our [issues](https://github.com/oovm/dejavu-engine/issues) or submit a PR.
-
-## 📄 License
-
-This project is licensed under the [MPL-2.0](https://www.mozilla.org/en-US/MPL/2.0/) license.
+dejavu 选择先完成 IR + 跨宿主 renderer，确保语义合同冻结后再恢复 Rust AOT。
+这样 Askama 式后端可以直接复用已验证的 IR，而不是另造一套模板语义。
