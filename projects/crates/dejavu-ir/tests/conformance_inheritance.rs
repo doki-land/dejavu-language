@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 
-use dejavu_ir::{IrDocument, IrError, ResolvedTemplate, TemplateLoader, codes, default_language, render_ir_with_loader};
+use dejavu_ir::{IrDocument, IrError, RenderOptions, ResolvedTemplate, TemplateLoader, codes, default_language, render_ir_opts, render_ir_with_loader};
 use serde_json::Value;
 
 fn tpl_ir(children: Vec<serde_json::Value>) -> IrDocument {
@@ -65,6 +65,27 @@ fn include_node(path: &str) -> serde_json::Value {
 
 fn super_node() -> serde_json::Value {
     serde_json::json!({ "type": "Stmt.Super", "trim": "none" })
+}
+
+fn identifier_node(name: &str) -> serde_json::Value {
+    serde_json::json!({ "type": "Expr.Identifier", "name": name })
+}
+
+fn pipe_node(expression: serde_json::Value, filter: &str, arguments: Vec<serde_json::Value>) -> serde_json::Value {
+    serde_json::json!({
+        "type": "Expr.Pipe",
+        "expression": expression,
+        "filter": filter,
+        "arguments": arguments,
+    })
+}
+
+fn interpolation_identifier(name: &str) -> serde_json::Value {
+    interpolation(identifier_node(name))
+}
+
+fn interpolation_pipe(identifier: &str, filter: &str, args: Vec<serde_json::Value>) -> serde_json::Value {
+    interpolation(pipe_node(identifier_node(identifier), filter, args))
 }
 
 // ---------------------------------------------------------------------------
@@ -311,6 +332,215 @@ fn render_ir_without_loader_errors_on_include() {
                 Some(&dejavu_diagnostic::ArgValue::String("include".into()))
             );
         }
+        other => panic!("expected Diagnostic, got {other:?}"),
+    }
+}
+
+// ===========================================================================
+// strictUndefined：缺失变量在 strict 模式下报错
+// ===========================================================================
+
+#[test]
+fn strict_undefined_throws_on_missing_var() {
+    let doc = tpl_ir(vec![interpolation_identifier("missing")]);
+    let ctx = Value::Object(serde_json::Map::new());
+    let opts = RenderOptions {
+        strict_undefined: true,
+        name: Some("t".into()),
+    };
+    let result = render_ir_opts(&doc, &ctx, opts, None);
+    assert!(result.is_err());
+    match result.unwrap_err() {
+        IrError::Diagnostic(d) => {
+            assert_eq!(d.code, codes::UNDEFINED_VARIABLE);
+            assert_eq!(
+                d.args.get("name"),
+                Some(&dejavu_diagnostic::ArgValue::String("missing".into()))
+            );
+        }
+        other => panic!("expected Diagnostic, got {other:?}"),
+    }
+}
+
+#[test]
+fn strict_undefined_disabled_returns_null_as_empty() {
+    let doc = tpl_ir(vec![interpolation_identifier("missing")]);
+    let ctx = Value::Object(serde_json::Map::new());
+    let opts = RenderOptions {
+        strict_undefined: false,
+        name: Some("t".into()),
+    };
+    let out = render_ir_opts(&doc, &ctx, opts, None).unwrap();
+    assert_eq!(out, "");
+}
+
+// ===========================================================================
+// escape/e filter：内部 html_escape + is_raw_filter 跳过二次 escape
+// ===========================================================================
+
+#[test]
+fn escape_filter_does_not_double_escape() {
+    let doc = tpl_ir(vec![interpolation_pipe("val", "escape", vec![])]);
+    let mut ctx = serde_json::Map::new();
+    ctx.insert("val".into(), Value::String("<b>hi</b>".into()));
+    let opts = RenderOptions::default();
+    let out = render_ir_opts(&doc, &Value::Object(ctx), opts, None).unwrap();
+    assert_eq!(out, "&lt;b&gt;hi&lt;/b&gt;");
+}
+
+#[test]
+fn e_alias_filter_works_like_escape() {
+    let doc = tpl_ir(vec![interpolation_pipe("val", "e", vec![])]);
+    let mut ctx = serde_json::Map::new();
+    ctx.insert("val".into(), Value::String("a & b".into()));
+    let opts = RenderOptions::default();
+    let out = render_ir_opts(&doc, &Value::Object(ctx), opts, None).unwrap();
+    assert_eq!(out, "a &amp; b");
+}
+
+#[test]
+fn default_interpolation_does_html_escape() {
+    let doc = tpl_ir(vec![interpolation_identifier("val")]);
+    let mut ctx = serde_json::Map::new();
+    ctx.insert("val".into(), Value::String("<x>".into()));
+    let opts = RenderOptions::default();
+    let out = render_ir_opts(&doc, &Value::Object(ctx), opts, None).unwrap();
+    assert_eq!(out, "&lt;x&gt;");
+}
+
+// ===========================================================================
+// date filter：ISO / epoch ms
+// ===========================================================================
+
+#[test]
+fn date_filter_iso_string() {
+    let doc = tpl_ir(vec![interpolation_pipe("d", "date", vec![])]);
+    let mut ctx = serde_json::Map::new();
+    ctx.insert("d".into(), Value::String("2024-03-15".into()));
+    let opts = RenderOptions::default();
+    let out = render_ir_opts(&doc, &Value::Object(ctx), opts, None).unwrap();
+    assert_eq!(out, "2024-03-15");
+}
+
+#[test]
+fn date_filter_epoch_ms() {
+    // 1705276800000 ms → 2024-01-15 00:00:00 UTC
+    let doc = tpl_ir(vec![interpolation_pipe("d", "date", vec![])]);
+    let mut ctx = serde_json::Map::new();
+    ctx.insert("d".into(), Value::String("1705276800000".into()));
+    let opts = RenderOptions::default();
+    let out = render_ir_opts(&doc, &Value::Object(ctx), opts, None).unwrap();
+    assert_eq!(out, "2024-01-15");
+}
+
+// ===========================================================================
+// slug filter：Unicode 重音折叠 + 小写 + hyphen 压缩
+// ===========================================================================
+
+#[test]
+fn slug_filter_folds_accents_and_compacts() {
+    let doc = tpl_ir(vec![interpolation_pipe("s", "slug", vec![])]);
+    let mut ctx = serde_json::Map::new();
+    ctx.insert("s".into(), Value::String("Café Résumé".into()));
+    let opts = RenderOptions::default();
+    let out = render_ir_opts(&doc, &Value::Object(ctx), opts, None).unwrap();
+    assert_eq!(out, "cafe-resume");
+}
+
+#[test]
+fn slug_filter_trims_edge_hyphens() {
+    let doc = tpl_ir(vec![interpolation_pipe("s", "slug", vec![])]);
+    let mut ctx = serde_json::Map::new();
+    ctx.insert("s".into(), Value::String("!!! Hello World ???".into()));
+    let opts = RenderOptions::default();
+    let out = render_ir_opts(&doc, &Value::Object(ctx), opts, None).unwrap();
+    assert_eq!(out, "hello-world");
+}
+
+// ===========================================================================
+// include 循环检测：双向 A include B include A
+// ===========================================================================
+
+#[test]
+fn circular_include_abba_detected() {
+    let a = tpl_ir(vec![text_node("A("), include_node("b"), text_node(")")]);
+    let b = tpl_ir(vec![text_node("B("), include_node("a"), text_node(")")]);
+
+    let mut loader = InMemoryLoader::new()
+        .insert("a", a)
+        .insert("b", b);
+
+    let entry = loader.resolve("a", None).unwrap().document;
+    let result = render_ir_with_loader(
+        &entry,
+        &Value::Object(serde_json::Map::new()),
+        &mut loader,
+    );
+    assert!(result.is_err());
+    match result.unwrap_err() {
+        IrError::Diagnostic(d) => assert_eq!(d.code, codes::CIRCULAR_INCLUDE),
+        other => panic!("expected Diagnostic, got {other:?}"),
+    }
+}
+
+// ===========================================================================
+// extends 循环 canonical id：同模板不同路径写法仍被识别
+// ===========================================================================
+
+/// 测试专用 loader：把 "<canonical_id>:<any_path>" 这种 ref 解到同一个 id。
+struct AliasLoader {
+    docs: HashMap<String, IrDocument>,
+}
+
+impl AliasLoader {
+    fn new() -> Self {
+        Self { docs: HashMap::new() }
+    }
+    fn insert(mut self, id: &str, doc: IrDocument) -> Self {
+        self.docs.insert(id.to_string(), doc);
+        self
+    }
+}
+
+impl TemplateLoader for AliasLoader {
+    fn resolve(&mut self, ref_: &str, _from: Option<&str>) -> Result<ResolvedTemplate, IrError> {
+        let canonical_id = ref_
+            .split_once(':')
+            .map(|(id, _)| id.to_string())
+            .unwrap_or_else(|| ref_.to_string());
+        let doc = self
+            .docs
+            .get(&canonical_id)
+            .cloned()
+            .ok_or_else(|| IrError::Render(format!("not found: {ref_}")))?;
+        Ok(ResolvedTemplate {
+            id: canonical_id,
+            document: doc,
+        })
+    }
+}
+
+#[test]
+fn extends_cycle_via_canonical_id_alias() {
+    // parent extends "parent:parent.alias" → canonical id "parent"
+    // child extends "parent:real/parent.dejavu" → 同一个 canonical id "parent"
+    // extends 循环必须在 canonical id 层面识别，不能靠路径字符串
+    let parent = tpl_ir(vec![extends_node("parent:parent.alias"), text_node("parent-body")]);
+    let child = tpl_ir(vec![extends_node("parent:real/parent.dejavu"), text_node("child-body")]);
+
+    let mut loader = AliasLoader::new()
+        .insert("parent", parent)
+        .insert("child", child);
+
+    let entry = loader.resolve("child", None).unwrap().document;
+    let result = render_ir_with_loader(
+        &entry,
+        &Value::Object(serde_json::Map::new()),
+        &mut loader,
+    );
+    assert!(result.is_err(), "should detect canonical-id-level extends cycle");
+    match result.unwrap_err() {
+        IrError::Diagnostic(d) => assert_eq!(d.code, codes::CIRCULAR_EXTENDS),
         other => panic!("expected Diagnostic, got {other:?}"),
     }
 }
