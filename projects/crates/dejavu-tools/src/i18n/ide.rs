@@ -151,7 +151,7 @@ impl I18nLanguageServer {
     }
 
     /// Handle text document diagnostics
-    pub fn handle_diagnostics(&self, file_path: &str, content: &str) -> Vec<Diagnostic> {
+    pub fn handle_diagnostics(&self, file_path: &str, content: &str) -> Vec<I18nDiagnostic> {
         let mut diagnostics = Vec::new();
 
         // Validate the file
@@ -172,10 +172,10 @@ impl I18nLanguageServer {
 
                             // Check if key exists
                             if !self.ide_integration.has_translation(key) {
-                                diagnostics.push(Diagnostic {
+                                diagnostics.push(I18nDiagnostic {
                                     range: (line_num, t_start, line_num, t_start + 2 + quote_pos + 1 + key_end + 1),
                                     message: format!("Translation key '{}' not found", key),
-                                    severity: DiagnosticSeverity::Warning,
+                                    severity: I18nDiagnosticSeverity::Warning,
                                 });
                             }
                         }
@@ -188,20 +188,20 @@ impl I18nLanguageServer {
     }
 }
 
-/// Diagnostic information for IDE
+/// Diagnostic information for IDE (i18n tooling — distinct from `dejavu_diagnostic::Diagnostic`).
 #[derive(Debug, Clone)]
-pub struct Diagnostic {
+pub struct I18nDiagnostic {
     /// Range (start line, start char, end line, end char)
     pub range: (usize, usize, usize, usize),
     /// Diagnostic message
     pub message: String,
     /// Diagnostic severity
-    pub severity: DiagnosticSeverity,
+    pub severity: I18nDiagnosticSeverity,
 }
 
-/// Diagnostic severity levels
+/// Diagnostic severity levels (LSP-style, distinct from Dejavu core `Severity`).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DiagnosticSeverity {
+pub enum I18nDiagnosticSeverity {
     /// Error
     Error,
     /// Warning
