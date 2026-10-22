@@ -6,7 +6,10 @@
 
 use std::collections::HashMap;
 
-use dejavu_ir::{IrDocument, IrError, RenderOptions, ResolvedTemplate, TemplateLoader, codes, default_language, render_ir_opts, render_ir_with_loader};
+use dejavu_ir::{
+    IrDocument, IrError, RenderOptions, ResolvedTemplate, TemplateLoader, codes, default_language, diag_load,
+    render_ir_opts, render_ir_with_loader,
+};
 use serde_json::Value;
 
 fn tpl_ir(children: Vec<serde_json::Value>) -> IrDocument {
@@ -112,7 +115,7 @@ impl TemplateLoader for InMemoryLoader {
             .docs
             .get(ref_)
             .cloned()
-            .ok_or_else(|| IrError::Render(format!("template not found: {ref_}")))?;
+            .ok_or_else(|| diag_load(codes::TEMPLATE_NOT_FOUND).arg("template", ref_))?;
         Ok(ResolvedTemplate {
             id: ref_.to_string(),
             document: doc,
@@ -512,7 +515,7 @@ impl TemplateLoader for AliasLoader {
             .docs
             .get(&canonical_id)
             .cloned()
-            .ok_or_else(|| IrError::Render(format!("not found: {ref_}")))?;
+            .ok_or_else(|| diag_load(codes::TEMPLATE_NOT_FOUND).arg("template", ref_))?;
         Ok(ResolvedTemplate {
             id: canonical_id,
             document: doc,

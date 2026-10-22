@@ -12,25 +12,18 @@ pub use normalize::normalize_value;
 pub use render::{RenderOptions, ResolvedTemplate, TemplateLoader, render_ir, render_ir_opts, render_ir_with_loader};
 pub use types::{IrDocument, IrNode, Language, TemplateConfig, default_language};
 
-pub use dejavu_diagnostic::{Diagnostic, Severity, Span, Stage, codes};
+pub use dejavu_diagnostic::{ArgValue, Diagnostic, RelatedSpan, Severity, Span, Stage, codes};
 
 use serde_json::Value;
 
 /// Errors produced by IR encode/decode/render.
 ///
-/// # 迁移状态
-///
-/// - `Json`：保留（serde_json 错误，非模板域错误）
-/// - `Render(String)`：已废弃。render.rs 不再产生此变体，
-///   所有渲染错误已统一为 `Diagnostic(Diagnostic)`。
-/// - `Diagnostic(Diagnostic)`：新路径，结构化诊断（code + args + span + stage）。
+/// - `Json`：serde_json 错误（宿主输入 / IR wire 问题）
+/// - `Diagnostic`：模板域错误的唯一形态（code + args + span + stage）
 #[derive(Debug)]
 pub enum IrError {
     Json(serde_json::Error),
-    /// 旧路径：纯字符串渲染错误。**已废弃** — render.rs 不再产生此变体。
-    #[deprecated(since = "0.0.1", note = "Use IrError::Diagnostic instead. Construct with diag_render() / diag_load().")]
-    Render(String),
-    /// 新路径：结构化诊断（code + args + span + stage）。
+    /// 结构化诊断（code + args + span + stage）。
     Diagnostic(Diagnostic),
 }
 
@@ -38,7 +31,6 @@ impl std::fmt::Display for IrError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             IrError::Json(e) => write!(f, "json error: {e}"),
-            IrError::Render(msg) => write!(f, "render error: {msg}"),
             IrError::Diagnostic(d) => d.fmt(f),
         }
     }

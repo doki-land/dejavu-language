@@ -4,6 +4,7 @@ mod expr;
 mod stmt;
 mod stmt_head;
 
+use dejavu_diagnostic::codes;
 use dejavu_ir::{IrDocument, NativeNode, NativeTemplate, encode_native};
 use expr::parse_expr;
 use stmt_head::{CodeHead, classify_code, head_stop_kind};
@@ -48,7 +49,8 @@ impl<'a> Parser<'a> {
                     i = i + 2 + end + 2;
                     continue;
                 }
-                return Err(ParseError::at(self.source, self.file, i, 2, "unclosed comment", "comment starts here"));
+                return Err(ParseError::at(self.source, self.file, i, 2, "unclosed comment", "comment starts here")
+                    .with_code(codes::PARSE_UNCLOSED_BLOCK));
             }
 
             if self.source[i..].starts_with("<%") {
@@ -68,7 +70,10 @@ impl<'a> Parser<'a> {
                 let rest = &self.source[j..];
                 let end = rest
                     .find("%>")
-                    .ok_or_else(|| ParseError::at(self.source, self.file, open, 2, "unclosed code block", "opens here"))?;
+                    .ok_or_else(|| {
+                        ParseError::at(self.source, self.file, open, 2, "unclosed code block", "opens here")
+                            .with_code(codes::PARSE_UNCLOSED_BLOCK)
+                    })?;
                 let code_raw = &rest[..end];
                 let code = code_raw.trim();
                 let code_content_start = j + (code_raw.len() - code_raw.trim_start().len());
@@ -106,7 +111,8 @@ impl<'a> Parser<'a> {
                                 code.len().max(1),
                                 format!("unexpected `{label}`"),
                                 "unexpected",
-                            ));
+                            )
+                            .with_code(codes::PARSE_UNEXPECTED_TOKEN));
                         }
                         return Ok((children, open));
                     }
@@ -160,7 +166,8 @@ pub(crate) fn peek_code<'a>(
     i: usize,
 ) -> Result<(String, std::ops::Range<usize>, usize), ParseError> {
     if !source[i..].starts_with("<%") {
-        return Err(ParseError::at(source, file, i, 1, "expected code open `<%`", "here"));
+        return Err(ParseError::at(source, file, i, 1, "expected code open `<%`", "here")
+            .with_code(codes::PARSE_UNEXPECTED_TOKEN));
     }
     let mut j = i + 2;
     let b = source.as_bytes();
@@ -168,7 +175,10 @@ pub(crate) fn peek_code<'a>(
         j += 1;
     }
     let rest = &source[j..];
-    let end = rest.find("%>").ok_or_else(|| ParseError::at(source, file, i, 2, "unclosed code block", "opens here"))?;
+    let end = rest.find("%>").ok_or_else(|| {
+        ParseError::at(source, file, i, 2, "unclosed code block", "opens here")
+            .with_code(codes::PARSE_UNCLOSED_BLOCK)
+    })?;
     let inner = rest[..end].to_string();
     let content_start = j;
     Ok((inner, content_start..content_start + end, j + end + 2))

@@ -1,19 +1,19 @@
 //! Dejavu engine (Oak-free): parse via `dejavu-language`, render via `dejavu-ir`.
 //!
-//! No `miette` dependency — error surfaces are plain `IrError` / `ParseError`.
-//! Host adapters (CLI fancy diagnostics, Axum JSON, Doki aggregator) build
-//! their own presentation layer from those structs.
+//! No `miette` dependency — the public error surface is `ParseError` (frontend)
+//! and `IrError::Diagnostic` (engine). Host adapters (CLI fancy diagnostics,
+//! Axum JSON, Doki aggregator) build their own presentation layer from those
+//! structs via [`parse_error_diagnostic`].
 
 #![warn(missing_docs)]
 
-use dejavu_ir::{IrDocument, IrError};
+use dejavu_ir::{Diagnostic, IrDocument, IrError};
 use dejavu_language::ParseResult;
 use serde_json::Value;
 
 pub use dejavu_ir;
-pub use dejavu_ir::{render_ir_with_loader};
+pub use dejavu_ir::render_ir_with_loader;
 pub use dejavu_language;
-pub use dejavu_types::{parser};
 
 // ---------------------------------------------------------------------------
 // Public entry points
@@ -34,21 +34,22 @@ pub fn render(doc: &IrDocument, ctx: &Value) -> Result<String, IrError> {
 /// Parse failures are mapped into `IrError::Diagnostic` so callers get a
 /// single error surface — no need for a combined enum.
 pub fn render_source(source: &str, ctx: &Value) -> Result<String, IrError> {
-    let doc = parse(source).map_err(parse_error_to_ir)?;
+    let doc = parse(source).map_err(|e| IrError::from(parse_error_diagnostic(e)))?;
     dejavu_ir::render_ir(&doc, ctx)
 }
 
-fn parse_error_to_ir(e: dejavu_language::ParseError) -> IrError {
-    let mut diag = dejavu_ir::Diagnostic::new(
-        dejavu_ir::Severity::Error,
-        e.code.unwrap_or(dejavu_ir::codes::PARSE_UNEXPECTED_TOKEN),
-        dejavu_ir::Stage::Parse,
-    )
-    .path(e.file);
+/// Convert a parser failure into the cross-host diagnostic contract.
+///
+/// Keeps the machine code, source span, path and the parser fallback message
+/// so hosts never have to re-derive them from `Display`.
+pub fn parse_error_diagnostic(e: dejavu_language::ParseError) -> Diagnostic {
+    let mut diag = Diagnostic::new(dejavu_ir::Severity::Error, e.code_or_default(), dejavu_ir::Stage::Parse)
+        .message(e.message)
+        .path(e.file);
     if e.span.len() > 0 {
         diag = diag.span(e.span.start, e.span.end);
     }
-    IrError::Diagnostic(diag)
+    diag
 }
 
 /// Engine facade matching other language hosts.

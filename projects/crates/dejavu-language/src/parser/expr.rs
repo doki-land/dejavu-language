@@ -1,5 +1,6 @@
 //! Expression parser over hand-written [`CodeToken`]s (Pratt-style precedence).
 
+use dejavu_diagnostic::codes;
 use dejavu_ir::NativeExpr;
 use serde_json::Value;
 
@@ -30,7 +31,8 @@ impl<'a> ExprParser<'a> {
                         span.len(),
                         "unexpected `%>` inside expression",
                         "here",
-                    ));
+                    )
+                    .with_code(codes::PARSE_UNEXPECTED_TOKEN));
                 }
                 Ok(t) => tokens.push((t, span)),
                 Err(()) => {
@@ -41,7 +43,8 @@ impl<'a> ExprParser<'a> {
                         span.len().max(1),
                         "invalid token in expression",
                         "bad token",
-                    ));
+                    )
+                    .with_code(codes::PARSE_UNEXPECTED_TOKEN));
                 }
             }
         }
@@ -59,7 +62,8 @@ impl<'a> ExprParser<'a> {
                 span.len(),
                 "trailing input in expression",
                 "unexpected",
-            ));
+            )
+            .with_code(codes::PARSE_TRAILING_INPUT));
         }
         Ok(expr)
     }
@@ -86,7 +90,8 @@ impl<'a> ExprParser<'a> {
             Some(CodeToken::Ident(s)) => Ok(s),
             _ => {
                 let span = self.peek_span();
-                Err(ParseError::at(self.source, self.file, span.start, span.len(), "expected identifier", "expected ident"))
+                Err(ParseError::at(self.source, self.file, span.start, span.len(), "expected identifier", "expected ident")
+                    .with_code(codes::PARSE_UNEXPECTED_TOKEN))
             }
         }
     }
@@ -119,7 +124,8 @@ impl<'a> ExprParser<'a> {
                             span.len(),
                             "expected `)` after filter arguments",
                             "expected )",
-                        ));
+                        )
+                        .with_code(codes::PARSE_UNCLOSED_EXPRESSION));
                     }
                 }
                 left = NativeExpr::Pipe { expression: Box::new(left), filter: name, arguments: args };
@@ -255,7 +261,8 @@ impl<'a> ExprParser<'a> {
                             span.len(),
                             "expected `]`",
                             "expected ]",
-                        ));
+                        )
+                        .with_code(codes::PARSE_UNCLOSED_EXPRESSION));
                     }
                     left = NativeExpr::Index { object: Box::new(left), index: Box::new(index) };
                 }
@@ -281,7 +288,8 @@ impl<'a> ExprParser<'a> {
                             span.len(),
                             "expected `)`",
                             "expected )",
-                        ));
+                        )
+                        .with_code(codes::PARSE_UNCLOSED_EXPRESSION));
                     }
                     left = NativeExpr::Call { callee: Box::new(left), arguments: args };
                 }
@@ -307,6 +315,7 @@ impl<'a> ExprParser<'a> {
                         format!("invalid number `{n}`"),
                         "bad number",
                     )
+                    .with_code(codes::PARSE_UNEXPECTED_TOKEN)
                 })?;
                 Ok(NativeExpr::Literal(Value::Number(num)))
             }
@@ -315,14 +324,16 @@ impl<'a> ExprParser<'a> {
                 let e = self.parse_pipe()?;
                 if !matches!(self.bump(), Some(CodeToken::RParen)) {
                     let span = self.peek_span();
-                    return Err(ParseError::at(self.source, self.file, span.start, span.len(), "expected `)`", "expected )"));
+                    return Err(ParseError::at(self.source, self.file, span.start, span.len(), "expected `)`", "expected )")
+                        .with_code(codes::PARSE_UNCLOSED_EXPRESSION));
                 }
                 Ok(e)
             }
             _ => {
                 let span = self.peek_span();
                 let (start, len) = (span.start, span.len().max(1));
-                Err(ParseError::at(self.source, self.file, start, len, "unexpected token in expression", "here"))
+                Err(ParseError::at(self.source, self.file, start, len, "unexpected token in expression", "here")
+                    .with_code(codes::PARSE_UNEXPECTED_TOKEN))
             }
         }
     }

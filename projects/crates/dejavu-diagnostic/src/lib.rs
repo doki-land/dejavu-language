@@ -26,6 +26,8 @@
 //! * `span` 使用 UTF-8 byte offset，展示时再转 line/column。
 //! * `code` 是稳定机器身份字符串，例如 `dejavu.template.circular-extends`。
 //! * `args` 是结构化参数对象，不是已经拼好的自然语言句子。
+//! * `message` 只在底层已经产出人类文案（例如 parser）时作为 fallback 携带，
+//!   有 catalog 的宿主应优先用 `code` + `args` 翻译。
 //! * `Display` 只作为无 catalog 时的最后 fallback；真正的展示必须通过宿主 diagnostic formatter。
 
 use serde::{Deserialize, Serialize};
@@ -113,6 +115,11 @@ pub struct Diagnostic {
     pub severity: Severity,
     /// 稳定机器身份，例如 `dejavu.template.circular-extends`。
     pub code: String,
+    /// 无 catalog 时的 fallback 文案（例如 parser 已经生成的 message）。
+    ///
+    /// 不是诊断真相源：宿主应优先按 `code` + `args` 翻译。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
     /// 结构化参数，供 formatter 拼接自然语言。
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub args: BTreeMap<String, ArgValue>,
@@ -213,6 +220,7 @@ impl Diagnostic {
         Self {
             severity,
             code: code.into(),
+            message: None,
             args: BTreeMap::new(),
             span: None,
             path: None,
@@ -221,6 +229,12 @@ impl Diagnostic {
             related: Vec::new(),
             cause: None,
         }
+    }
+
+    /// 链式附加 fallback 文案。
+    pub fn message(mut self, message: impl Into<String>) -> Self {
+        self.message = Some(message.into());
+        self
     }
 
     /// 链式加一个 arg。
@@ -276,7 +290,10 @@ impl std::fmt::Display for Diagnostic {
             Severity::Info => "info",
             Severity::Debug => "debug",
         };
-        write!(f, "{sv}: {}", self.code)?;
+        write!(f, "{sv}: {}", self.message.as_deref().unwrap_or(&self.code))?;
+        if self.message.is_some() {
+            write!(f, " [{}]", self.code)?;
+        }
         if let Some(p) = &self.path {
             write!(f, " @ {p}")?;
         }
@@ -322,6 +339,9 @@ pub mod codes {
     // Config
     pub const CONFIG_READ_FAILED: &str = "dejavu.config.read-failed";
     pub const CONFIG_INVALID_DOCUMENT: &str = "dejavu.config.invalid-document";
+
+    // IR wire
+    pub const IR_INVALID_JSON: &str = "dejavu.ir.invalid-json";
 }
 
 #[cfg(test)]

@@ -311,8 +311,6 @@ dependencies = [
 name = "dejavu-types"
 version = "0.0.2"
 dependencies = [
- "dejavu-ir",
- "dejavu-language",
  "fluent",
  "fluent-bundle",
  "fluent-syntax",

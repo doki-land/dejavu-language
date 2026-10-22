@@ -2,9 +2,12 @@
 //!
 //! Naming follows the **host** ecosystem (`axum-*`).
 //! Core API remains the public [`dejavu`] crate (`Dejavu` facade).
+//!
+//! Errors are serialized as the shared Dejavu [`Diagnostic`] contract
+//! (`application/json`), never as a flattened human string.
 
 use axum::response::{Html, IntoResponse, Response};
-use dejavu::{Dejavu, IrDocument, IrError};
+use dejavu::{codes, parse_error_diagnostic, Diagnostic, Dejavu, IrDocument, IrError, Severity, Stage};
 use serde_json::{Map, Value};
 
 /// Error returned by adapter helpers.
@@ -12,13 +15,30 @@ use serde_json::{Map, Value};
 pub enum DejavuResponseError {
     #[error(transparent)]
     Ir(#[from] IrError),
-    #[error("{0}")]
-    Parse(String),
+}
+
+impl DejavuResponseError {
+    /// Structured diagnostic exported to the HTTP client.
+    pub fn diagnostic(&self) -> Diagnostic {
+        match self {
+            DejavuResponseError::Ir(IrError::Diagnostic(d)) => d.clone(),
+            DejavuResponseError::Ir(IrError::Json(e)) => {
+                Diagnostic::new(Severity::Error, codes::IR_INVALID_JSON, Stage::Host).message(e.to_string())
+            }
+        }
+    }
 }
 
 impl IntoResponse for DejavuResponseError {
     fn into_response(self) -> Response {
-        (axum::http::StatusCode::INTERNAL_SERVER_ERROR, self.to_string()).into_response()
+        let body = serde_json::to_string(&self.diagnostic())
+            .unwrap_or_else(|e| format!("{{\"code\":\"{}\",\"message\":\"{}\"}}", codes::IR_INVALID_JSON, e));
+        (
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            [("content-type", "application/json")],
+            body,
+        )
+            .into_response()
     }
 }
 
@@ -29,7 +49,8 @@ pub fn html_from_ir(doc: &IrDocument, ctx: &Value) -> Result<Html<String>, Dejav
 
 /// Parse source → IR → HTML. Prefer `html_from_ir` in conformance-sensitive paths.
 pub fn html_from_source(source: &str, ctx: &Value) -> Result<Html<String>, DejavuResponseError> {
-    Dejavu::render_source(source, ctx).map(Html).map_err(|e| DejavuResponseError::Parse(format!("{e:?}")))
+    let doc = Dejavu::parse(source).map_err(|e| DejavuResponseError::from(IrError::from(parse_error_diagnostic(e))))?;
+    html_from_ir(&doc, ctx)
 }
 
 /// Build a JSON object context from an iterator of `(key, value)`.

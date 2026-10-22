@@ -13,9 +13,12 @@
 
 #![warn(missing_docs)]
 
-pub use dejavu_engine::{DejavuEngine, parse, render, render_source};
-pub use dejavu_ir::{IrDocument, IrError, IrNode, TemplateConfig, normalize_value};
-pub use dejavu_language::ParseResult;
+pub use dejavu_engine::{DejavuEngine, parse, parse_error_diagnostic, render, render_source};
+pub use dejavu_ir::{
+    ArgValue, Diagnostic, IrDocument, IrError, IrNode, RelatedSpan, Severity, Span, Stage, TemplateConfig, codes,
+    diag_load, diag_render, normalize_value,
+};
+pub use dejavu_language::{ParseError, ParseResult};
 pub use dejavu_runtime::{
     EscapeDisplay, Escaper, HtmlEscapeConfig, Template, escape, escape_with_config, safe_html_attribute_escape,
     safe_html_escape,

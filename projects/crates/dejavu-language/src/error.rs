@@ -71,6 +71,11 @@ impl ParseError {
         self.code = Some(code);
         self
     }
+
+    /// Stable code exported to hosts (falls back to `unexpected-token`).
+    pub fn code_or_default(&self) -> &'static str {
+        self.code.unwrap_or(dejavu_diagnostic::codes::PARSE_UNEXPECTED_TOKEN)
+    }
 }
 
 impl fmt::Display for ParseError {

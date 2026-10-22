@@ -169,3 +169,45 @@ fn test_html_escape_config_debug() {
     let debug_str = format!("{:?}", config);
     assert!(debug_str.contains("HtmlEscapeConfig"));
 }
+
+#[test]
+fn test_parse_error_exports_stable_code_and_span() {
+    let err = parse("<% if user").expect_err("unclosed block must fail");
+    assert_eq!(err.code, Some(codes::PARSE_UNCLOSED_BLOCK));
+    assert_eq!(err.code_or_default(), codes::PARSE_UNCLOSED_BLOCK);
+    assert_eq!(err.file, "template.dejavu");
+    assert!(!err.span.is_empty());
+
+    let diag = parse_error_diagnostic(err);
+    assert_eq!(diag.code, codes::PARSE_UNCLOSED_BLOCK);
+    assert_eq!(diag.stage, Stage::Parse);
+    assert_eq!(diag.severity, Severity::Error);
+    assert_eq!(diag.path.as_deref(), Some("template.dejavu"));
+    assert!(diag.message.is_some());
+    assert!(diag.span.is_some());
+
+    let json = serde_json::to_value(&diag).expect("diagnostic serializes");
+    assert_eq!(json["code"], codes::PARSE_UNCLOSED_BLOCK);
+    assert_eq!(json["stage"], "parse");
+    assert!(json.get("message").is_some());
+    assert!(json.get("args").is_none());
+}
+
+#[test]
+fn test_parse_error_exports_trailing_input_code() {
+    let err = parse("<% 1 2 %>").expect_err("trailing input must fail");
+    assert_eq!(err.code_or_default(), codes::PARSE_TRAILING_INPUT);
+}
+
+#[test]
+fn test_render_source_exports_parse_failure_as_diagnostic() {
+    let err = render_source("<% 1 2 %>", &serde_json::json!({})).expect_err("must fail");
+    match err {
+        IrError::Diagnostic(d) => {
+            assert_eq!(d.code, codes::PARSE_TRAILING_INPUT);
+            assert_eq!(d.stage, Stage::Parse);
+            assert!(d.span.is_some());
+        }
+        other => panic!("expected structured diagnostic, got {other:?}"),
+    }
+}

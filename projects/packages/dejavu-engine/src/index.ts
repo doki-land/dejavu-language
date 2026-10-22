@@ -28,7 +28,7 @@ export {
     parseCanonicalId,
     canonicalId,
 } from "./resolve";
-export { parseToIr } from "@dejavu/language";
+export { parseToIr, ParseError } from "@dejavu/language";
 export {
     normalizeIrJson,
     normalizeValue,

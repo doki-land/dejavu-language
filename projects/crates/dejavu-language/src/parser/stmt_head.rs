@@ -1,5 +1,6 @@
 //! Classify `<% ... %>` heads from a [`CodeToken`] stream.
 
+use dejavu_diagnostic::codes;
 use crate::error::ParseError;
 use crate::token::CodeToken;
 
@@ -41,7 +42,8 @@ pub(crate) fn classify_code<'a>(
                     span.len(),
                     "unexpected `%>` inside code",
                     "here",
-                ));
+                )
+                .with_code(codes::PARSE_UNEXPECTED_TOKEN));
             }
             Ok(t) => spans.push(Spanned { tok: t, start: span.start, end: span.end }),
             Err(()) => {
@@ -52,7 +54,8 @@ pub(crate) fn classify_code<'a>(
                     span.len().max(1),
                     "invalid token in code",
                     "bad token",
-                ));
+                )
+                .with_code(codes::PARSE_UNEXPECTED_TOKEN));
             }
         }
     }
@@ -84,7 +87,8 @@ pub(crate) fn classify_code<'a>(
                     (spans.last().map(|s| s.end).unwrap_or(spans[0].end) - spans[0].start).max(1),
                     "loop requires `item in iterable`",
                     "expected loop",
-                ));
+                )
+                .with_code(codes::PARSE_UNEXPECTED_TOKEN));
             }
             let CodeToken::Ident(item) = &spans[1].tok else {
                 return Err(ParseError::at(
@@ -94,7 +98,8 @@ pub(crate) fn classify_code<'a>(
                     (spans[1].end - spans[1].start).max(1),
                     "loop requires item identifier",
                     "expected ident",
-                ));
+                )
+                .with_code(codes::PARSE_UNEXPECTED_TOKEN));
             };
             if !matches!(spans[2].tok, CodeToken::In) {
                 return Err(ParseError::at(
@@ -104,7 +109,8 @@ pub(crate) fn classify_code<'a>(
                     (spans.last().map(|s| s.end).unwrap_or(spans[0].end) - spans[0].start).max(1),
                     "loop requires `in`",
                     "expected `item in iterable`",
-                ));
+                )
+                .with_code(codes::PARSE_UNEXPECTED_TOKEN));
             }
             let (iter_src, iter_base) = slice(3);
             Ok(CodeHead::Loop { item: item.clone(), iter_src, iter_base })
@@ -119,7 +125,8 @@ pub(crate) fn classify_code<'a>(
                     return Ok(CodeHead::ElseIf { test_src, test_base });
                 }
             }
-            Err(ParseError::at(source, file, content_base + spans[1].start, 1, "unexpected tokens after `else`", "unexpected"))
+            Err(ParseError::at(source, file, content_base + spans[1].start, 1, "unexpected tokens after `else`", "unexpected")
+                .with_code(codes::PARSE_UNEXPECTED_TOKEN))
         }
         CodeToken::Ident(name) if name == "end" => {
             if spans.len() == 2 {
@@ -139,7 +146,8 @@ pub(crate) fn classify_code<'a>(
                 (spans.last().map(|s| s.end).unwrap_or(spans[0].end) - spans[0].start).max(1),
                 "expected `end if` or `end loop`",
                 "unexpected",
-            ))
+            )
+            .with_code(codes::PARSE_UNEXPECTED_TOKEN))
         }
         _ => {
             let (src, base) = slice(0);

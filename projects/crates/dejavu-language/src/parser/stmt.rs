@@ -1,5 +1,6 @@
 //! Template control-flow parsing (`if` / `loop`) over classified code heads.
 
+use dejavu_diagnostic::codes;
 use dejavu_ir::NativeNode;
 
 use super::expr::parse_expr;
@@ -53,7 +54,8 @@ impl Parser<'_> {
                                 end_span.len(),
                                 "expected `end if`",
                                 "expected end if",
-                            ));
+                            )
+                            .with_code(codes::PARSE_UNCLOSED_BLOCK));
                         }
                     }
                     break;
@@ -70,7 +72,8 @@ impl Parser<'_> {
                         code_span.len(),
                         format!("expected if closer, got `{other:?}`"),
                         "unexpected",
-                    ));
+                    )
+                    .with_code(codes::PARSE_UNCLOSED_BLOCK));
                 }
             }
         }
@@ -103,7 +106,8 @@ impl Parser<'_> {
                     end_span.len(),
                     "expected `end loop`",
                     "expected end loop",
-                ));
+                )
+                .with_code(codes::PARSE_UNCLOSED_BLOCK));
             }
         }
 
