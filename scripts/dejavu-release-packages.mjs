@@ -3,9 +3,9 @@
  * Mirrors doki-engine/scripts/doki-release-packages.mjs exactly.
  *
  * Tree:
- *   compilers/dejavu           — Rust CLI crate (dejavu-tools bin)
- *   compilers/dejavu/npm/<plat>— published platform packages (os/cpu constrained)
- *   projects/packages/dejavu   — @doki-land/dejavu (TS API)
+ *   projects/crates/dejavu-tools       — Rust CLI source
+ *   compilers/dejavu/npm/<plat>         — published platform packages (os/cpu constrained)
+ *   runtimes/dejavu                     — @doki-land/dejavu meta-package (CLI shim + optionalDeps)
  *
  * Platform npm names: `@doki-land/dejavu-<os>-<cpu>`.
  * No `-cli` prefix. No `-gnu`/`-musl` suffix — matches @doki-land/nifty.
@@ -72,11 +72,11 @@ export const PLATFORM_PACKAGES = [
 /** Platform package root (CI stages binaries here) */
 export const PLATFORM_NPM_ROOT = 'compilers/dejavu/npm'
 
-/** Publish order: platform binaries first → @doki-land/dejavu (TS API) last */
+/** Publish order: platform binaries first → @doki-land/dejavu meta-package last */
 export const JS_PACKAGES = [
   {
     name: '@doki-land/dejavu',
-    path: 'projects/packages/dejavu',
+    path: 'runtimes/dejavu',
   },
 ]
 

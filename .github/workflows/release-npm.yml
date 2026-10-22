@@ -106,13 +106,6 @@ jobs:
           cp dist-bin/dejavu-linux-x64 compilers/dejavu/npm/linux-x64/dejavu
           echo "staged linux-x64 → compilers/dejavu/npm/linux-x64/dejavu"
 
-      # ──────────── TS API build ────────────
-      - name: Build @doki-land/dejavu (TS API)
-        run: |
-          set -euo pipefail
-          pnpm install --no-frozen-lockfile
-          pnpm --filter @doki-land/dejavu run build:publish
-
       # ──────────── npm publish（所有包，带 provenance） ────────────
       - name: Publish all packages
         env:
@@ -159,12 +152,12 @@ jobs:
             fi
           done
 
-          # 2) TS API + optionalDeps facade @doki-land/dejavu
-          PKG=projects/packages/dejavu
+          # 2) Meta-package @doki-land/dejavu (CLI shim + optionalDeps)
+          PKG=runtimes/dejavu
           node <<'NODE'
           const fs = require("fs");
           const version = process.env.VERSION;
-          const file = "projects/packages/dejavu/package.json";
+          const file = "runtimes/dejavu/package.json";
           const j = JSON.parse(fs.readFileSync(file, "utf8"));
           j.version = version;
           if (j.optionalDependencies) {
@@ -172,17 +165,6 @@ jobs:
               j.optionalDependencies[k] = version;
             }
           }
-          j.main = "./dist/index.js";
-          j.types = "./dist/index.d.ts";
-          j.exports = { ".": { types: "./dist/index.d.ts", import: "./dist/index.js" } };
-          j.publishConfig = { ...(j.publishConfig || {}), access: "public" };
-          j.repository = {
-            type: "git",
-            url: "git+https://github.com/doki-land/dejavu-language.git",
-            directory: "projects/packages/dejavu",
-          };
-          j.homepage = "https://github.com/doki-land/dejavu-language";
-          delete j.private;
           fs.writeFileSync(file, JSON.stringify(j, null, 2) + "\n");
           console.log(`${j.name}@${j.version}`);
           NODE
