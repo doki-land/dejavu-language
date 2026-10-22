@@ -1,12 +1,16 @@
-# Publish @doki-land/dejavu (TS API) + Rust CLI platform packages
-# when a semver tag is pushed. Trusted Publisher on npmjs.com.
+# Publish @doki-land/dejavu CLI — platform binaries + meta package
+# via OIDC Trusted Publishing (configured per-package on npmjs.com).
 #
-# Platform names: @doki-land/dejavu-<os>-<cpu> (no -cli prefix, no -gnu/-musl suffix).
-# Mirrors @doki-land/nifty naming exactly.
+# Package naming: @doki-land/dejavu-<os>-<cpu> (no -cli prefix, no -gnu/-musl suffix).
+#   Mirrors @doki-land/nifty exactly. Published versions are >0.0.0
+#   (0.0.0 is the Trusted Publishing placeholder).
 #
-# Flow: tag → ci → publish (build linux-x64 in ubuntu, publish all configured platforms + TS API)
-# Trigger: tag vX.Y.Z
+# Flow:
+#   tag → ci → build (matrix: linux/ubuntu, darwin/macos, win32/windows) → publish (ubuntu)
+# Trigger: push tag v*  or  workflow_dispatch
 # Repo: doki-land/dejavu-language
+#
+# npm Trusted Publisher env used by CI: (none needed — OIDC via GITHUB_TOKEN)
 
 name: release-npm
 
@@ -16,10 +20,10 @@ on:
       - "v*.*.*"
   workflow_dispatch:
     inputs:
-      ref:
-        description: "Tag or branch ref (default: v0.0.1)"
-        required: false
-        default: "v0.0.1"
+      version:
+        description: "Version to publish (no leading v). Use >0.0.0 after stubs."
+        required: true
+        default: "0.0.1"
 
 concurrency:
   group: release-npm-${{ github.ref }}
@@ -32,27 +36,124 @@ permissions:
 
 jobs:
   # ──────────────────────────────────────────────────────────
-  # CI 门控（复用 ci.yml）
+  # CI 门控
   # ──────────────────────────────────────────────────────────
   ci:
     uses: ./.github/workflows/ci.yml
 
   # ──────────────────────────────────────────────────────────
-  # 发布（ci 通过后 publish）
+  # 版本解析
+  # ──────────────────────────────────────────────────────────
+  resolve-version:
+    needs: ci
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - id: ver
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]]; then
+            echo "Version must be X.Y.Z (got: $VERSION)" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Publishing version $VERSION"
+
+  # ──────────────────────────────────────────────────────────
+  # 6 平台构建（matrix，fail-fast 关闭）
+  # ──────────────────────────────────────────────────────────
+  build-native:
+    needs: resolve-version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 宿主机原生编译
+          - host: linux-x64
+            os: ubuntu-latest
+            rust_target: x86_64-unknown-linux-gnu
+            exe: ""
+          - host: linux-arm64
+            os: ubuntu-24.04-arm
+            rust_target: aarch64-unknown-linux-gnu
+            exe: ""
+          - host: darwin-arm64
+            os: macos-latest           # Apple Silicon (M1+)
+            rust_target: aarch64-apple-darwin
+            exe: ""
+          - host: darwin-x64
+            os: macos-13               # last Intel macOS
+            rust_target: x86_64-apple-darwin
+            exe: ""
+          - host: win32-x64
+            os: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+            exe: ".exe"
+          - host: win32-arm64
+            os: windows-11-arm
+            rust_target: aarch64-pc-windows-msvc
+            exe: ".exe"
+
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # workflow_dispatch 直接用 dev（已 resolve-version 处理过 tag 情况）
+          ref: ${{ github.event_name == 'workflow_dispatch' && 'dev' || github.ref }}
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+
+      - name: Build release binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --release -p dejavu-tools --bin dejavu --target ${{ matrix.rust_target }}
+          src="target/${{ matrix.rust_target }}/release/dejavu${{ matrix.exe }}"
+          test -f "$src"
+          mkdir -p dist
+          cp "$src" "dist/dejavu${{ matrix.exe }}"
+          if [ -z "${{ matrix.exe }}" ]; then chmod +x "dist/dejavu"; fi
+          ls -la dist/
+
+      - name: Upload platform binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: dejavu-${{ matrix.host }}
+          path: dist/dejavu${{ matrix.exe }}
+          if-no-files-found: error
+
+  # ──────────────────────────────────────────────────────────
+  # 发布（ubuntu-latest，bash 脚本 + OIDC 有权限）
   # ──────────────────────────────────────────────────────────
   publish:
-    needs: ci
+    needs: [resolve-version, build-native]
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && 'dev' || github.ref }}
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
+      - name: Setup Node.js + pnpm
         uses: actions/setup-node@v4
         with:
           node-version: "24"
@@ -60,56 +161,57 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
-      - name: Ensure npm CLI for OIDC
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: npm CLI for OIDC provenance
         run: npm install -g npm@^11.5.1
 
-      - name: Install Rust toolchain (linux-gnu target covers linux-x64 platform pkg)
-        uses: dtolnay/rust-toolchain@stable
+      - name: Download all 6 platform binaries
+        uses: actions/download-artifact@v4
         with:
-          targets: x86_64-unknown-linux-gnu
+          pattern: dejavu-*
+          path: artifacts
+          merge-multiple: false
 
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: . -> target
-
-      - name: Resolve version from tag
-        id: ver
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]]; then
-            echo "Tag must be vX.Y.Z (got: $GITHUB_REF_NAME)" >&2
-            exit 1
-          fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Publishing version $VERSION"
-
-      # ──────────── Rust CLI binary build ────────────
-      # Linux 64-bit on ubuntu-latest covers the first real platform publish.
-      # Other platforms cross-compile (darwin/windows) or run on dedicated runners later.
-      - name: Build Rust CLI (linux-x64)
-        run: |
-          set -euo pipefail
-          mkdir -p dist-bin
-          cargo build --release -p dejavu-tools --bin dejavu --target x86_64-unknown-linux-gnu
-          cp target/x86_64-unknown-linux-gnu/release/dejavu dist-bin/dejavu-linux-x64
-          chmod +x dist-bin/dejavu-linux-x64
-          ls -la dist-bin/
-
-      # ──────────── Stage + version pin ────────────
+      # ──────────── Stage binaries into platform packages ────────────
       - name: Stage binaries + pin versions
         env:
-          VERSION: ${{ steps.ver.outputs.version }}
+          VERSION: ${{ needs.resolve-version.outputs.version }}
         run: |
           set -euo pipefail
           node scripts/set-release-version.mjs "$VERSION"
-          cp dist-bin/dejavu-linux-x64 compilers/dejavu/npm/linux-x64/dejavu
-          echo "staged linux-x64 → compilers/dejavu/npm/linux-x64/dejavu"
+
+          expected=6
+          staged=0
+          for dir in artifacts/dejavu-*; do
+            [ -d "$dir" ] || continue
+            host="${dir#artifacts/dejavu-}"
+            bin="$(find "$dir" -maxdepth 1 -type f | head -n1)"
+            test -n "$bin"
+
+            # 匹配 npmDir（去掉 .exe 后缀）
+            host_clean="${host%.exe}"
+            npm_dir="$(node --input-type=module -e "
+              import { findPlatformByHost } from './scripts/dejavu-release-packages.mjs';
+              const p = findPlatformByHost(process.argv[1]);
+              if (!p) { console.error('unknown host', process.argv[1]); process.exit(2); }
+              console.log('compilers/dejavu/npm/' + p.npmDir);
+            " "$host_clean")"
+            test -d "$npm_dir"
+
+            cp "$bin" "$npm_dir/$(basename "$bin")"
+            echo "staged $host → $npm_dir/$(basename "$bin")"
+            staged=$((staged + 1))
+          done
+
+          echo "staged $staged / $expected"
+          [ "$staged" -eq "$expected" ]
 
       # ──────────── npm publish（所有包，带 provenance） ────────────
       - name: Publish all packages
         env:
-          VERSION: ${{ steps.ver.outputs.version }}
+          VERSION: ${{ needs.resolve-version.outputs.version }}
         run: |
           set -euo pipefail
 
