@@ -1,6 +1,9 @@
-//! Dejavu T1 language frontend: hand-written lexer + recursive descent + **miette**.
+//! Dejavu T1 language frontend: hand-written lexer + recursive descent parser.
 //!
 //! Pipeline: `source → NativeTemplate → IrDocument` (via [`dejavu_ir::encode_native`]).
+//!
+//! This crate is **miette-free**. Error surface is plain `ParseError` + `ParseResult<T>`.
+//! miette / fancy formatting — if needed — happens at host layers.
 
 #![forbid(unsafe_code)]
 

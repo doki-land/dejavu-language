@@ -38,7 +38,7 @@ impl Dejavu {
     }
 
     /// Parse then render.
-    pub fn render_source(source: &str, ctx: &serde_json::Value) -> ParseResult<String> {
+    pub fn render_source(source: &str, ctx: &serde_json::Value) -> Result<String, IrError> {
         render_source(source, ctx)
     }
 

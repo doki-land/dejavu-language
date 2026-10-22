@@ -5,14 +5,13 @@ version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Dejavu T1 language frontend: hand-written lexer + recursive-descent parser + miette diagnostics to IR"
+description = "Dejavu T1 language frontend: hand-written lexer + recursive-descent parser → IR (no miette)"
 homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
 dejavu-ir = { workspace = true }
-miette = { workspace = true, features = ["fancy"] }
-thiserror = "2"
+dejavu-diagnostic = { workspace = true }
 serde_json = { workspace = true }
 
 [dev-dependencies]

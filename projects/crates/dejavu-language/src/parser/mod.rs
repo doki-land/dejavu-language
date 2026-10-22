@@ -182,7 +182,7 @@ pub fn parse(source: impl AsRef<str>) -> ParseResult<IrDocument> {
 /// Parse with a file name for diagnostics.
 pub fn parse_named(source: &str, file: &str) -> ParseResult<IrDocument> {
     let parser = Parser::new(source, file);
-    let native = parser.parse_template().map_err(miette::Error::from)?;
+    let native = parser.parse_template()?;
     let mut doc = encode_native(&native);
     doc.language = dejavu_ir::default_language();
     Ok(doc)
@@ -191,5 +191,5 @@ pub fn parse_named(source: &str, file: &str) -> ParseResult<IrDocument> {
 /// Parse into the Rust-native T1 AST.
 pub fn parse_native(source: impl AsRef<str>) -> ParseResult<NativeTemplate> {
     let source = source.as_ref();
-    Parser::new(source, "template.dejavu").parse_template().map_err(miette::Error::from)
+    Parser::new(source, "template.dejavu").parse_template()
 }

@@ -37,7 +37,7 @@ fn t1_cases_parse_and_render() {
 }
 
 #[test]
-fn miette_highlights_unclosed_code() {
+fn parse_error_highlights_unclosed_code() {
     let err = parse("Hello <% name").expect_err("should fail");
     let msg = format!("{err:?}");
     assert!(msg.contains("unclosed") || msg.contains("code"), "expected diagnostic about unclosed code, got {msg}");

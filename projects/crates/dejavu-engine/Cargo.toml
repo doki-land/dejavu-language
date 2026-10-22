@@ -16,7 +16,6 @@ name = "dejavu_engine"
 dejavu-types = { workspace = true }
 dejavu-ir = { workspace = true }
 dejavu-language = { workspace = true }
-miette = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
