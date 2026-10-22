@@ -20,7 +20,14 @@ pub trait TemplateLoader {
 /// 这是现有 T1 路径的向后兼容入口。需要完整模板继承链时用 [`render_ir_with_loader`]。
 pub fn render_ir(doc: &IrDocument, ctx: &Value) -> Result<String, IrError> {
     let scope = json_object_to_map(ctx)?;
-    let mut r = Renderer { scope, loader: None, blocks: HashMap::new(), visited: HashSet::new() };
+    let mut r = Renderer {
+        scope,
+        loader: None,
+        blocks: HashMap::new(),
+        parent_blocks: HashMap::new(),
+        current_block: None,
+        visited: HashSet::new(),
+    };
     r.render_doc(doc)
 }
 
@@ -35,6 +42,8 @@ pub fn render_ir_with_loader(
         scope,
         loader: Some(loader),
         blocks: HashMap::new(),
+        parent_blocks: HashMap::new(),
+        current_block: None,
         visited: HashSet::new(),
     };
     r.render_doc(doc)
@@ -49,6 +58,10 @@ struct Renderer<'a> {
     loader: Option<&'a mut dyn TemplateLoader>,
     /// 当前渲染层级上的 block 覆盖。key = block 名字。
     blocks: HashMap<String, Vec<IrNode>>,
+    /// parent 模板中同名 block 的原始 body，用于 super。
+    parent_blocks: HashMap<String, Vec<IrNode>>,
+    /// 当前正在渲染的 block 名字（super 用它查找 parent 原始 block）。
+    current_block: Option<String>,
     /// extends 路径上已访问的模板，防止循环。
     visited: HashSet<String>,
 }
@@ -78,22 +91,31 @@ impl<'a> Renderer<'a> {
                     return Err(IrError::Render(format!("circular extends: {parent_str}")));
                 }
 
-                // 保存旧 blocks，压入 child 覆盖
-                let saved_blocks = std::mem::take(&mut self.blocks);
-                for (name, body) in &child_blocks {
-                    self.blocks.insert(name.clone(), body.clone());
-                }
-
                 let loader = self
                     .loader
                     .as_deref_mut()
                     .ok_or_else(|| IrError::Render("extends requires a template loader".to_string()))?;
                 let parent_doc = loader.load(&parent_str)?;
+
+                // 提取 parent 原始 blocks，供 super 使用
+                let parent_body_blocks = extract_blocks(&parent_doc.body);
+
+                // 保存旧状态
+                let saved_blocks = std::mem::take(&mut self.blocks);
+                let saved_parent_blocks = std::mem::take(&mut self.parent_blocks);
+
+                // child blocks 覆盖 self.blocks；parent 原始 blocks 进入 self.parent_blocks
+                for (name, body) in &child_blocks {
+                    self.blocks.insert(name.clone(), body.clone());
+                }
+                self.parent_blocks = parent_body_blocks;
+
                 let out = self.render_doc(&parent_doc)?;
 
                 // 恢复
                 self.visited.remove(&parent_str);
                 self.blocks = saved_blocks;
+                self.parent_blocks = saved_parent_blocks;
 
                 return Ok(out);
             }
@@ -166,14 +188,30 @@ impl<'a> Renderer<'a> {
             IrNode::StmtRaw { value, .. } => Ok(value.clone()),
 
             // block：如果有覆盖内容就渲染覆盖，否则渲染自身 body。
-            IrNode::StmtBlock { name, body, .. } => match self.blocks.get(name).cloned() {
-                Some(override_nodes) => self.render_list(&override_nodes),
-                None => self.render_list(body),
-            },
+            IrNode::StmtBlock { name, body, .. } => {
+                // 记录当前 block 名字，super 会用到
+                let saved = self.current_block.take();
+                self.current_block = Some(name.clone());
 
-            // super：渲染当前 block 的父级原始 body。实现方式：把 parent 传入的 blocks 里的同名
-            // override 替换为 self 原始 body 来临时渲染。
-            IrNode::StmtSuper { .. } => self.render_super(),
+                let result = match self.blocks.get(name).cloned() {
+                    Some(override_nodes) => self.render_list(&override_nodes),
+                    None => self.render_list(body),
+                };
+
+                self.current_block = saved;
+                result
+            }
+
+            // super：渲染 parent 同名 block 的原始内容。
+            IrNode::StmtSuper { .. } => {
+                let block_name = self.current_block.clone().ok_or_else(|| {
+                    IrError::Render("super outside of a block".into())
+                })?;
+                match self.parent_blocks.get(&block_name).cloned() {
+                    Some(parent_body) => self.render_list(&parent_body),
+                    None => Ok(String::new()), // parent 没有定义这个 block，输出空
+                }
+            }
 
             // include：加载并内联渲染。
             IrNode::StmtInclude { path, .. } => {
@@ -197,12 +235,6 @@ impl<'a> Renderer<'a> {
             out.push_str(&self.render_nodes(n)?);
         }
         Ok(out)
-    }
-
-    fn render_super(&mut self) -> Result<String, IrError> {
-        // super 暂未实现完整 block 继承链，返回空字符串。
-        // 完整实现需要在 extends 处理时保留 parent 原始 blocks。
-        Ok(String::new())
     }
 
     // ------------------------------------------------------------------
@@ -289,6 +321,19 @@ fn restore(scope: &mut HashMap<String, Value>, key: &str, prev: Option<Value>) {
             scope.remove(key);
         }
     }
+}
+
+/// 从文档 body 中提取所有顶层 `block` 定义。
+fn extract_blocks(body: &IrNode) -> HashMap<String, Vec<IrNode>> {
+    let mut out = HashMap::new();
+    if let IrNode::Template { children, .. } = body {
+        for c in children {
+            if let IrNode::StmtBlock { name, body, .. } = c {
+                out.insert(name.clone(), body.clone());
+            }
+        }
+    }
+    out
 }
 
 fn eval_binary(op: &str, l: &Value, r: &Value) -> Result<Value, IrError> {
