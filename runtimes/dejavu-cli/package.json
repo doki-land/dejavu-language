@@ -1,0 +1,37 @@
+{
+  "name": "@doki-land/dejavu-cli",
+  "version": "0.0.1",
+  "description": "Dejavu template engine — Rust CLI (multi-platform binary)",
+  "license": "MPL-2.0",
+  "author": "Doki Land",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doki-land/dejavu-language.git"
+  },
+  "homepage": "https://github.com/doki-land/dejavu-language",
+  "bugs": {
+    "url": "https://github.com/doki-land/dejavu-language/issues"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "bin": {
+    "dejavu": "./bin/dejavu.mjs"
+  },
+  "optionalDependencies": {
+    "@doki-land/dejavu-cli-linux-x64-gnu": "0.0.1",
+    "@doki-land/dejavu-cli-linux-arm64-gnu": "0.0.1",
+    "@doki-land/dejavu-cli-linux-x64-musl": "0.0.1",
+    "@doki-land/dejavu-cli-linux-arm64-musl": "0.0.1",
+    "@doki-land/dejavu-cli-darwin-x64": "0.0.1",
+    "@doki-land/dejavu-cli-darwin-arm64": "0.0.1",
+    "@doki-land/dejavu-cli-win32-x64": "0.0.1",
+    "@doki-land/dejavu-cli-win32-arm64": "0.0.1"
+  },
+  "files": [
+    "bin/dejavu.mjs"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

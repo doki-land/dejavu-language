@@ -1,0 +1,22 @@
+{
+  "name": "@doki-land/dejavu-cli-win32-x64",
+  "version": "0.0.1",
+  "description": "Dejavu CLI — win32-x64 native binary",
+  "license": "MPL-2.0",
+  "author": "Doki Land",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "bin": {
+    "dejavu": "./dejavu.exe"
+  },
+  "files": [
+    "dejavu.exe"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

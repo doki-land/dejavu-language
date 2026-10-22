@@ -1,11 +1,9 @@
-# Publish @doki-land/dejavu when a semver tag is pushed.
-# Trusted Publisher on npmjs.com must use workflow filename: release-npm.yml
+# Publish @doki-land/dejavu (TS engine) + @doki-land/dejavu-cli (Rust CLI)
+# when a semver tag is pushed. Trusted Publisher on npmjs.com.
 #
-# Flow: tag → ci → publish only if ci is green.
-# Trigger: tag vX.Y.Z (any branch / any commit the tag points at).
-#
+# Flow: tag → ci → build-native (7 平台 cargo build) → publish
+# Trigger: tag vX.Y.Z
 # Repo: doki-land/dejavu-language
-# Tag: vX.Y.Z  (smoke: v0.0.0 — already-published versions are skipped, not errors)
 
 name: release-npm
 
@@ -21,13 +19,106 @@ concurrency:
 permissions:
   contents: read
   id-token: write
+  attestations: write
 
 jobs:
+  # ──────────────────────────────────────────────────────────
+  # CI 门控（复用 ci.yml）
+  # ──────────────────────────────────────────────────────────
   ci:
     uses: ./.github/workflows/ci.yml
 
-  publish:
+  # ──────────────────────────────────────────────────────────
+  # 7 平台 Rust CLI build
+  # dejavu 是纯 Rust CLI，产物是单个 dejavu/dejavu.exe binary
+  # ──────────────────────────────────────────────────────────
+  build-native:
     needs: ci
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            host: linux-x64-gnu
+            rust_target: x86_64-unknown-linux-gnu
+          - os: ubuntu-24.04-arm
+            host: linux-arm64-gnu
+            rust_target: aarch64-unknown-linux-gnu
+          - os: ubuntu-latest
+            host: linux-x64-musl
+            rust_target: x86_64-unknown-linux-musl
+            container: node:20-alpine
+          - os: ubuntu-24.04-arm
+            host: linux-arm64-musl
+            rust_target: aarch64-unknown-linux-musl
+            container: node:20-alpine
+          - os: macos-13
+            host: darwin-x64
+            rust_target: x86_64-apple-darwin
+          - os: macos-latest
+            host: darwin-arm64
+            rust_target: aarch64-apple-darwin
+          - os: windows-latest
+            host: win32-x64
+            rust_target: x86_64-pc-windows-msvc
+          - os: windows-11-arm
+            host: win32-arm64
+            rust_target: aarch64-pc-windows-msvc
+
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Alpine musl 需要手动装 Rust
+      - name: Alpine build deps (musl only)
+        if: contains(matrix.host, 'musl')
+        run: |
+          set -euo pipefail
+          apk add --no-cache bash curl build-base
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      # 非 Alpine 用 rust-toolchain action
+      - name: Install Rust toolchain
+        if: ${{ !matrix.container }}
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Add Rust target (Alpine)
+        if: contains(matrix.host, 'musl')
+        run: rustup target add ${{ matrix.rust_target }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+
+      - name: Build release binary
+        run: |
+          set -euo pipefail
+          cargo build --release \
+            -p dejavu-tools \
+            --bin dejavu \
+            --target ${{ matrix.rust_target }}
+          ls -la target/${{ matrix.rust_target }}/release/ | head -20
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dejavu-cli-${{ matrix.host }}
+          path: target/${{ matrix.rust_target }}/release/dejavu${{ endsWith(matrix.host, 'win32-x64') || endsWith(matrix.host, 'win32-arm64') && '.exe' || '' }}
+          if-no-files-found: error
+
+  # ──────────────────────────────────────────────────────────
+  # 发布（下载所有平台二进制 → stage → publish）
+  # ──────────────────────────────────────────────────────────
+  publish:
+    needs: [ci, build-native]
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -60,19 +151,51 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Publishing version $VERSION"
 
-      - name: Install
-        run: pnpm install
+      - name: Download all platform binaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: dejavu-cli-*
+          path: artifacts
+          merge-multiple: false
 
-      - name: Pin + prepare @doki-land/dejavu
+      - name: Stage binaries into platform packages + pin versions
         env:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
           set -euo pipefail
-          PKG=projects/packages/dejavu
+          node scripts/set-release-version.mjs "$VERSION"
 
-          # Bundle workspace engine into dist (config uses noExternal; avoid broken --no-external CLI).
+          expected=8
+          staged=0
+          for dir in artifacts/dejavu-cli-*; do
+            [ -d "$dir" ] || continue
+            expected=$((expected + 0))
+            host="${dir#artifacts/dejavu-cli-}"
+            BIN="$(ls "$dir" | head -n1)"
+            test -n "$BIN"
+
+            # 平台包目录 = compilers/dejavu-cli/npm/<host>
+            PKGDIR="compilers/dejavu-cli/npm/$host"
+            mkdir -p "$PKGDIR"
+            cp "$dir/$BIN" "$PKGDIR/$BIN"
+            if [[ "$BIN" != *.exe ]]; then
+              chmod +x "$PKGDIR/$BIN"
+            fi
+            staged=$((staged + 1))
+            echo "staged $host -> $PKGDIR/$BIN"
+          done
+          echo "staged $staged platform binaries"
+          test "$staged" -eq 8
+
+      - name: Build + publish @doki-land/dejavu (TS engine)
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          pnpm install
           pnpm --filter @doki-land/dejavu run build:publish
 
+          PKG=projects/packages/dejavu
           node <<'NODE'
           const fs = require("fs");
           const path = "projects/packages/dejavu/package.json";
@@ -99,35 +222,58 @@ jobs:
             url: "git+https://github.com/doki-land/dejavu-language.git",
             directory: "projects/packages/dejavu",
           };
-          j.homepage = "https://github.com/doki-land/dejavu-language/tree/dev";
+          j.homepage = "https://github.com/doki-land/dejavu-language";
           fs.writeFileSync(path, JSON.stringify(j, null, 2) + "\n");
           console.log(`${j.name}@${j.version}`);
           if (j.version !== version) process.exit(1);
           NODE
 
-      - name: Publish to npm (OIDC)
+          publish_one "$PKG"
+
+      - name: Publish platform packages + meta-package (Rust CLI)
         run: |
-          set -u
-          dir="projects/packages/dejavu"
-          name="$(node -p "require('./${dir}/package.json').name")"
-          version="$(node -p "require('./${dir}/package.json').version")"
-          echo "::group::npm publish ${name}@${version}"
-          set +e
-          out="$(cd "$dir" && npm publish --access public --provenance 2>&1)"
-          status=$?
-          set -e
-          printf '%s\n' "$out"
-          if [ "$status" -eq 0 ]; then
-            echo "published ${name}@${version}"
+          set -euo pipefail
+
+          publish_one() {
+            local dir="$1"
+            local name version out status
+            name="$(node -p "require('./${dir}/package.json').name")"
+            version="$(node -p "require('./${dir}/package.json').version")"
+            echo "::group::npm publish ${name}@${version}"
+            set +e
+            out="$(cd "$dir" && npm publish --access public --provenance 2>&1)"
+            status=$?
+            set -e
+            printf '%s\n' "$out"
+            if [ "$status" -eq 0 ]; then
+              echo "published ${name}@${version}"
+              echo "::endgroup::"
+              return 0
+            fi
+            if printf '%s\n' "$out" | grep -Eqi \
+              'cannot publish over|previously published|EPUBLISHCONFLICT'; then
+              echo "::notice::${name}@${version} already on npm — skip"
+              echo "::endgroup::"
+              return 0
+            fi
+            echo "::error::npm publish failed for ${name}@${version}"
             echo "::endgroup::"
-            exit 0
-          fi
-          if printf '%s\n' "$out" | grep -Eqi \
-            'cannot publish over|previously published|EPUBLISHCONFLICT|You cannot publish over the previously published versions'; then
-            echo "::notice::${name}@${version} already on npm — skip (not an error)"
-            echo "::endgroup::"
-            exit 0
-          fi
-          echo "::error::npm publish failed for ${name}@${version} (exit ${status})"
-          echo "::endgroup::"
-          exit "$status"
+            return "$status"
+          }
+
+          failed=0
+          # Platform packages first (meta depends on them)
+          for d in compilers/dejavu-cli/npm/*/; do
+            pkg="${d%/}"
+            name="$(node -p "require('./${pkg}/package.json').name")"
+            # Only publish if package.json has a binary file staged
+            if ls "$pkg"/dejavu* >/dev/null 2>&1; then
+              publish_one "$pkg" || failed=1
+            else
+              echo "::warning::skip $name (no staged binary)"
+            fi
+          done
+          # Meta-package last
+          publish_one "runtimes/dejavu-cli" || failed=1
+
+          exit "$failed"

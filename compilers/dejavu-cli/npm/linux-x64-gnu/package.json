@@ -1,0 +1,25 @@
+{
+  "name": "@doki-land/dejavu-cli-linux-x64-gnu",
+  "version": "0.0.1",
+  "description": "Dejavu CLI — linux-x64-gnu native binary",
+  "license": "MPL-2.0",
+  "author": "Doki Land",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "libc": [
+    "glibc"
+  ],
+  "bin": {
+    "dejavu": "./dejavu"
+  },
+  "files": [
+    "dejavu"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
