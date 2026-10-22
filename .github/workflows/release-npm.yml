@@ -91,6 +91,7 @@ jobs:
             os: macos-13               # last Intel macOS
             rust_target: x86_64-apple-darwin
             exe: ""
+            continue-on-error: true    # Intel macOS runners are extremely scarce on free plan
           - host: win32-x64
             os: windows-latest
             rust_target: x86_64-pc-windows-msvc
