@@ -36,9 +36,10 @@
         "@biomejs/biome": "^2.4.8"
     },
     "pnpm": {
-        "onlyBuiltDependencies": [
-            "esbuild",
-            "@biomejs/biome"
-        ]
-    }
+    "frozen-lockfile": false,
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "@biomejs/biome"
+    ]
+  }
 }
