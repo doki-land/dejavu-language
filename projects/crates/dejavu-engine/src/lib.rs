@@ -81,7 +81,8 @@ impl miette::Diagnostic for DejavuMietteDiag {
     fn source_code(&self) -> Option<&dyn miette::SourceCode> {
         // Intentionally not providing source snippet here — the engine crate
         // does not own the source string (it lives in the caller or Doki).
-        // Path is surfaced through `url`.
+        // Span info is surfaced via labels below; parser-level errors will own
+        // their source once dejavu-language also migrates to the Diagnostic contract.
         None
     }
 
@@ -92,6 +93,9 @@ impl miette::Diagnostic for DejavuMietteDiag {
             .or(self.diagnostic.path.as_ref())
             .map(|p| Box::new(p.clone()) as Box<dyn std::fmt::Display>)
     }
+    // labels() / source_code() deferred — requires caller-owned source text
+    // and span→SourceSpan mapping that works for parser errors (which own source)
+    // but not IR render errors (which operate on JSON IR without source).
 }
 
 // ---------------------------------------------------------------------------

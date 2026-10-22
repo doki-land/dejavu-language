@@ -20,15 +20,17 @@ use serde_json::Value;
 ///
 /// # 迁移状态
 ///
-/// 旧路径保留：`Render(String)` 仍可用。
-/// 新路径：`Diagnostic(Diagnostic)` 用于结构化错误。
-/// render.rs 正在逐步从 `Render(format!(...))` 迁移到 `Diagnostic(...)`。
+/// - `Json`：保留（serde_json 错误，非模板域错误）
+/// - `Render(String)`：已废弃。render.rs 不再产生此变体，
+///   所有渲染错误已统一为 `Diagnostic(Diagnostic)`。
+/// - `Diagnostic(Diagnostic)`：新路径，结构化诊断（code + args + span + stage）。
 #[derive(Debug)]
 pub enum IrError {
     Json(serde_json::Error),
-    /// 旧路径：纯字符串渲染错误（逐步淘汰中）。
+    /// 旧路径：纯字符串渲染错误。**已废弃** — render.rs 不再产生此变体。
+    #[deprecated(since = "0.0.1", note = "Use IrError::Diagnostic instead. Construct with diag_render() / diag_load().")]
     Render(String),
-    /// 新路径：结构化诊断。
+    /// 新路径：结构化诊断（code + args + span + stage）。
     Diagnostic(Diagnostic),
 }
 
