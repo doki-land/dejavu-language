@@ -11,6 +11,12 @@ on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Tag or branch ref (default: v0.0.1)"
+        required: false
+        default: "v0.0.1"
 
 concurrency:
   group: release-npm-${{ github.ref }}
