@@ -30,7 +30,9 @@ fn render_nodes(node: &IrNode, scope: &mut HashMap<String, Value>) -> Result<Str
         IrNode::Interpolation { expression, raw, .. } => {
             let v = eval(expression, scope)?;
             let s = value_to_string(&v);
-            if *raw { Ok(s) } else { Ok(html_escape(&s)) }
+            // Interpolation.raw 字段 OR 表达式最外层是 `|raw` 过滤器，均跳过 HTML 转义。
+            let skip_escape = *raw || is_raw_filter(expression);
+            if skip_escape { Ok(s) } else { Ok(html_escape(&s)) }
         }
         IrNode::StmtIf { test, consequent, else_ifs, alternate, .. } => {
             if is_truthy(&eval(test, scope)?) {
@@ -242,8 +244,15 @@ fn apply_filter(name: &str, value: Value, args: &[Value]) -> Result<Value, IrErr
             let to = args.get(1).map(value_to_string).unwrap_or_default();
             Ok(Value::String(value_to_string(&value).replace(&from, &to)))
         }
+        "raw" | "safe" => Ok(value),
         other => Err(IrError::Render(format!("unknown filter `{other}`"))),
     }
+}
+
+/// 判断表达式最外层是否为 `|raw` / `|safe` 过滤器。
+/// 这类过滤器在语义上标记值为安全，不应再被 HTML 转义。
+fn is_raw_filter(expr: &IrNode) -> bool {
+    matches!(expr, IrNode::ExprPipe { filter, .. } if filter == "raw" || filter == "safe")
 }
 
 fn is_truthy(v: &Value) -> bool {
