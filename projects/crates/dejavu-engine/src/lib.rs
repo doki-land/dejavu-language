@@ -32,6 +32,7 @@ pub fn diagnostic_to_miette(d: Diagnostic) -> miette::Error {
 /// This adapter keeps them so terminal users see the same identity and
 /// argument values that machine consumers (Doki, Node CLI) see.
 pub fn ir_error_to_miette(err: IrError) -> miette::Error {
+    #[allow(deprecated)] // Legacy Render variant kept only for compatibility
     match err {
         IrError::Json(e) => miette::Error::msg(format!("json error: {e}")),
         IrError::Render(msg) => {
@@ -70,12 +71,15 @@ impl miette::Diagnostic for DejavuMietteDiag {
     }
 
     fn help(&self) -> Option<Box<dyn std::fmt::Display>> {
-        if self.diagnostic.args.is_empty() {
-            None
-        } else {
+        let mut parts: Vec<String> = Vec::new();
+        if !self.diagnostic.args.is_empty() {
             let args_str = serde_json::to_string(&self.diagnostic.args).unwrap_or_default();
-            Some(Box::new(format!("args: {args_str}")))
+            parts.push(format!("args: {args_str}"));
         }
+        if let Some(span) = self.diagnostic.span {
+            parts.push(format!("span: {}..{}", span.start, span.end));
+        }
+        if parts.is_empty() { None } else { Some(Box::new(parts.join("; "))) }
     }
 
     fn source_code(&self) -> Option<&dyn miette::SourceCode> {
@@ -141,5 +145,56 @@ impl DejavuEngine {
 impl Default for DejavuEngine {
     fn default() -> Self {
         Self
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dejavu_ir::codes;
+
+    #[test]
+    fn diagnostic_to_miette_preserves_code_severity_args_span_path() {
+        let diag = Diagnostic::new(
+            Severity::Error,
+            codes::CIRCULAR_EXTENDS,
+            dejavu_ir::Stage::Load,
+        )
+        .arg("chain", "a.dejavu")
+        .path("templates/layout.dejavu")
+        .template_id("theme:layout.dejavu")
+        .span(10, 25);
+
+        let miette_err = diagnostic_to_miette(diag);
+
+        // Display must contain the machine code (stable identity)
+        let display = format!("{miette_err}");
+        assert!(
+            display.contains("dejavu.template.circular-extends"),
+            "Display should preserve code, got: {display}"
+        );
+    }
+
+    #[test]
+    fn ir_error_to_miette_diagnostic_variant_roundtrip() {
+        let ir_err = IrError::Diagnostic(
+            Diagnostic::new(
+                Severity::Warning,
+                codes::UNKNOWN_FILTER,
+                dejavu_ir::Stage::Render,
+            )
+            .arg("filter", "myfilter"),
+        );
+
+        let miette_err = ir_error_to_miette(ir_err);
+        let display = format!("{miette_err}");
+        assert!(
+            display.contains("dejavu.template.unknown-filter"),
+            "Display should preserve code from Diagnostic variant, got: {display}"
+        );
     }
 }

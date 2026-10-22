@@ -68,6 +68,20 @@ pub enum Stage {
 }
 
 /// 源码位置（UTF-8 byte offset）。
+///
+/// # 与 `miette::SourceSpan` 的映射约定
+///
+/// miette 的 `SourceSpan` 是 `(byte_offset, length)` 二元组，其中 offset 是 start，
+/// length 是字节长度。Dejavu `Span` 是 `(start, end)`，其中 end 是 exclusive。
+/// 因此：
+///
+/// ```text
+/// Dejavu Span { start, end }
+/// ↔ miette SourceSpan { offset: start, length: end - start }
+/// ```
+///
+/// 该约定在 `dejavu-language` parser 迁移到本合同之前不会破坏任何现有消费者——
+/// 当前 IR 层诊断来自运行时，尚无 parser 级别的 span。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Span {
     /// byte offset（0-indexed）。
