@@ -61,7 +61,7 @@ jobs:
           echo "Publishing version $VERSION"
 
       - name: Install
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
 
       - name: Pin + prepare @doki-land/dejavu
         env:
