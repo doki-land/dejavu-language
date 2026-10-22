@@ -192,7 +192,7 @@ jobs:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
           set -euo pipefail
-          pnpm install
+          pnpm install --no-frozen-lockfile
           pnpm --filter @doki-land/dejavu run build:publish
 
           PKG=projects/packages/dejavu

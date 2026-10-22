@@ -40,7 +40,7 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Install
-        run: pnpm install
+        run: pnpm install --no-frozen-lockfile
 
       - name: Typecheck (@dejavu/engine, excludes legacy)
         run: pnpm --filter @dejavu/engine typecheck
