@@ -2,11 +2,15 @@
 //!
 //! Parsing lives in [`dejavu_language`] (hand-written lexer + recursive descent + miette).
 
+pub mod catalog;
 pub mod native;
 pub mod normalize;
 pub mod render;
 pub mod types;
 
+pub use catalog::{
+    CatalogFiles, CatalogLoader, CatalogRoot, ResolveHit, ResolveRoot, TemplateCatalog, canonical_id, resolve_ref,
+};
 pub use native::{NativeExpr, NativeNode, NativeTemplate};
 pub use normalize::normalize_value;
 pub use render::{RenderOptions, ResolvedTemplate, TemplateLoader, render_ir, render_ir_opts, render_ir_with_loader};

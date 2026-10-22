@@ -322,6 +322,10 @@ pub mod codes {
     pub const MISSING_LOADER: &str = "dejavu.template.missing-loader";
     pub const CIRCULAR_EXTENDS: &str = "dejavu.template.circular-extends";
     pub const CIRCULAR_INCLUDE: &str = "dejavu.template.circular-include";
+    pub const TEMPLATE_INVALID_REF: &str = "dejavu.template.invalid-ref";
+    pub const TEMPLATE_UNKNOWN_SCHEME: &str = "dejavu.template.unknown-scheme";
+    pub const TEMPLATE_RELATIVE_WITHOUT_FROM: &str = "dejavu.template.relative-without-from";
+    pub const TEMPLATE_RELATIVE_ESCAPE_ROOT: &str = "dejavu.template.relative-escape-root";
 
     // Render
     pub const UNKNOWN_FILTER: &str = "dejavu.template.unknown-filter";
