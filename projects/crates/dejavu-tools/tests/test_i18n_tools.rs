@@ -1,149 +1,189 @@
 //! Tests for DejaVu Engine internationalization tools
+//!
+//! 每个测试用独立临时目录隔离，避免扫到整个 workspace。
 
-use std::{fs, path::Path};
+use std::{
+    env,
+    fs,
+    path::{Path, PathBuf},
+};
 
 use dejavu_tools::i18n::{I18nConfig, extractor::Extractor, validator::Validator};
 
+/// 为每个测试创建独立临时子目录，返回该路径。
+fn unique_temp_dir(name: &str) -> PathBuf {
+    let mut p = env::temp_dir();
+    let pid = std::process::id();
+    let rand = rand_suffix();
+    p.push(format!("dejavu-tools-{name}-{pid}-{rand}"));
+    fs::create_dir_all(&p).unwrap();
+    p
+}
+
+fn rand_suffix() -> u32 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as u32
+}
+
+fn cleanup(path: &Path) {
+    let _ = fs::remove_dir_all(path);
+}
+
 #[test]
 fn test_extractor() {
-    // Create a temporary test file
-    let test_content = r#"Hello {{ name }}
-{{ t("greeting") }}
-{{ t('welcome') }}"#;
-    let test_file = "test_template.dejavu";
-    fs::write(test_file, test_content).unwrap();
+    let dir = unique_temp_dir("extractor");
+    let template = dir.join("test_template.dejavu");
+    fs::write(
+        &template,
+        r#"Hello, <% name %>!
+<% t("greeting") %>
+<% t('welcome') %>"#,
+    )
+    .unwrap();
 
-    // Create config
     let mut config = I18nConfig::new();
-    config.add_source_dir(".");
+    config.add_source_dir(dir.to_str().unwrap());
     config.add_include_pattern("*.dejavu");
 
-    // Create extractor and extract translations
     let mut extractor = Extractor::new(config);
     let extracted = extractor.extract().unwrap();
 
-    // Check that translations were extracted
     assert!(extracted.contains_key("greeting"));
     assert!(extracted.contains_key("welcome"));
     assert_eq!(extracted.len(), 2);
 
-    // Clean up
-    fs::remove_file(test_file).unwrap();
+    cleanup(&dir);
 }
 
 #[test]
 fn test_validator() {
-    // Create temporary test files
-    let test_content = r#"Hello {{ name }}
-{{ t("greeting") }}"#;
-    let test_file = "test_template.dejavu";
-    fs::write(test_file, test_content).unwrap();
+    let dir = unique_temp_dir("validator-ok");
 
-    // Create translations directory and files
-    fs::create_dir_all("translations").unwrap();
-    let en_content = r#"msgid "greeting"
+    // 创建模板
+    let template = dir.join("test_template.dejavu");
+    fs::write(
+        &template,
+        r#"Hello, <% name %>!
+<% t("greeting") %>"#,
+    )
+    .unwrap();
+
+    // 创建翻译目录和文件
+    let translations = dir.join("translations");
+    fs::create_dir_all(&translations).unwrap();
+    fs::write(
+        translations.join("en.po"),
+        r#"msgid "greeting"
 msgstr "Hello"
-"#;
-    let zh_content = r#"msgid "greeting"
+"#,
+    )
+    .unwrap();
+    fs::write(
+        translations.join("zh-CN.po"),
+        r#"msgid "greeting"
 msgstr "你好"
-"#;
-    fs::write("translations/en.po", en_content).unwrap();
-    fs::write("translations/zh-CN.po", zh_content).unwrap();
+"#,
+    )
+    .unwrap();
 
-    // Create config
     let mut config = I18nConfig::new();
-    config.add_source_dir(".");
-    config.set_translations_dir("translations");
+    config.add_source_dir(dir.to_str().unwrap());
+    config.set_translations_dir(translations.to_str().unwrap());
     config.set_default_locale("en");
     config.add_supported_locale("en");
     config.add_supported_locale("zh-CN");
 
-    // Extract translations
     let mut extractor = Extractor::new(config.clone());
     let extracted = extractor.extract().unwrap();
 
-    // Create validator and validate
     let mut validator = Validator::new(config, extracted);
     validator.load_translations().unwrap();
     let result = validator.validate();
 
-    // Check validation result
-    assert!(result.passed);
+    assert!(result.passed, "validation errors: {:?}", result.errors);
     assert_eq!(result.errors.len(), 0);
 
-    // Clean up
-    fs::remove_file(test_file).unwrap();
-    fs::remove_file("translations/en.po").unwrap();
-    fs::remove_file("translations/zh-CN.po").unwrap();
-    fs::remove_dir("translations").unwrap();
+    cleanup(&dir);
 }
 
 #[test]
 fn test_extractor_with_rust_file() {
-    // Create a temporary Rust file
-    let test_content = r#"fn main() {
+    let dir = unique_temp_dir("extractor-rust");
+    let rust_file = dir.join("test_rust.rs");
+    fs::write(
+        &rust_file,
+        r#"fn main() {
     println!("{}", t("hello"));
     println!("{}", t("world"));
-}"#;
-    let test_file = "test_rust.rs";
-    fs::write(test_file, test_content).unwrap();
+}"#,
+    )
+    .unwrap();
 
-    // Create config
     let mut config = I18nConfig::new();
-    config.add_source_dir(".");
+    config.add_source_dir(dir.to_str().unwrap());
     config.add_include_pattern("*.rs");
 
-    // Create extractor and extract translations
     let mut extractor = Extractor::new(config);
     let extracted = extractor.extract().unwrap();
 
-    // Check that translations were extracted
     assert!(extracted.contains_key("hello"));
     assert!(extracted.contains_key("world"));
     assert_eq!(extracted.len(), 2);
 
-    // Clean up
-    fs::remove_file(test_file).unwrap();
+    cleanup(&dir);
 }
 
 #[test]
 fn test_validator_missing_translation() {
-    // Create temporary test files
-    let test_content = r#"Hello {{ name }}
-{{ t("greeting") }}
-{{ t("missing") }}"#;
-    let test_file = "test_template.dejavu";
-    fs::write(test_file, test_content).unwrap();
+    let dir = unique_temp_dir("validator-missing");
 
-    // Create translations directory and files
-    fs::create_dir_all("translations").unwrap();
-    let en_content = r#"msgid "greeting"
+    // 创建模板
+    let template = dir.join("test_template.dejavu");
+    fs::write(
+        &template,
+        r#"Hello, <% name %>!
+<% t("greeting") %>
+<% t("missing") %>"#,
+    )
+    .unwrap();
+
+    // 创建翻译目录和文件（只有 greeting，缺 missing）
+    let translations = dir.join("translations");
+    fs::create_dir_all(&translations).unwrap();
+    fs::write(
+        translations.join("en.po"),
+        r#"msgid "greeting"
 msgstr "Hello"
-"#;
-    fs::write("translations/en.po", en_content).unwrap();
+"#,
+    )
+    .unwrap();
 
-    // Create config
     let mut config = I18nConfig::new();
-    config.add_source_dir(".");
-    config.set_translations_dir("translations");
+    config.add_source_dir(dir.to_str().unwrap());
+    config.set_translations_dir(translations.to_str().unwrap());
     config.set_default_locale("en");
     config.add_supported_locale("en");
 
-    // Extract translations
     let mut extractor = Extractor::new(config.clone());
     let extracted = extractor.extract().unwrap();
 
-    // Create validator and validate
     let mut validator = Validator::new(config, extracted);
     validator.load_translations().unwrap();
     let result = validator.validate();
 
-    // Check validation result
-    assert!(!result.passed);
-    assert_eq!(result.errors.len(), 1);
+    assert!(!result.passed, "should have failed due to missing translation");
 
-    // Clean up
-    fs::remove_file(test_file).unwrap();
-    fs::remove_file("translations/en.po").unwrap();
-    fs::remove_dir("translations").unwrap();
+    // en.po 存在但缺 "missing" 这个 key，所以应该至少有 1 个 MissingTranslationKey 错误
+    let missing_key_errors: Vec<_> = result
+        .errors
+        .iter()
+        .filter(|e| matches!(e.error_type, dejavu_tools::i18n::validator::ValidationErrorType::MissingTranslationKey))
+        .collect();
+    assert!(
+        !missing_key_errors.is_empty(),
+        "expected MissingTranslationKey errors, got: {:?}",
+        result.errors
+    );
+
+    cleanup(&dir);
 }

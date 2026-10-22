@@ -182,6 +182,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b588b76d00fde79687d7646a9b5bdf3cc0f655e0bbd080335a95d7e96f3587da"
 
 [[package]]
+name = "boost-fs"
+version = "0.1.0"
+source = "git+https://github.com/oovm/rust-boost?branch=dev#465e3e5eb263f1d2b6f7429c426c5e78064182bc"
+dependencies = [
+ "boost-random",
+]
+
+[[package]]
+name = "boost-random"
+version = "0.1.0"
+source = "git+https://github.com/oovm/rust-boost?branch=dev#465e3e5eb263f1d2b6f7429c426c5e78064182bc"
+
+[[package]]
 name = "bytemuck"
 version = "1.25.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -261,9 +274,9 @@ dependencies = [
 name = "dejavu-config"
 version = "0.0.1"
 dependencies = [
+ "boost-fs",
  "dejavu-types",
  "figment",
- "fs-tools",
  "serde",
  "toml 1.1.4+spec-1.1.0",
  "toml_edit 0.25.13+spec-1.1.0",
@@ -307,8 +320,11 @@ dependencies = [
 name = "dejavu-macros"
 version = "0.0.1"
 dependencies = [
+ "dejavu",
+ "dejavu-types",
  "proc-macro2",
  "quote",
+ "serde_json",
  "syn 2.0.119",
 ]
 
@@ -432,14 +448,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a530c4694a6a8d528794ee9bbd8ba0122e779629ac908d15ad5a7ae7763a33d"
 dependencies = [
  "thiserror 1.0.69",
-]
-
-[[package]]
-name = "fs-tools"
-version = "0.1.0"
-source = "git+https://github.com/oovm/rust-boost?branch=dev#67ae4738883144fec28dc32ab33d1b8aff546256"
-dependencies = [
- "random",
 ]
 
 [[package]]
@@ -823,11 +831,6 @@ checksum = "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
 dependencies = [
  "proc-macro2",
 ]
-
-[[package]]
-name = "random"
-version = "0.1.0"
-source = "git+https://github.com/oovm/rust-boost?branch=dev#67ae4738883144fec28dc32ab33d1b8aff546256"
 
 [[package]]
 name = "regex"
