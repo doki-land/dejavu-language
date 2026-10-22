@@ -1,0 +1,19 @@
+[package]
+name = "dejavu-diagnostic"
+edition = "2024"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+description = "Dejavu structured diagnostic contract — language-neutral wire type for parse/render/config/compile errors"
+
+# 纯数据合同：不依赖 miette / thiserror / 任何宿主适配层。
+# 宿主（Rust CLI / Node CLI / Axum / Doki）各自实现展示适配。
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[features]
+default = []
+# miette 不在本 crate 的计划中；dejavu 或独立 adapter crate 负责 Diagnostic → miette::Report 转换。

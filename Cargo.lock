@@ -283,6 +283,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "dejavu-diagnostic"
+version = "0.0.1"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "dejavu-engine"
 version = "0.0.1"
 dependencies = [
@@ -298,6 +306,7 @@ dependencies = [
 name = "dejavu-ir"
 version = "0.0.1"
 dependencies = [
+ "dejavu-diagnostic",
  "dejavu-language",
  "pretty_assertions",
  "serde",

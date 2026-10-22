@@ -5,6 +5,7 @@ default-members = [
     "projects/crates/dejavu",
     "projects/crates/dejavu-runtime",
     "projects/crates/dejavu-config",
+    "projects/crates/dejavu-diagnostic",
     "projects/crates/dejavu-engine",
     "projects/crates/dejavu-ir",
     "projects/crates/dejavu-language",
@@ -63,6 +64,7 @@ dejavu-macros = { path = "projects/crates/dejavu-macros", version = "0.0.1" }
 dejavu-tools = { path = "projects/crates/dejavu-tools", version = "0.0.1" }
 dejavu-ir = { path = "projects/crates/dejavu-ir", version = "0.0.1" }
 dejavu-language = { path = "projects/crates/dejavu-language", version = "0.0.1" }
+dejavu-diagnostic = { path = "projects/crates/dejavu-diagnostic", version = "0.0.1" }
 axum-dejavu = { path = "projects/crates/axum-dejavu", version = "0.0.1" }
 
 [profile.release]
