@@ -30,10 +30,12 @@
         "fmt:check": "node scripts/format.mjs --check",
         "conformance": "node scripts/conformance-runner.mjs",
         "conformance:ir": "node scripts/conformance-runner.mjs",
-        "test": "node scripts/test.mjs"
+        "test": "node scripts/test.mjs",
+        "placeholder:trust": "nifty trust"
     },
     "devDependencies": {
-        "@biomejs/biome": "^2.4.8"
+        "@biomejs/biome": "^2.4.8",
+        "@doki-land/nifty": "^0.1.8"
     },
     "pnpm": {
     "frozen-lockfile": false,
