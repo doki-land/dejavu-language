@@ -1,7 +1,7 @@
 {
   "name": "@doki-land/dejavu-win32-x64",
   "version": "0.0.0",
-  "description": "Dejavu Rust CLI platform binary (win32-x64)",
+  "description": "Dejavu N-API native addon (win32-x64)",
   "license": "MPL-2.0",
   "author": "Doki Land",
   "os": [
@@ -10,11 +10,9 @@
   "cpu": [
     "x64"
   ],
-  "bin": {
-    "dejavu": "dejavu.exe"
-  },
+  "main": "dejavu.win32-x64-msvc.node",
   "files": [
-    "dejavu.exe"
+    "dejavu.win32-x64-msvc.node"
   ],
   "publishConfig": {
     "access": "public"

@@ -3,18 +3,21 @@
  * Mirrors doki-engine/scripts/doki-release-packages.mjs exactly.
  *
  * Tree:
- *   projects/crates/dejavu-tools       — Rust CLI source
- *   compilers/dejavu/npm/<plat>         — published platform packages (os/cpu constrained)
- *   runtimes/dejavu                     — @doki-land/dejavu meta-package (CLI shim + optionalDeps)
+ *   projects/crates/dejavu-napi        — N-API engine surface (cdylib)
+ *   compilers/dejavu/npm/<plat>         — published platform packages carrying `.node`
+ *   runtimes/dejavu                     — @doki-land/dejavu TypeScript CLI + facade
  *
  * Platform npm names: `@doki-land/dejavu-<os>-<cpu>`.
  * No `-cli` prefix. No `-gnu`/`-musl` suffix — matches @doki-land/nifty.
+ *
+ * Each platform package carries exactly one native addon, named
+ * `dejavu.<nodeTriple>.node`, so the host loader can resolve `pkg/main`.
  */
 export const SMOKE_VERSION = '0.0.0'
 
 /**
  * @type {{
- *   host: string, npmDir: string, rustTarget: string,
+ *   host: string, npmDir: string, rustTarget: string, nodeTriple: string,
  *   name: string, os: string[], cpu: string[]
  * }[]}
  */
@@ -23,6 +26,7 @@ export const PLATFORM_PACKAGES = [
     host: 'linux-x64',
     npmDir: 'linux-x64',
     rustTarget: 'x86_64-unknown-linux-gnu',
+    nodeTriple: 'linux-x64-gnu',
     name: '@doki-land/dejavu-linux-x64',
     os: ['linux'],
     cpu: ['x64'],
@@ -31,6 +35,7 @@ export const PLATFORM_PACKAGES = [
     host: 'linux-arm64',
     npmDir: 'linux-arm64',
     rustTarget: 'aarch64-unknown-linux-gnu',
+    nodeTriple: 'linux-arm64-gnu',
     name: '@doki-land/dejavu-linux-arm64',
     os: ['linux'],
     cpu: ['arm64'],
@@ -39,6 +44,7 @@ export const PLATFORM_PACKAGES = [
     host: 'darwin-x64',
     npmDir: 'darwin-x64',
     rustTarget: 'x86_64-apple-darwin',
+    nodeTriple: 'darwin-x64',
     name: '@doki-land/dejavu-darwin-x64',
     os: ['darwin'],
     cpu: ['x64'],
@@ -47,6 +53,7 @@ export const PLATFORM_PACKAGES = [
     host: 'darwin-arm64',
     npmDir: 'darwin-arm64',
     rustTarget: 'aarch64-apple-darwin',
+    nodeTriple: 'darwin-arm64',
     name: '@doki-land/dejavu-darwin-arm64',
     os: ['darwin'],
     cpu: ['arm64'],
@@ -55,6 +62,7 @@ export const PLATFORM_PACKAGES = [
     host: 'win32-x64',
     npmDir: 'win32-x64',
     rustTarget: 'x86_64-pc-windows-msvc',
+    nodeTriple: 'win32-x64-msvc',
     name: '@doki-land/dejavu-win32-x64',
     os: ['win32'],
     cpu: ['x64'],
@@ -63,16 +71,22 @@ export const PLATFORM_PACKAGES = [
     host: 'win32-arm64',
     npmDir: 'win32-arm64',
     rustTarget: 'aarch64-pc-windows-msvc',
+    nodeTriple: 'win32-arm64-msvc',
     name: '@doki-land/dejavu-win32-arm64',
     os: ['win32'],
     cpu: ['arm64'],
   },
 ]
 
-/** Platform package root (CI stages binaries here) */
+/** Platform package root (CI stages native addons here) */
 export const PLATFORM_NPM_ROOT = 'compilers/dejavu/npm'
 
-/** Publish order: platform binaries first → @doki-land/dejavu meta-package last */
+/** Native addon filename inside each platform package. */
+export function nodeFileName(platform) {
+  return `dejavu.${platform.nodeTriple}.node`
+}
+
+/** Publish order: platform addons first → @doki-land/dejavu meta-package last */
 export const JS_PACKAGES = [
   {
     name: '@doki-land/dejavu',
@@ -93,4 +107,8 @@ export function findPlatformByHost(host) {
 
 export function findPlatformByNpmDir(npmDir) {
   return PLATFORM_PACKAGES.find((p) => p.npmDir === npmDir)
+}
+
+export function findPlatformByRustTarget(rustTarget) {
+  return PLATFORM_PACKAGES.find((p) => p.rustTarget === rustTarget)
 }

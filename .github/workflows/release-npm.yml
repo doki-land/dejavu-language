@@ -1,4 +1,4 @@
-# Publish @doki-land/dejavu CLI — platform binaries + meta package
+# Publish @doki-land/dejavu TypeScript CLI — platform N-API addons + meta package
 # via OIDC Trusted Publishing (configured per-package on npmjs.com).
 #
 # Package naming: @doki-land/dejavu-<os>-<cpu> (no -cli prefix, no -gnu/-musl suffix).
@@ -66,7 +66,7 @@ jobs:
           echo "Publishing version $VERSION"
 
   # ──────────────────────────────────────────────────────────
-  # 6 平台构建（matrix，fail-fast 关闭）
+  # 6 平台 N-API 构建（matrix，fail-fast 关闭）
   # ──────────────────────────────────────────────────────────
   build-native:
     needs: resolve-version
@@ -78,27 +78,21 @@ jobs:
           - host: linux-x64
             os: ubuntu-latest
             rust_target: x86_64-unknown-linux-gnu
-            exe: ""
           - host: linux-arm64
             os: ubuntu-24.04-arm
             rust_target: aarch64-unknown-linux-gnu
-            exe: ""
           - host: darwin-arm64
             os: macos-latest           # Apple Silicon (M1+)
             rust_target: aarch64-apple-darwin
-            exe: ""
           - host: darwin-x64
             os: macos-latest           # cross-compile x86_64-apple-darwin on Apple Silicon runner (Tier 2 + Clang)
             rust_target: x86_64-apple-darwin
-            exe: ""
           - host: win32-x64
             os: windows-latest
             rust_target: x86_64-pc-windows-msvc
-            exe: ".exe"
           - host: win32-arm64
             os: windows-11-arm
             rust_target: aarch64-pc-windows-msvc
-            exe: ".exe"
 
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
@@ -122,23 +116,18 @@ jobs:
         with:
           workspaces: . -> target
 
-      - name: Build release binary
+      - name: Build N-API addon
         shell: bash
         run: |
           set -euo pipefail
-          cargo build --release -p dejavu-tools --bin dejavu --target ${{ matrix.rust_target }}
-          src="target/${{ matrix.rust_target }}/release/dejavu${{ matrix.exe }}"
-          test -f "$src"
-          mkdir -p dist
-          cp "$src" "dist/dejavu${{ matrix.exe }}"
-          if [ -z "${{ matrix.exe }}" ]; then chmod +x "dist/dejavu"; fi
-          ls -la dist/
+          node scripts/build/napi.mjs --release --target ${{ matrix.rust_target }}
+          ls -la "compilers/dejavu/npm/${{ matrix.host }}/"
 
-      - name: Upload platform binary
+      - name: Upload platform addon
         uses: actions/upload-artifact@v4
         with:
           name: dejavu-${{ matrix.host }}
-          path: dist/dejavu${{ matrix.exe }}
+          path: compilers/dejavu/npm/${{ matrix.host }}/dejavu.*.node
           if-no-files-found: error
 
   # ──────────────────────────────────────────────────────────
@@ -170,15 +159,15 @@ jobs:
       - name: npm CLI for OIDC provenance
         run: npm install -g npm@^11.5.1
 
-      - name: Download all 6 platform binaries
+      - name: Download all 6 platform addons
         uses: actions/download-artifact@v4
         with:
           pattern: dejavu-*
           path: artifacts
           merge-multiple: false
 
-      # ──────────── Stage binaries into platform packages ────────────
-      - name: Stage binaries + pin versions
+      # ──────────── Stage addons into platform packages ────────────
+      - name: Stage addons + pin versions
         env:
           VERSION: ${{ needs.resolve-version.outputs.version }}
         run: |
@@ -190,21 +179,18 @@ jobs:
           for dir in artifacts/dejavu-*; do
             [ -d "$dir" ] || continue
             host="${dir#artifacts/dejavu-}"
-            bin="$(find "$dir" -maxdepth 1 -type f | head -n1)"
-            test -n "$bin"
-
-            # 匹配 npmDir（去掉 .exe 后缀）
-            host_clean="${host%.exe}"
             npm_dir="$(node --input-type=module -e "
-              import { findPlatformByHost } from './scripts/dejavu-release-packages.mjs';
+              import { findPlatformByHost, nodeFileName } from './scripts/dejavu-release-packages.mjs';
               const p = findPlatformByHost(process.argv[1]);
               if (!p) { console.error('unknown host', process.argv[1]); process.exit(2); }
-              console.log('compilers/dejavu/npm/' + p.npmDir);
-            " "$host_clean")"
-            test -d "$npm_dir"
+              console.log('compilers/dejavu/npm/' + p.npmDir + '/' + nodeFileName(p));
+            " "$host")"
+            test -d "$(dirname "$npm_dir")"
 
-            cp "$bin" "$npm_dir/$(basename "$bin")"
-            echo "staged $host → $npm_dir/$(basename "$bin")"
+            addon="$(find "$dir" -maxdepth 1 -type f -name '*.node' | head -n1)"
+            test -n "$addon"
+            cp "$addon" "$npm_dir"
+            echo "staged $host → $npm_dir"
             staged=$((staged + 1))
           done
 
@@ -250,14 +236,14 @@ jobs:
           for d in compilers/dejavu/npm/*/; do
             pkg="${d%/}"
             name="$(node -p "require('./${pkg}/package.json').name")"
-            if ls "$pkg"/dejavu* >/dev/null 2>&1; then
+            if ls "$pkg"/dejavu*.node >/dev/null 2>&1; then
               publish_one "$pkg" || failed=1
             else
-              echo "::warning::skip $name (no staged binary)"
+              echo "::warning::skip $name (no staged addon)"
             fi
           done
 
-          # 2) Meta-package @doki-land/dejavu (CLI shim + optionalDeps)
+          # 2) Meta-package @doki-land/dejavu (TypeScript CLI + N-API facade)
           PKG=runtimes/dejavu
           node <<'NODE'
           const fs = require("fs");

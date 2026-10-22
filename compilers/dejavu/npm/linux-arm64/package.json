@@ -1,7 +1,7 @@
 {
   "name": "@doki-land/dejavu-linux-arm64",
   "version": "0.0.0",
-  "description": "Dejavu Rust CLI platform binary (linux-arm64)",
+  "description": "Dejavu N-API native addon (linux-arm64)",
   "license": "MPL-2.0",
   "author": "Doki Land",
   "os": [
@@ -10,11 +10,9 @@
   "cpu": [
     "arm64"
   ],
-  "bin": {
-    "dejavu": "dejavu"
-  },
+  "main": "dejavu.linux-arm64-gnu.node",
   "files": [
-    "dejavu"
+    "dejavu.linux-arm64-gnu.node"
   ],
   "publishConfig": {
     "access": "public"

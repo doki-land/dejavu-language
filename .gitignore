@@ -25,6 +25,9 @@ node_modules/
 target/
 .conformance-tmp/
 
+# Native addons (built by `node scripts/build/napi.mjs`, shipped by CI)
+*.node
+
 # Shared noise
 *.log
 *.swp
