@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 
-use dejavu_ir::{IrDocument, IrError, TemplateLoader, codes, default_language, render_ir_with_loader};
+use dejavu_ir::{IrDocument, IrError, ResolvedTemplate, TemplateLoader, codes, default_language, render_ir_with_loader};
 use serde_json::Value;
 
 fn tpl_ir(children: Vec<serde_json::Value>) -> IrDocument {
@@ -86,11 +86,16 @@ impl InMemoryLoader {
 }
 
 impl TemplateLoader for InMemoryLoader {
-    fn load(&mut self, path: &str) -> Result<IrDocument, IrError> {
-        self.docs
-            .get(path)
+    fn resolve(&mut self, ref_: &str, _from: Option<&str>) -> Result<ResolvedTemplate, IrError> {
+        let doc = self
+            .docs
+            .get(ref_)
             .cloned()
-            .ok_or_else(|| IrError::Render(format!("template not found: {path}")))
+            .ok_or_else(|| IrError::Render(format!("template not found: {ref_}")))?;
+        Ok(ResolvedTemplate {
+            id: ref_.to_string(),
+            document: doc,
+        })
     }
 }
 
@@ -119,7 +124,7 @@ fn extends_block_override() {
 
     // 需要 &mut 但 InMemoryLoader 不是 Copy/Clone —— 重构
     let mut loader = loader;
-    let entry = loader.load("child.dejavu").unwrap();
+    let entry = (loader.resolve("child.dejavu", None).unwrap().document);
     let output = render_ir_with_loader(
         &entry,
         &Value::Object(serde_json::Map::new()),
@@ -149,7 +154,7 @@ fn include_partial() {
         .insert("partial.dejavu", partial)
         .insert("main.dejavu", main);
 
-    let entry = loader.load("main.dejavu").unwrap();
+    let entry = (loader.resolve("main.dejavu", None).unwrap().document);
     let output = render_ir_with_loader(
         &entry,
         &Value::Object(serde_json::Map::new()),
@@ -186,7 +191,7 @@ fn super_renders_parent_block_body() {
         .insert("base.dejavu", base)
         .insert("child.dejavu", child);
 
-    let entry = loader.load("child.dejavu").unwrap();
+    let entry = (loader.resolve("child.dejavu", None).unwrap().document);
     let output = render_ir_with_loader(
         &entry,
         &Value::Object(serde_json::Map::new()),
@@ -217,7 +222,7 @@ fn block_override_without_super_replaces() {
         .insert("base.dejavu", base)
         .insert("child.dejavu", child);
 
-    let entry = loader.load("child.dejavu").unwrap();
+    let entry = (loader.resolve("child.dejavu", None).unwrap().document);
     let output = render_ir_with_loader(
         &entry,
         &Value::Object(serde_json::Map::new()),
@@ -249,7 +254,7 @@ fn missing_block_in_child_falls_back_to_parent() {
         .insert("base.dejavu", base)
         .insert("child.dejavu", child);
 
-    let entry = loader.load("child.dejavu").unwrap();
+    let entry = (loader.resolve("child.dejavu", None).unwrap().document);
     let output = render_ir_with_loader(
         &entry,
         &Value::Object(serde_json::Map::new()),
@@ -272,7 +277,7 @@ fn circular_extends_is_detected() {
         .insert("a.dejavu", a)
         .insert("b.dejavu", b);
 
-    let entry = loader.load("a.dejavu").unwrap();
+    let entry = (loader.resolve("a.dejavu", None).unwrap().document);
     let result = render_ir_with_loader(
         &entry,
         &Value::Object(serde_json::Map::new()),

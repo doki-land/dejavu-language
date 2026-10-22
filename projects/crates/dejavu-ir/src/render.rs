@@ -4,31 +4,49 @@ use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 
 // ---------------------------------------------------------------------------
+// RenderOptions：宿主可选渲染参数（严格模式、依赖追踪等）
+// ---------------------------------------------------------------------------
+
+/// 渲染选项 —— 匹配 TS `RenderOptions`。
+///
+/// 默认 `strict_undefined = false`（缺失变量 → null → 空串）。
+#[derive(Debug, Clone, Default)]
+pub struct RenderOptions {
+    /// 开启后，引用未定义变量抛 `UNDEFINED_VARIABLE` 错误。
+    pub strict_undefined: bool,
+    /// 模板 canonical id（用于 include 循环检测和依赖追踪）。
+    pub name: Option<String>,
+}
+
+// ---------------------------------------------------------------------------
 // 公共入口
 // ---------------------------------------------------------------------------
 
-/// 模板加载器：根据路径加载另一个模板的 IR 文档。
+/// 模板加载器：根据 ref + 来源解析到 canonical id + IR。
 ///
-/// 返回已解析好的 [`IrDocument`]，保持 IR 层纯净——不依赖 parser 或宿主文件系统。
-/// 宿主（如 dejavu-engine、doki-engine）负责实现实际的路径解析和源码加载。
+/// path-v1 合同：`resolve(ref, from?)` 返回 canonical id + 文档。
+/// 简单宿主可用原始 path 作 id — 只要 `resolve` 把同一引用稳定映射到同一 id，
+/// 就足以让 renderer 在 canonical id 层面做循环检测。
 pub trait TemplateLoader {
-    fn load(&mut self, path: &str) -> Result<IrDocument, IrError>;
+    /// 解析 ref → canonical id + IrDocument。
+    ///
+    /// `from` 是调用方的 canonical id（include/extends 引用时的来源模板），
+    /// 相对路径解析会用到它。`from` 可以为空（顶层渲染）。
+    fn resolve(&mut self, ref_: &str, from: Option<&str>) -> Result<ResolvedTemplate, IrError>;
+}
+
+/// resolve 返回的模板：canonical id + 已加载文档。
+#[derive(Debug, Clone)]
+pub struct ResolvedTemplate {
+    pub id: String,
+    pub document: IrDocument,
 }
 
 /// 渲染一个 IR 文档。无 loader 时 `extends`/`include`/`super` 会报错。
 ///
 /// 这是现有 T1 路径的向后兼容入口。需要完整模板继承链时用 [`render_ir_with_loader`]。
 pub fn render_ir(doc: &IrDocument, ctx: &Value) -> Result<String, IrError> {
-    let scope = json_object_to_map(ctx)?;
-    let mut r = Renderer {
-        scope,
-        loader: None,
-        blocks: HashMap::new(),
-        parent_blocks: HashMap::new(),
-        current_block: None,
-        visited: HashSet::new(),
-    };
-    r.render_doc(doc)
+    render_ir_opts(doc, ctx, RenderOptions::default(), None)
 }
 
 /// 渲染一个 IR 文档，带完整模板支持：`extends`、`include`、`block`、`super`。
@@ -37,14 +55,28 @@ pub fn render_ir_with_loader(
     ctx: &Value,
     loader: &mut dyn TemplateLoader,
 ) -> Result<String, IrError> {
+    render_ir_opts(doc, ctx, RenderOptions::default(), Some(loader))
+}
+
+/// 底层入口：带 RenderOptions + 可选 loader。
+pub fn render_ir_opts(
+    doc: &IrDocument,
+    ctx: &Value,
+    opts: RenderOptions,
+    loader: Option<&mut dyn TemplateLoader>,
+) -> Result<String, IrError> {
     let scope = json_object_to_map(ctx)?;
+    let default_id = opts.name.clone().unwrap_or_else(|| "<main>".into());
     let mut r = Renderer {
         scope,
-        loader: Some(loader),
+        loader,
+        strict_undefined: opts.strict_undefined,
+        current_id: default_id,
         blocks: HashMap::new(),
         parent_blocks: HashMap::new(),
         current_block: None,
-        visited: HashSet::new(),
+        visiting_extends: HashSet::new(),
+        include_stack: Vec::new(),
     };
     r.render_doc(doc)
 }
@@ -56,14 +88,15 @@ pub fn render_ir_with_loader(
 struct Renderer<'a> {
     scope: HashMap<String, Value>,
     loader: Option<&'a mut dyn TemplateLoader>,
-    /// 当前渲染层级上的 block 覆盖。key = block 名字。
+    strict_undefined: bool,
+    current_id: String,
     blocks: HashMap<String, Vec<IrNode>>,
-    /// parent 模板中同名 block 的原始 body，用于 super。
     parent_blocks: HashMap<String, Vec<IrNode>>,
-    /// 当前正在渲染的 block 名字（super 用它查找 parent 原始 block）。
     current_block: Option<String>,
-    /// extends 路径上已访问的模板，防止循环。
-    visited: HashSet<String>,
+    /// extends 访问过的 canonical id（防止继承环）
+    visiting_extends: HashSet<String>,
+    /// include 递归栈（防止 include 环）
+    include_stack: Vec<String>,
 }
 
 impl<'a> Renderer<'a> {
@@ -86,36 +119,40 @@ impl<'a> Renderer<'a> {
             }
 
             if let Some(parent_str) = extends_path {
-                // 循环检测
-                if !self.visited.insert(parent_str.clone()) {
-                    return Err(diag_load(codes::CIRCULAR_EXTENDS).arg("chain", parent_str.clone()));
-                }
-
                 let loader = self
                     .loader
                     .as_deref_mut()
                     .ok_or_else(|| diag_load(codes::MISSING_LOADER).arg("feature", "extends"))?;
-                let parent_doc = loader.load(&parent_str)?;
+                let parent = loader.resolve(&parent_str, Some(&self.current_id))?;
+
+                // canonical id 层面的循环检测
+                if self.visiting_extends.contains(&parent.id) {
+                    return Err(diag_load(codes::CIRCULAR_EXTENDS).arg("chain", parent.id.clone()));
+                }
+                self.visiting_extends.insert(parent.id.clone());
 
                 // 提取 parent 原始 blocks，供 super 使用
-                let parent_body_blocks = extract_blocks(&parent_doc.body);
+                let parent_body_blocks = extract_blocks(&parent.document.body);
 
                 // 保存旧状态
                 let saved_blocks = std::mem::take(&mut self.blocks);
                 let saved_parent_blocks = std::mem::take(&mut self.parent_blocks);
+                let saved_id = std::mem::take(&mut self.current_id);
 
                 // child blocks 覆盖 self.blocks；parent 原始 blocks 进入 self.parent_blocks
                 for (name, body) in &child_blocks {
                     self.blocks.insert(name.clone(), body.clone());
                 }
                 self.parent_blocks = parent_body_blocks;
+                self.current_id = parent.id.clone();
 
-                let out = self.render_doc(&parent_doc)?;
+                let out = self.render_doc(&parent.document)?;
 
                 // 恢复
-                self.visited.remove(&parent_str);
+                self.visiting_extends.remove(&parent.id);
                 self.blocks = saved_blocks;
                 self.parent_blocks = saved_parent_blocks;
+                self.current_id = saved_id;
 
                 return Ok(out);
             }
@@ -129,8 +166,22 @@ impl<'a> Renderer<'a> {
             .loader
             .as_deref_mut()
             .ok_or_else(|| diag_load(codes::MISSING_LOADER).arg("feature", feature))?;
-        let child = loader.load(path)?;
-        self.render_nodes(&child.body)
+        let child = loader.resolve(path, Some(&self.current_id))?;
+
+        // include 循环检测（canonical id 栈 — 能覆盖 A include B include A 的双向环）
+        if self.include_stack.contains(&child.id) {
+            let mut chain = self.include_stack.clone();
+            chain.push(child.id);
+            return Err(diag_load(codes::CIRCULAR_INCLUDE)
+                .arg("chain", chain.join(" -> ")));
+        }
+        self.include_stack.push(child.id.clone());
+        self.current_id = child.id.clone();
+
+        let out = self.render_nodes(&child.document.body);
+
+        self.include_stack.pop();
+        out
     }
 
     fn render_nodes(&mut self, node: &IrNode) -> Result<String, IrError> {
@@ -242,7 +293,15 @@ impl<'a> Renderer<'a> {
     fn eval(&self, expr: &IrNode) -> Result<Value, IrError> {
         match expr {
             IrNode::ExprLiteral { value, .. } => Ok(value.clone()),
-            IrNode::ExprIdentifier { name, .. } => Ok(self.scope.get(name).cloned().unwrap_or(Value::Null)),
+            IrNode::ExprIdentifier { name, .. } => {
+                match self.scope.get(name).cloned() {
+                    Some(v) => Ok(v),
+                    None if self.strict_undefined => {
+                        Err(diag_render(codes::UNDEFINED_VARIABLE).arg("name", name.clone()))
+                    }
+                    None => Ok(Value::Null),
+                }
+            }
             IrNode::ExprMember { object, property, .. } => {
                 let obj = self.eval(object)?;
                 match obj {
@@ -395,8 +454,9 @@ fn as_f64(v: &Value) -> Option<f64> {
 
 fn apply_filter(name: &str, value: Value, args: &[Value]) -> Result<Value, IrError> {
     match name {
-        "uppercase" => Ok(Value::String(value_to_string(&value).to_uppercase())),
-        "lowercase" => Ok(Value::String(value_to_string(&value).to_lowercase())),
+        // ——大小写：全名 + 别名——
+        "uppercase" | "upper" => Ok(Value::String(value_to_string(&value).to_uppercase())),
+        "lowercase" | "lower" => Ok(Value::String(value_to_string(&value).to_lowercase())),
         "trim" => Ok(Value::String(value_to_string(&value).trim().to_string())),
         "default" => {
             if matches!(value, Value::Null) || matches!(&value, Value::String(s) if s.is_empty()) {
@@ -423,13 +483,186 @@ fn apply_filter(name: &str, value: Value, args: &[Value]) -> Result<Value, IrErr
             let to = args.get(1).map(value_to_string).unwrap_or_default();
             Ok(Value::String(value_to_string(&value).replace(&from, &to)))
         }
+        // ——HTML escape 过滤器：内部做 escape，renderer 识别为 safe 不再二次 escape——
+        "escape" | "e" => Ok(Value::String(html_escape(&value_to_string(&value)))),
         "raw" | "safe" => Ok(value),
+        // ——日期（最小 strftime：%Y %m %d %H %M %S %%）——
+        "date" => {
+            let pattern = args.first().map(value_to_string).unwrap_or_else(|| "%Y-%m-%d".into());
+            let input_str = value_to_string(&value);
+            Ok(Value::String(format_date(&input_str, &pattern)))
+        }
+        // ——slug：ASCII-fold + 去重分隔——
+        "slug" => Ok(Value::String(slugify(&value_to_string(&value)))),
         other => Err(diag_render(codes::UNKNOWN_FILTER).arg("filter", other)),
     }
 }
 
+/// 判断管道结果是否应跳过自动 escape。
+///
+/// `escape`/`e` 在 filter 内部已做 html_escape，不能再二次 escape；
+/// `raw`/`safe` 是显式跳过 escape 的意图。
 fn is_raw_filter(expr: &IrNode) -> bool {
-    matches!(expr, IrNode::ExprPipe { filter, .. } if filter == "raw" || filter == "safe")
+    matches!(expr, IrNode::ExprPipe { filter, .. }
+        if matches!(filter.as_str(), "raw" | "safe" | "escape" | "e"))
+}
+
+/// 最小 strftime — 支持 `%Y %m %d %H %M %S %%`。
+///
+/// 输入为 ISO 8601 字符串、epoch 数字（毫秒）或字面量 `"now"`。
+/// 无法解析时返回空字符串（与 TS `formatDate` 行为一致）。
+fn format_date(input: &str, pattern: &str) -> String {
+    let dt = match input {
+        "" => return String::new(),
+        "now" => chrono_now(),
+        s if s.chars().all(|c| c.is_ascii_digit()) => chrono_from_epoch_ms(s),
+        s => chrono_from_iso(s),
+    };
+    let Some((y, mo, d, h, mi, se)) = dt else {
+        return String::new();
+    };
+    let pad = |n: u32| format!("{:02}", n);
+    pattern
+        .replace("%%", "\x00")
+        .replace("%Y", &y.to_string())
+        .replace("%m", &pad(mo))
+        .replace("%d", &pad(d))
+        .replace("%H", &pad(h))
+        .replace("%M", &pad(mi))
+        .replace("%S", &pad(se))
+        .replace('\x00', "%")
+}
+
+fn chrono_now() -> Option<(i32, u32, u32, u32, u32, u32)> {
+    let d = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?;
+    chrono_from_epoch(d.as_secs() as i64)
+}
+
+fn chrono_from_epoch_ms(s: &str) -> Option<(i32, u32, u32, u32, u32, u32)> {
+    let ms: i64 = s.parse().ok()?;
+    chrono_from_epoch(ms / 1000)
+}
+
+fn chrono_from_epoch(secs: i64) -> Option<(i32, u32, u32, u32, u32, u32)> {
+    // 简单 UTC epoch 分解（无 timezone）。
+    // 闰年规则：4年一闰，百年不闰，四百又闰。
+    let mut t = secs.checked_sub(0)?; // clamp negative
+    let sec = (t % 60) as u32;
+    t /= 60;
+    let min = (t % 60) as u32;
+    t /= 60;
+    let hour = (t % 24) as u32;
+    t /= 24;
+    let days_since_epoch = t;
+
+    let mut year: i32 = 1970;
+    let mut d = days_since_epoch;
+    loop {
+        let leap = is_leap_year(year);
+        let ydays = if leap { 366 } else { 365 };
+        if d < ydays { break; }
+        d -= ydays;
+        year += 1;
+        if year > 9999 { return None; }
+    }
+    let (month, mday) = month_and_day(year, d as u32)?;
+    Some((year, month, mday, hour, min, sec))
+}
+
+fn is_leap_year(y: i32) -> bool {
+    (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0)
+}
+
+fn month_and_day(year: i32, mut day_in_year: u32) -> Option<(u32, u32)> {
+    let days_per = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let leap = is_leap_year(year);
+    for (i, &dm) in days_per.iter().enumerate() {
+        let dm = dm + (if leap && i == 1 { 1 } else { 0 });
+        if day_in_year < dm {
+            return Some(((i + 1) as u32, (day_in_year + 1)));
+        }
+        day_in_year -= dm;
+    }
+    None
+}
+
+fn chrono_from_iso(s: &str) -> Option<(i32, u32, u32, u32, u32, u32)> {
+    // 极简 ISO 8601: 支持 2024-01-15 / 2024-01-15T12:30:45 / 2024-01-15T12:30:45Z / 2024-01-15T12:30:45+08:00
+    let s = s.trim();
+    let parts: Vec<&str> = s.split(['T', ' ']).collect();
+    let date = parts.first()?;
+    let (y_str, mo_str, d_str) = date.split_once('-')
+        .and_then(|(a, b)| {
+            let (mo, d) = b.split_once('-')?;
+            Some((a, mo, d))
+        })?;
+    let year: i32 = y_str.parse().ok()?;
+    let month: u32 = mo_str.parse().ok()?;
+    let day: u32 = d_str.parse().ok()?;
+
+    let (hour, min, sec) = if let Some(t) = parts.get(1) {
+        let t_clean = t.trim_end_matches('Z').split('+').next()?.split('-').next()?;
+        let tp: Vec<&str> = t_clean.split(':').collect();
+        let h: u32 = tp.first().and_then(|v| v.parse().ok()).unwrap_or(0);
+        let m: u32 = tp.get(1).and_then(|v| v.parse().ok()).unwrap_or(0);
+        let s: u32 = tp.get(2).and_then(|v| v.parse().ok()).unwrap_or(0);
+        (h, m, s)
+    } else {
+        (0, 0, 0)
+    };
+
+    Some((year, month, day, hour, min, sec))
+}
+
+/// ASCII-fold slugify（匹配 TS `slugify`）。
+///
+/// 1. NFKD 规范化后去除组合字符；
+/// 2. 小写化；
+/// 3. 非 `[a-z0-9]` 序列压缩为单个 `-`；
+/// 4. 裁掉首尾 `-`。
+fn slugify(s: &str) -> String {
+    use unicode_normalization::UnicodeNormalization;
+    // 手写 combining mark 过滤（unicode-normalization 0.1 暴露 nfd()，
+    // 但 is_combining_mark 在不同 rustc 上 API 位置不同）。
+    const COMBINING_START: u32 = 0x0300;
+    const COMBINING_END: u32 = 0x036F;
+    const COMBINING_EXTENDED_START: u32 = 0x1AB0;
+    const COMBINING_EXTENDED_END: u32 = 0x1AFF;
+    const COMBINING_SUPP_START: u32 = 0x1DC0;
+    const COMBINING_SUPP_END: u32 = 0x1DFF;
+    const COMBINING_MARK_START: u32 = 0x20D0;
+    const COMBINING_MARK_END: u32 = 0x20FF;
+    const COMBINING_SYMBOLS_START: u32 = 0xFE20;
+    const COMBINING_SYMBOLS_END: u32 = 0xFE2F;
+
+    let is_combining = |c: char| -> bool {
+        let cp = c as u32;
+        matches!(cp, COMBINING_START..=COMBINING_END)
+            || matches!(cp, COMBINING_EXTENDED_START..=COMBINING_EXTENDED_END)
+            || matches!(cp, COMBINING_SUPP_START..=COMBINING_SUPP_END)
+            || matches!(cp, COMBINING_MARK_START..=COMBINING_MARK_END)
+            || matches!(cp, COMBINING_SYMBOLS_START..=COMBINING_SYMBOLS_END)
+    };
+
+    let folded: String = s
+        .nfd()
+        .filter(|c| !is_combining(*c))
+        .collect::<String>()
+        .to_lowercase();
+    let mut out = String::new();
+    let mut prev_dash = false;
+    for c in folded.chars() {
+        if c.is_ascii_alphanumeric() {
+            out.push(c);
+            prev_dash = false;
+        } else if !prev_dash {
+            out.push('-');
+            prev_dash = true;
+        }
+    }
+    out.trim_matches('-').to_string()
 }
 
 fn is_truthy(v: &Value) -> bool {

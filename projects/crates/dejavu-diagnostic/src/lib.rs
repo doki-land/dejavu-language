@@ -304,6 +304,7 @@ pub mod codes {
     pub const TEMPLATE_NOT_FOUND: &str = "dejavu.template.template-not-found";
     pub const MISSING_LOADER: &str = "dejavu.template.missing-loader";
     pub const CIRCULAR_EXTENDS: &str = "dejavu.template.circular-extends";
+    pub const CIRCULAR_INCLUDE: &str = "dejavu.template.circular-include";
 
     // Render
     pub const UNKNOWN_FILTER: &str = "dejavu.template.unknown-filter";
