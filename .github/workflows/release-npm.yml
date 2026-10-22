@@ -88,10 +88,9 @@ jobs:
             rust_target: aarch64-apple-darwin
             exe: ""
           - host: darwin-x64
-            os: macos-13               # last Intel macOS (free plan runners may queue >10min; continue-on-error unblocks publish)
+            os: macos-latest           # cross-compile x86_64-apple-darwin on Apple Silicon runner (Tier 2 + Clang)
             rust_target: x86_64-apple-darwin
             exe: ""
-            continue-on-error: true
           - host: win32-x64
             os: windows-latest
             rust_target: x86_64-pc-windows-msvc
@@ -114,7 +113,9 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.rust_target }}
+          # macOS arm64 runner cross-compiles both darwin-arm64 and darwin-x64,
+          # so we need both targets installed on any macOS job.
+          targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || matrix.rust_target }}
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
