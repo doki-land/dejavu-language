@@ -19,6 +19,8 @@ concurrency:
 
 permissions:
   contents: write
+  attestations: write
+  id-token: write
 
 jobs:
   ci:
@@ -83,3 +85,12 @@ jobs:
             dist-artifacts/${{ steps.ver.outputs.zip }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ------------------------------------------------------------------
+      # 可信发布：GitHub OIDC → SLSA v1 build provenance
+      # 参考 valkyrie.rs/.github/workflows/release.yml
+      # ------------------------------------------------------------------
+      - name: Generate SLSA provenance attestation
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: dist-artifacts/${{ steps.ver.outputs.zip }}

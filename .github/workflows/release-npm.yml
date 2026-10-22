@@ -113,7 +113,7 @@ jobs:
           version="$(node -p "require('./${dir}/package.json').version")"
           echo "::group::npm publish ${name}@${version}"
           set +e
-          out="$(cd "$dir" && npm publish --access public 2>&1)"
+          out="$(cd "$dir" && npm publish --access public --provenance 2>&1)"
           status=$?
           set -e
           printf '%s\n' "$out"
