@@ -1,7 +1,10 @@
-# Publish @doki-land/dejavu (TS engine) + @doki-land/dejavu-cli (Rust CLI)
+# Publish @doki-land/dejavu (TS API) + Rust CLI platform packages
 # when a semver tag is pushed. Trusted Publisher on npmjs.com.
 #
-# Flow: tag → ci → build-native (7 平台 cargo build) → publish
+# Platform names: @doki-land/dejavu-<os>-<cpu> (no -cli prefix, no -gnu/-musl suffix).
+# Mirrors @doki-land/nifty naming exactly.
+#
+# Flow: tag → ci → publish (build linux-x64 in ubuntu, publish all configured platforms + TS API)
 # Trigger: tag vX.Y.Z
 # Repo: doki-land/dejavu-language
 
@@ -60,12 +63,10 @@ jobs:
       - name: Ensure npm CLI for OIDC
         run: npm install -g npm@^11.5.1
 
-      - name: Install Rust toolchain
+      - name: Install Rust toolchain (linux-gnu target covers linux-x64 platform pkg)
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: |
-            x86_64-unknown-linux-gnu
-            x86_64-unknown-linux-musl
+          targets: x86_64-unknown-linux-gnu
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
@@ -83,35 +84,37 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Publishing version $VERSION"
 
-      - name: Build Rust binaries (linux-gnu + linux-musl, others pending)
+      # ──────────── Rust CLI binary build ────────────
+      # Linux 64-bit on ubuntu-latest covers the first real platform publish.
+      # Other platforms cross-compile (darwin/windows) or run on dedicated runners later.
+      - name: Build Rust CLI (linux-x64)
         run: |
           set -euo pipefail
           mkdir -p dist-bin
           cargo build --release -p dejavu-tools --bin dejavu --target x86_64-unknown-linux-gnu
-          cp target/x86_64-unknown-linux-gnu/release/dejavu dist-bin/dejavu-linux-x64-gnu
-          cargo build --release -p dejavu-tools --bin dejavu --target x86_64-unknown-linux-musl
-          cp target/x86_64-unknown-linux-musl/release/dejavu dist-bin/dejavu-linux-x64-musl
+          cp target/x86_64-unknown-linux-gnu/release/dejavu dist-bin/dejavu-linux-x64
+          chmod +x dist-bin/dejavu-linux-x64
           ls -la dist-bin/
 
-      - name: Stage binaries into platform packages + pin versions
+      # ──────────── Stage + version pin ────────────
+      - name: Stage binaries + pin versions
         env:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
           set -euo pipefail
           node scripts/set-release-version.mjs "$VERSION"
+          cp dist-bin/dejavu-linux-x64 compilers/dejavu/npm/linux-x64/dejavu
+          echo "staged linux-x64 → compilers/dejavu/npm/linux-x64/dejavu"
 
-          cp dist-bin/dejavu-linux-x64-gnu compilers/dejavu-cli/npm/linux-x64-gnu/dejavu
-          cp dist-bin/dejavu-linux-x64-musl compilers/dejavu-cli/npm/linux-x64-musl/dejavu
-          chmod +x compilers/dejavu-cli/npm/linux-x64-gnu/dejavu compilers/dejavu-cli/npm/linux-x64-musl/dejavu
-          echo "staged linux-x64-gnu + linux-x64-musl"
-
-      - name: Build @doki-land/dejavu (TS engine)
+      # ──────────── TS API build ────────────
+      - name: Build @doki-land/dejavu (TS API)
         run: |
           set -euo pipefail
           pnpm install --no-frozen-lockfile
           pnpm --filter @doki-land/dejavu run build:publish
 
-      - name: Publish all packages (TS engine + Rust CLI platforms + meta)
+      # ──────────── npm publish（所有包，带 provenance） ────────────
+      - name: Publish all packages
         env:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
@@ -144,38 +147,9 @@ jobs:
             return "$status"
           }
 
-          # 1) TS engine @doki-land/dejavu (rewrite package.json for publish)
-          PKG=projects/packages/dejavu
-          node <<'NODE'
-          const fs = require("fs");
-          const version = process.env.VERSION;
-          const path = "projects/packages/dejavu/package.json";
-          const j = JSON.parse(fs.readFileSync(path, "utf8"));
-          j.name = "@doki-land/dejavu";
-          j.version = version;
-          delete j.private;
-          delete j.dependencies;
-          delete j.devDependencies;
-          delete j.peerDependencies;
-          j.main = "./dist/index.js";
-          j.types = "./dist/index.d.ts";
-          j.exports = { ".": { types: "./dist/index.d.ts", import: "./dist/index.js" } };
-          j.files = ["dist"];
-          j.publishConfig = { ...(j.publishConfig || {}), access: "public" };
-          j.repository = {
-            type: "git",
-            url: "git+https://github.com/doki-land/dejavu-language.git",
-            directory: "projects/packages/dejavu",
-          };
-          j.homepage = "https://github.com/doki-land/dejavu-language";
-          fs.writeFileSync(path, JSON.stringify(j, null, 2) + "\n");
-          console.log(`${j.name}@${j.version}`);
-          NODE
-          publish_one "$PKG"
-
-          # 2) Rust CLI platform packages (only those with staged binary)
+          # 1) Platform packages first
           failed=0
-          for d in compilers/dejavu-cli/npm/*/; do
+          for d in compilers/dejavu/npm/*/; do
             pkg="${d%/}"
             name="$(node -p "require('./${pkg}/package.json').name")"
             if ls "$pkg"/dejavu* >/dev/null 2>&1; then
@@ -185,7 +159,33 @@ jobs:
             fi
           done
 
-          # 3) Rust CLI meta-package last (depends on platforms)
-          publish_one "runtimes/dejavu-cli" || failed=1
+          # 2) TS API + optionalDeps facade @doki-land/dejavu
+          PKG=projects/packages/dejavu
+          node <<'NODE'
+          const fs = require("fs");
+          const version = process.env.VERSION;
+          const file = "projects/packages/dejavu/package.json";
+          const j = JSON.parse(fs.readFileSync(file, "utf8"));
+          j.version = version;
+          if (j.optionalDependencies) {
+            for (const k of Object.keys(j.optionalDependencies)) {
+              j.optionalDependencies[k] = version;
+            }
+          }
+          j.main = "./dist/index.js";
+          j.types = "./dist/index.d.ts";
+          j.exports = { ".": { types: "./dist/index.d.ts", import: "./dist/index.js" } };
+          j.publishConfig = { ...(j.publishConfig || {}), access: "public" };
+          j.repository = {
+            type: "git",
+            url: "git+https://github.com/doki-land/dejavu-language.git",
+            directory: "projects/packages/dejavu",
+          };
+          j.homepage = "https://github.com/doki-land/dejavu-language";
+          delete j.private;
+          fs.writeFileSync(file, JSON.stringify(j, null, 2) + "\n");
+          console.log(`${j.name}@${j.version}`);
+          NODE
+          publish_one "$PKG" || failed=1
 
           exit "$failed"

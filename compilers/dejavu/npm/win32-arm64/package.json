@@ -1,0 +1,26 @@
+{
+  "name": "@doki-land/dejavu-win32-arm64",
+  "version": "0.0.0",
+  "description": "Dejavu Rust CLI platform binary (win32-arm64)",
+  "license": "MPL-2.0",
+  "author": "Doki Land",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "bin": {
+    "dejavu": "dejavu.exe"
+  },
+  "files": [
+    "dejavu.exe"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/doki-land/dejavu-language.git"
+  }
+}

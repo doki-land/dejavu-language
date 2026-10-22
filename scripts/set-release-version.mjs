@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /**
  * Align publishable Dejavu package versions.
+ * Mirrors doki-engine/scripts/set-release-version.mjs shape.
+ *
  * Usage: node scripts/set-release-version.mjs 0.0.1
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
@@ -8,8 +10,7 @@ import { join } from 'node:path'
 import {
   PLATFORM_PACKAGES,
   PLATFORM_NPM_ROOT,
-  CLI_META_PACKAGE,
-  JS_PACKAGE,
+  JS_PACKAGES,
   optionalDepsMap,
 } from './dejavu-release-packages.mjs'
 
@@ -21,42 +22,19 @@ if (!version || !/^\d+\.\d+\.\d+([.-].*)?$/.test(version)) {
 
 const root = process.cwd()
 
-function rewriteDeps(deps, known) {
-  if (!deps || typeof deps !== 'object') return deps
-  const out = { ...deps }
-  for (const [k, v] of Object.entries(out)) {
-    if (!known.has(k) || typeof v !== 'string') continue
-    if (v.startsWith('workspace:') || v.startsWith('file:')) out[k] = version
-  }
-  return out
-}
-
-const known = new Set([
-  CLI_META_PACKAGE.name,
-  JS_PACKAGE.name,
-  ...PLATFORM_PACKAGES.map((p) => p.name),
-])
-
-// Meta-package @doki-land/dejavu-cli
-{
-  const file = join(root, CLI_META_PACKAGE.path, 'package.json')
+// Facade @doki-land/dejavu (TS API) — optionalDependencies pinned
+for (const pkg of JS_PACKAGES) {
+  const file = join(root, pkg.path, 'package.json')
   if (existsSync(file)) {
     const json = JSON.parse(readFileSync(file, 'utf8'))
     json.version = version
-    json.optionalDependencies = optionalDepsMap(version)
+    if (json.optionalDependencies) {
+      for (const k of Object.keys(json.optionalDependencies)) {
+        json.optionalDependencies[k] = version
+      }
+    }
     writeFileSync(file, `${JSON.stringify(json, null, 2)}\n`)
     console.log(`set ${json.name}@${version}`)
-  }
-}
-
-// TS engine @doki-land/dejavu (only rewrites version — deps stay as-is)
-{
-  const file = join(root, JS_PACKAGE.path, 'package.json')
-  if (existsSync(file)) {
-    const json = JSON.parse(readFileSync(file, 'utf8'))
-    json.version = version
-    writeFileSync(file, `${JSON.stringify(json, null, 2)}\n`)
-    console.log(`set ${json.name}@${version} (TS engine)`)
   }
 }
 

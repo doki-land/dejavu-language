@@ -1,0 +1,26 @@
+{
+  "name": "@doki-land/dejavu-darwin-arm64",
+  "version": "0.0.0",
+  "description": "Dejavu Rust CLI platform binary (darwin-arm64)",
+  "license": "MPL-2.0",
+  "author": "Doki Land",
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "bin": {
+    "dejavu": "dejavu"
+  },
+  "files": [
+    "dejavu"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/doki-land/dejavu-language.git"
+  }
+}
