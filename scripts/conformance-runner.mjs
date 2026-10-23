@@ -56,6 +56,7 @@ function run(cmd, args, cwd = ROOT) {
 const adapters = {
     ts: {
         label: "TypeScript",
+        required: true,
         render(c) {
             const script = join(ROOT, "scripts/render-ir-ts.mjs");
             const r = run("node", [script, c.irPath, c.ctxPath]);
@@ -68,6 +69,7 @@ const adapters = {
     },
     py: {
         label: "Python",
+        required: false,
         render(c) {
             mkdirSync(TMP, { recursive: true });
             const script = join(TMP, `render_${c.name}.py`);
@@ -88,6 +90,7 @@ sys.stdout.write(Dejavu.render(ir, ctx))
     },
     cs: {
         label: "C#",
+        required: false,
         render(c) {
             const proj = join(ROOT, "projects/dejavu.cs/Dejavu.Tools/Dejavu.Tools.csproj");
             if (!existsSync(proj)) return null;
@@ -109,6 +112,7 @@ sys.stdout.write(Dejavu.render(ir, ctx))
     },
     rs: {
         label: "Rust",
+        required: true,
         render(c) {
             const manifest = join(ROOT, "Cargo.toml");
             if (!existsSync(manifest)) return null;
@@ -128,6 +132,7 @@ sys.stdout.write(Dejavu.render(ir, ctx))
     },
     kt: {
         label: "Kotlin",
+        required: false,
         /**
          * Gradle --args mangles `E:\...` paths on Windows. Run the suite once via
          * the `conformance` subcommand and map case → expected output locally.
@@ -166,7 +171,8 @@ function main() {
     let failed = 0;
     const skipped = new Set();
 
-    console.log("Hard invariant: identical render(DejavuIR, Context) across languages\n");
+    console.log("Hard invariant: identical render(DejavuIR, Context) across languages");
+    console.log("Required hosts: Rust, TypeScript — SKIP = FAIL\n");
 
     for (const name of cases()) {
         const c = { ...loadCase(name), name };
@@ -181,8 +187,13 @@ function main() {
             }
             const out = adapter.render(c);
             if (out === null) {
-                console.log(`  ${lang}: SKIP (${adapter.label} unavailable)`);
-                skipped.add(lang);
+                if (adapter.required) {
+                    console.log(`  ${lang}: MISSING (${adapter.label} unavailable — required host)`);
+                    failed++;
+                } else {
+                    console.log(`  ${lang}: SKIP (${adapter.label} unavailable)`);
+                    skipped.add(lang);
+                }
                 continue;
             }
             outputs[lang] = out;
@@ -205,13 +216,13 @@ function main() {
     }
 
     if (skipped.size) {
-        console.log(`Skipped: ${[...skipped].join(", ")}`);
+        console.log(`Skipped (optional hosts): ${[...skipped].join(", ")}`);
     }
     if (failed) {
         console.error(`FAILED (${failed})`);
         process.exit(1);
     }
-    console.log("All available languages: identical IR render output.");
+    console.log("All required languages: identical IR render output.");
 }
 
 main();
