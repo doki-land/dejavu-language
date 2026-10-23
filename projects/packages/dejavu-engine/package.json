@@ -1,6 +1,6 @@
 {
     "name": "@doki-land/dejavu-engine",
-    "version": "0.0.7",
+    "version": "0.0.8",
     "description": "Dejavu pure TypeScript AOT runtime — generated template modules depend on this package",
     "type": "module",
     "license": "MPL-2.0",

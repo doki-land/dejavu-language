@@ -28,8 +28,8 @@ target/
 # Native addons (built by `node scripts/build/napi.mjs`, shipped by CI)
 *.node
 
-# Built TypeScript output for the Node facade (built by `pnpm build`)
-runtimes/dejavu/dist/
+# Built TypeScript output for Node packages (built by `pnpm build`)
+projects/packages/*/dist/
 
 # Local tooling state (npm placeholder + trust bookkeeping)
 .cache/
