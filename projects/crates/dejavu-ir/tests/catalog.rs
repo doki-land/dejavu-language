@@ -39,6 +39,39 @@ fn bare_ref_prefers_high_priority_root() {
 }
 
 #[test]
+fn bare_ref_ambiguous_at_equal_priority_is_rejected() {
+    let roots = vec![root("app", "app", 0, &["index.dejavu"]), root("theme", "theme", 0, &["index.dejavu"])];
+    let err = resolve_ref(&roots, &extensions(), "index", None).unwrap_err();
+    assert_eq!(err.code, codes::TEMPLATE_AMBIGUOUS_REF);
+    assert_eq!(err.args.get("priority").cloned(), Some(0.0.into()));
+    assert_eq!(
+        err.args.get("roots").cloned(),
+        Some(vec!["app".into(), "theme".into()].into())
+    );
+    assert_eq!(
+        err.args.get("candidates").cloned(),
+        Some(vec!["app:index.dejavu".into(), "theme:index.dejavu".into()].into())
+    );
+}
+
+#[test]
+fn bare_ref_single_hit_wins_even_with_peer_roots() {
+    let roots = vec![
+        root("app", "app", 0, &["index.dejavu"]),
+        root("theme", "theme", 0, &["layout.dejavu"]),
+    ];
+    let hit = resolve_ref(&roots, &extensions(), "index", None).unwrap();
+    assert_eq!(hit.root_index, 0);
+}
+
+#[test]
+fn explicit_scheme_disambiguates_equal_priority_roots() {
+    let roots = vec![root("app", "app", 0, &["index.dejavu"]), root("theme", "theme", 0, &["index.dejavu"])];
+    let hit = resolve_ref(&roots, &extensions(), "theme:index", None).unwrap();
+    assert_eq!(hit.root_index, 1);
+}
+
+#[test]
 fn relative_ref_resolves_against_from() {
     let roots = vec![root("pages", "pages", 0, &["a/b/child.dejavu", "a/shared.dejavu"])];
     let hit = resolve_ref(&roots, &extensions(), "../shared", Some("pages:a/b/child.dejavu")).unwrap();

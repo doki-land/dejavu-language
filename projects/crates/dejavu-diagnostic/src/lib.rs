@@ -326,6 +326,7 @@ pub mod codes {
     pub const TEMPLATE_UNKNOWN_SCHEME: &str = "dejavu.template.unknown-scheme";
     pub const TEMPLATE_RELATIVE_WITHOUT_FROM: &str = "dejavu.template.relative-without-from";
     pub const TEMPLATE_RELATIVE_ESCAPE_ROOT: &str = "dejavu.template.relative-escape-root";
+    pub const TEMPLATE_AMBIGUOUS_REF: &str = "dejavu.template.ambiguous-ref";
 
     // Render
     pub const UNKNOWN_FILTER: &str = "dejavu.template.unknown-filter";

@@ -156,11 +156,30 @@ pub fn resolve_ref(
     let mut ranked: Vec<usize> = (0..roots.len()).collect();
     ranked.sort_by(|a, b| roots[*b].priority.cmp(&roots[*a].priority));
 
+    // Walk the roots priority-descending. Hits inside one priority level are
+    // peers: more than one hit there is an ambiguity, never a silent order win.
     let mut searched: Vec<String> = Vec::new();
-    for index in ranked {
-        searched.push(roots[index].name.clone());
-        if let Some(path) = probe_root(&roots[index], raw, extensions) {
-            return Ok(ResolveHit { root_index: index, path });
+    let mut index = 0;
+    while index < ranked.len() {
+        let priority = roots[ranked[index]].priority;
+        let mut hits: Vec<(usize, String)> = Vec::new();
+        while index < ranked.len() && roots[ranked[index]].priority == priority {
+            let root_index = ranked[index];
+            searched.push(roots[root_index].name.clone());
+            if let Some(path) = probe_root(&roots[root_index], raw, extensions) {
+                hits.push((root_index, path));
+            }
+            index += 1;
+        }
+        match hits.len() {
+            0 => continue,
+            1 => {
+                let (root_index, path) = hits.remove(0);
+                return Ok(ResolveHit { root_index, path });
+            }
+            _ => {
+                return Err(ambiguous_ref(reference, from, priority, &hits, roots));
+            }
         }
     }
     Err(not_found(reference, from, searched))
@@ -205,6 +224,38 @@ fn load_diag(code: &str, reference: &str) -> Diagnostic {
 fn not_found(reference: &str, from: Option<&str>, searched: Vec<String>) -> Diagnostic {
     let mut diag = load_diag(codes::TEMPLATE_NOT_FOUND, reference)
         .arg("searched", searched.into_iter().map(crate::ArgValue::String).collect::<Vec<_>>());
+    if let Some(from) = from {
+        diag = diag.arg("from", from);
+    }
+    diag
+}
+
+/// 同一 priority 下多个 root 命中同一 bare 引用：拒绝按 catalog 顺序静默取胜。
+fn ambiguous_ref(
+    reference: &str,
+    from: Option<&str>,
+    priority: i32,
+    hits: &[(usize, String)],
+    roots: &[ResolveRoot],
+) -> Diagnostic {
+    let names: Vec<crate::ArgValue> = hits
+        .iter()
+        .map(|(index, _)| crate::ArgValue::String(roots[*index].name.clone()))
+        .collect();
+    let candidates: Vec<String> = hits
+        .iter()
+        .map(|(index, path)| canonical_id(&roots[*index].name, path))
+        .collect();
+    let mut diag = load_diag(codes::TEMPLATE_AMBIGUOUS_REF, reference)
+        .message(format!(
+            "template reference {reference:?} matches {} roots at priority {priority}: {}. \
+             Use an explicit `root:path` reference.",
+            candidates.len(),
+            candidates.join(", "),
+        ))
+        .arg("priority", priority as i64)
+        .arg("roots", names)
+        .arg("candidates", candidates.into_iter().map(crate::ArgValue::String).collect::<Vec<_>>());
     if let Some(from) = from {
         diag = diag.arg("from", from);
     }
