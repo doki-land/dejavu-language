@@ -10,9 +10,8 @@
 //! 脚本会 parse 所有模板 → 构建 TemplateCatalog → CatalogLoader →
 //! 然后走 `render_ir_opts` 渲染入口。stdout 就是渲染输出。
 //!
-//! ⚠️ 前提：dejavu-language parser 必须支持 `extends` / `include` / `block` / `super` 语句。
-//! 当前 Rust parser 只实现了 `if` / `loop`，所以遇到这些语句会打印 SKIP 并 exit 0。
-//! 等 Rust parser 追平 TS 的语句支持后，这个 example 就能直接用于 conformance runner。
+//! ⚠️ 前提：`dejavu-language` parser 必须支持 `extends` / `include` / `block` / `super` 语句。
+//! Rust parser 已追平 TS 的语句支持，本 example 可直接用于 conformance runner。
 
 use std::collections::BTreeMap;
 use std::env;

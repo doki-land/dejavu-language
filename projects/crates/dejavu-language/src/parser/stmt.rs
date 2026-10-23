@@ -113,4 +113,33 @@ impl Parser<'_> {
 
         Ok((NativeNode::For { item, index: None, iterable, body, trim: trim.as_str().into() }, i))
     }
+
+    pub(crate) fn parse_block(
+        &self,
+        mut i: usize,
+        name: String,
+        trim: TrimMode,
+    ) -> Result<(NativeNode, usize), ParseError> {
+        let (body, i2) = parse_until(self, i, &["end block"])?;
+        i = i2;
+        let (end_code, end_span, end_i) = peek_code(self.source, self.file, i)?;
+        let end_trim = end_code.trim();
+        let end_base = end_span.start + (end_code.len() - end_code.trim_start().len());
+        match classify_code(self.source, self.file, end_trim, end_base)? {
+            CodeHead::EndBlock => i = end_i,
+            _ => {
+                return Err(ParseError::at(
+                    self.source,
+                    self.file,
+                    end_span.start,
+                    end_span.len(),
+                    "expected `end block`",
+                    "expected end block",
+                )
+                .with_code(codes::PARSE_UNCLOSED_BLOCK));
+            }
+        }
+
+        Ok((NativeNode::Block { name, body, trim: trim.as_str().into() }, i))
+    }
 }

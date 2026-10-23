@@ -95,11 +95,31 @@ impl<'a> Parser<'a> {
                         children.push(node);
                         i = new_i;
                     }
-                    CodeHead::EndIf | CodeHead::EndLoop | CodeHead::Else | CodeHead::ElseIf { .. } => {
+                    CodeHead::Extends { parent_src, parent_base } => {
+                        let parent = parse_expr(self.source, self.file, parent_base, parent_src)?;
+                        children.push(NativeNode::Extends { parent, trim: trim.as_str().into() });
+                        i = next_i;
+                    }
+                    CodeHead::Include { path_src, path_base } => {
+                        let path = parse_expr(self.source, self.file, path_base, path_src)?;
+                        children.push(NativeNode::Include { path, trim: trim.as_str().into() });
+                        i = next_i;
+                    }
+                    CodeHead::Block { name } => {
+                        let (node, new_i) = self.parse_block(next_i, name, trim)?;
+                        children.push(node);
+                        i = new_i;
+                    }
+                    CodeHead::Super => {
+                        children.push(NativeNode::Super { trim: trim.as_str().into() });
+                        i = next_i;
+                    }
+                    CodeHead::EndIf | CodeHead::EndLoop | CodeHead::EndBlock | CodeHead::Else | CodeHead::ElseIf { .. } => {
                         if stop.is_empty() {
                             let label = match &head {
                                 CodeHead::EndIf => "end if",
                                 CodeHead::EndLoop => "end loop",
+                                CodeHead::EndBlock => "end block",
                                 CodeHead::Else => "else",
                                 CodeHead::ElseIf { .. } => "else if",
                                 _ => "control",

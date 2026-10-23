@@ -12,6 +12,11 @@ pub(crate) enum CodeHead<'a> {
     Else,
     EndIf,
     EndLoop,
+    EndBlock,
+    Super,
+    Block { name: String },
+    Extends { parent_src: &'a str, parent_base: usize },
+    Include { path_src: &'a str, path_base: usize },
     Expr { src: &'a str, base: usize },
 }
 
@@ -115,6 +120,75 @@ pub(crate) fn classify_code<'a>(
             let (iter_src, iter_base) = slice(3);
             Ok(CodeHead::Loop { item: item.clone(), iter_src, iter_base })
         }
+        CodeToken::Ident(name) if name == "extends" => {
+            let (parent_src, parent_base) = slice(1);
+            if parent_src.is_empty() {
+                return Err(ParseError::at(
+                    source,
+                    file,
+                    content_base + spans[0].start,
+                    (spans[0].end - spans[0].start).max(1),
+                    "extends requires a parent template expression",
+                    "expected parent",
+                )
+                .with_code(codes::PARSE_UNEXPECTED_TOKEN));
+            }
+            Ok(CodeHead::Extends { parent_src, parent_base })
+        }
+        CodeToken::Ident(name) if name == "include" => {
+            let (path_src, path_base) = slice(1);
+            if path_src.is_empty() {
+                return Err(ParseError::at(
+                    source,
+                    file,
+                    content_base + spans[0].start,
+                    (spans[0].end - spans[0].start).max(1),
+                    "include requires a path expression",
+                    "expected path",
+                )
+                .with_code(codes::PARSE_UNEXPECTED_TOKEN));
+            }
+            Ok(CodeHead::Include { path_src, path_base })
+        }
+        CodeToken::Ident(name) if name == "block" => {
+            if spans.len() != 2 {
+                return Err(ParseError::at(
+                    source,
+                    file,
+                    content_base + spans[0].start,
+                    (spans.last().map(|s| s.end).unwrap_or(spans[0].end) - spans[0].start).max(1),
+                    "block requires exactly one name identifier",
+                    "expected `block name`",
+                )
+                .with_code(codes::PARSE_UNEXPECTED_TOKEN));
+            }
+            let CodeToken::Ident(block_name) = &spans[1].tok else {
+                return Err(ParseError::at(
+                    source,
+                    file,
+                    content_base + spans[1].start,
+                    (spans[1].end - spans[1].start).max(1),
+                    "block requires a name identifier",
+                    "expected ident",
+                )
+                .with_code(codes::PARSE_UNEXPECTED_TOKEN));
+            };
+            Ok(CodeHead::Block { name: block_name.clone() })
+        }
+        CodeToken::Ident(name) if name == "super" => {
+            if spans.len() != 1 {
+                return Err(ParseError::at(
+                    source,
+                    file,
+                    content_base + spans[1].start,
+                    1,
+                    "unexpected tokens after `super`",
+                    "unexpected",
+                )
+                .with_code(codes::PARSE_UNEXPECTED_TOKEN));
+            }
+            Ok(CodeHead::Super)
+        }
         CodeToken::Ident(name) if name == "else" => {
             if spans.len() == 1 {
                 return Ok(CodeHead::Else);
@@ -137,6 +211,9 @@ pub(crate) fn classify_code<'a>(
                     if n == "loop" {
                         return Ok(CodeHead::EndLoop);
                     }
+                    if n == "block" {
+                        return Ok(CodeHead::EndBlock);
+                    }
                 }
             }
             Err(ParseError::at(
@@ -144,7 +221,7 @@ pub(crate) fn classify_code<'a>(
                 file,
                 content_base + spans[0].start,
                 (spans.last().map(|s| s.end).unwrap_or(spans[0].end) - spans[0].start).max(1),
-                "expected `end if` or `end loop`",
+                "expected `end if`, `end loop`, or `end block`",
                 "unexpected",
             )
             .with_code(codes::PARSE_UNEXPECTED_TOKEN))
@@ -162,6 +239,7 @@ pub(crate) fn head_stop_kind(head: &CodeHead<'_>) -> &'static str {
         CodeHead::Else => "else",
         CodeHead::EndIf => "end if",
         CodeHead::EndLoop => "end loop",
+        CodeHead::EndBlock => "end block",
         _ => "",
     }
 }
