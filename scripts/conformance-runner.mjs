@@ -81,6 +81,9 @@ function run(cmd, args, cwd = ROOT) {
     };
 }
 
+/** Normalize trailing whitespace (CRLF vs LF, trailing newlines). */
+const normalize = (s) => s.replace(/\s+$/, "");
+
 const adapters = {
     ts: {
         label: "TypeScript",
@@ -176,6 +179,18 @@ sys.stdout.write(Dejavu.render(ir, ctx))
             return r.ok ? r.stdout : null;
         },
     },
+    "ts-catalog": {
+        label: "TypeScript catalog",
+        required: true,
+        /** Render a multi-template inheritance fixture via `render-catalog-ts.mjs`. */
+        render(caseDir) {
+            const facadeDist = join(ROOT, "runtimes", "dejavu", "dist", "index.js");
+            if (!existsSync(facadeDist)) return null;
+            const script = join(ROOT, "scripts", "render-catalog-ts.mjs");
+            const r = run("node", [script, caseDir.dir]);
+            return r.ok ? r.stdout : null;
+        },
+    },
     kt: {
         label: "Kotlin",
         required: false,
@@ -213,10 +228,10 @@ sys.stdout.write(Dejavu.render(ir, ctx))
 
 function main() {
     const filter = process.argv.slice(2).filter((a) => !a.startsWith("-"));
-    // T1 fixture adapter list: exclude rs-catalog (only for inheritance)
+    // T1 fixture adapter list: exclude catalog adapters (only for inheritance)
     const t1Langs = filter.length
-        ? filter.filter((l) => l !== "rs-catalog")
-        : Object.keys(adapters).filter((l) => l !== "rs-catalog");
+        ? filter.filter((l) => !l.endsWith("-catalog"))
+        : Object.keys(adapters).filter((l) => !l.endsWith("-catalog"));
     let failed = 0;
     const skipped = new Set();
 
@@ -246,7 +261,7 @@ function main() {
                 continue;
             }
             outputs[lang] = out;
-            const ok = out === c.out;
+            const ok = normalize(out) === normalize(c.out);
             console.log(`  ${lang}: ${ok ? "OK" : "FAIL"}`);
             if (!ok) {
                 failed++;
@@ -256,7 +271,7 @@ function main() {
         }
         const keys = Object.keys(outputs);
         for (let i = 1; i < keys.length; i++) {
-            if (outputs[keys[0]] !== outputs[keys[i]]) {
+            if (normalize(outputs[keys[0]]) !== normalize(outputs[keys[i]])) {
                 failed++;
                 console.log(`  CROSS-FAIL: ${keys[0]} != ${keys[i]}`);
             }
@@ -265,26 +280,44 @@ function main() {
     }
 
     // ---- inheritance fixtures (multi-template catalog) ----
-    const inheritanceAdapter = adapters["rs-catalog"];
-    if (inheritanceAdapter) {
-        console.log("## inheritance fixtures (Rust parser → catalog → render)");
+    const inheritanceAdapters = ["rs-catalog", "ts-catalog"].map((k) => adapters[k]).filter(Boolean);
+    if (inheritanceAdapters.length) {
+        console.log("## inheritance fixtures (parser → catalog → render)");
         for (const dir of inheritanceCases()) {
             process.stdout.write(`  ${dir.name}: `);
             if (!dir.rustSupported) {
                 console.log("SKIP (Rust parser only supports `<% %>` delimiters)");
                 continue;
             }
-            const out = inheritanceAdapter.render(dir);
-            if (out === null) {
-                console.log("SKIP (parser does not support this fixture's syntax)");
-            } else if (out === dir.out) {
-                console.log("OK");
-            } else {
-                console.log("FAIL");
-                failed++;
-                console.log(`    expected ${JSON.stringify(dir.out)}`);
-                console.log(`    actual   ${JSON.stringify(out)}`);
+            const outputs = {};
+            let failed_any = false;
+            for (const adapter of inheritanceAdapters) {
+                const out = adapter.render(dir);
+                if (out === null) {
+                    process.stdout.write(`[${adapter.label}=SKIP] `);
+                    continue;
+                }
+                const ok = normalize(out) === normalize(dir.out);
+                outputs[adapter.label] = out;
+                if (!ok) {
+                    failed_any = true;
+                    process.stdout.write(`[${adapter.label}=FAIL] `);
+                    console.log(`\n    expected ${JSON.stringify(dir.out)}`);
+                    console.log(`    actual   ${JSON.stringify(out)}`);
+                } else {
+                    process.stdout.write(`[${adapter.label}=OK] `);
+                }
             }
+            const keys = Object.keys(outputs);
+            if (keys.length >= 2) {
+                const crossOk = keys.slice(1).every((k) => normalize(outputs[keys[0]]) === normalize(outputs[k]));
+                if (!crossOk) {
+                    failed_any = true;
+                    process.stdout.write("[CROSS-FAIL] ");
+                }
+            }
+            if (failed_any) failed++;
+            console.log("");
         }
         console.log("");
     }
