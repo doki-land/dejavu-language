@@ -2,7 +2,7 @@
 
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 use super::{I18nConfig, extractor::Extractor, validator::Validator};
@@ -155,7 +155,7 @@ impl I18nLanguageServer {
         let mut diagnostics = Vec::new();
 
         // Validate the file
-        if let Ok(errors) = self.ide_integration.validate_file(file_path) {
+        if let Ok(_errors) = self.ide_integration.validate_file(file_path) {
             for (line_num, line) in content.lines().enumerate() {
                 // Look for t() function calls
                 let mut char_pos = 0;

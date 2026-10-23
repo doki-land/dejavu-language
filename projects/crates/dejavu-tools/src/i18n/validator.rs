@@ -3,7 +3,7 @@
 use std::{
     collections::{HashMap, HashSet},
     fs,
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 use super::{I18nConfig, extractor::TranslationItem};

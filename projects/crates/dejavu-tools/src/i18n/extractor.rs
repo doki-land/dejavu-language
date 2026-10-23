@@ -5,7 +5,7 @@ use regex::Regex;
 use std::{
     collections::HashMap,
     fs,
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 use super::I18nConfig;

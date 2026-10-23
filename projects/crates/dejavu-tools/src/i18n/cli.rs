@@ -1,8 +1,6 @@
 //! Command line interface for DejaVu Engine internationalization tools
 
 use clap::{Arg, Command};
-use std::path::Path;
-
 use super::{I18nConfig, extractor::Extractor, validator::Validator};
 
 /// Run the i18n CLI
