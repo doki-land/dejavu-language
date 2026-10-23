@@ -1,11 +1,12 @@
 /**
  * Error raised when the engine reports an error-severity diagnostic.
  *
- * The shape is intentionally diagnostic-friendly: `@vmz/commander` routes thrown
- * errors through `onDiagnostic`, and downstream hosts can inspect `code` / `args`.
+ * The shape is intentionally diagnostic-friendly: CLI layers (via
+ * `@vmz/commander`) route thrown errors through `onDiagnostic`, and
+ * downstream hosts can inspect `code` / `args` / `diagnostics`.
  */
 
-import type { DejavuDiagnostic, DejavuSpan } from "./types.js";
+import type { Diagnostic, Span } from "./types.js";
 
 /** Parse `argsJson` once, tolerating malformed payloads. */
 function parseArgs(argsJson: string): Record<string, unknown> {
@@ -24,13 +25,13 @@ export class DejavuError extends Error {
     readonly code: string;
     readonly severity: string;
     readonly stage: string;
-    readonly path?: string | null;
-    readonly templateId?: string | null;
-    readonly span?: DejavuSpan | null;
+    readonly path?: string;
+    readonly templateId?: string;
+    readonly span?: Span;
     readonly args: Record<string, unknown>;
-    readonly diagnostics: DejavuDiagnostic[];
+    readonly diagnostics: Diagnostic[];
 
-    constructor(diagnostic: DejavuDiagnostic, diagnostics: DejavuDiagnostic[] = [diagnostic]) {
+    constructor(diagnostic: Diagnostic, diagnostics: Diagnostic[] = [diagnostic]) {
         super(diagnostic.message || diagnostic.code);
         this.name = "DejavuError";
         this.code = diagnostic.code;
@@ -44,7 +45,7 @@ export class DejavuError extends Error {
     }
 
     /** Build from an engine response, returning the first error diagnostic. */
-    static fromDiagnostics(diagnostics: DejavuDiagnostic[]): DejavuError | undefined {
+    static fromDiagnostics(diagnostics: Diagnostic[]): DejavuError | undefined {
         const errors = diagnostics.filter((d) => d.severity === "error");
         const first = errors[0];
         return first ? new DejavuError(first, diagnostics) : undefined;

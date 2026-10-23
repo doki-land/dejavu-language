@@ -1,6 +1,6 @@
 {
     "name": "@doki-land/dejavu",
-    "version": "0.0.6",
+    "version": "0.1.0",
     "description": "Dejavu template engine — TypeScript CLI and facade over the N-API engine surface",
     "license": "MPL-2.0",
     "author": "Doki Land",
@@ -8,7 +8,7 @@
     "repository": {
         "type": "git",
         "url": "git+https://github.com/doki-land/dejavu-language.git",
-        "directory": "runtimes/dejavu"
+        "directory": "projects/packages/dejavu"
     },
     "homepage": "https://github.com/doki-land/dejavu-language",
     "bugs": {
@@ -26,17 +26,14 @@
         }
     },
     "bin": {
-        "dejavu": "./bin/dejavu.mjs"
+        "dejavu": "./dist/cli.js"
     },
     "files": [
-        "bin",
-        "dist",
-        "locales"
+        "dist"
     ],
     "scripts": {
         "build": "tsc -p tsconfig.json",
-        "typecheck": "tsc --noEmit",
-        "test": "vitest run"
+        "typecheck": "tsc --noEmit"
     },
     "dependencies": {
         "@vmz/commander": "^0.3.6"
@@ -51,8 +48,7 @@
     },
     "devDependencies": {
         "@types/node": "^22.15.0",
-        "typescript": "^5.8.3",
-        "vitest": "^2.1.8"
+        "typescript": "^5.8.3"
     },
     "publishConfig": {
         "access": "public"

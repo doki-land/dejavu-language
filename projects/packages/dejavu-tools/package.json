@@ -24,7 +24,7 @@
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {
-        "@dejavu/engine": "workspace:*",
+        "@dejavu/language": "workspace:*",
         "cac": "^6.7.14"
     }
 }

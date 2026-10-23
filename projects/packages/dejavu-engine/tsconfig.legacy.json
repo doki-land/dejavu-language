@@ -1,9 +1,0 @@
-{
-    "extends": "./tsconfig.json",
-    "compilerOptions": {
-        "rootDir": "src/legacy",
-        "noEmit": true
-    },
-    "include": ["src/legacy"],
-    "exclude": []
-}

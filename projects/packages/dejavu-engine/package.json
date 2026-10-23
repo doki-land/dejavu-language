@@ -24,12 +24,7 @@
     "scripts": {
         "build": "tsup src/index.ts --format esm --dts",
         "test": "vitest run",
-        "typecheck": "tsc --noEmit",
-        "typecheck:legacy": "tsc --noEmit -p tsconfig.legacy.json"
-    },
-    "dependencies": {
-        "@dejavu/language": "workspace:*",
-        "@dejavu/types": "workspace:*"
+        "typecheck": "tsc --noEmit"
     },
     "devDependencies": {
         "vitest": "^2.1.8",
