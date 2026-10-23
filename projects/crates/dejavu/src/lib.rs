@@ -15,8 +15,8 @@
 
 pub use dejavu_engine::{DejavuEngine, parse, parse_error_diagnostic, render, render_source};
 pub use dejavu_ir::{
-    ArgValue, Diagnostic, IrDocument, IrError, IrNode, RelatedSpan, Severity, Span, Stage, TemplateConfig, codes,
-    diag_load, diag_render, normalize_value,
+    ArgValue, Diagnostic, IrDocument, IrError, IrNode, Language, RelatedSpan, Severity, Span, Stage, TemplateConfig,
+    codes, diag_load, diag_render, normalize_value,
 };
 pub use dejavu_language::{ParseError, ParseResult};
 pub use dejavu_runtime::{
@@ -30,9 +30,14 @@ pub use dejavu_types::{Context, Value};
 pub struct Dejavu;
 
 impl Dejavu {
-    /// Parse source → IR.
+    /// Parse source → IR (default `<% %>` delimiters).
     pub fn parse(source: &str) -> ParseResult<IrDocument> {
         parse(source)
+    }
+
+    /// Parse source → IR with explicit Language config (custom delimiters).
+    pub fn parse_with(source: &str, language: &Language) -> ParseResult<IrDocument> {
+        dejavu_language::parse_with(source, "template.dejavu", language)
     }
 
     /// Render IR + JSON context.
@@ -40,13 +45,28 @@ impl Dejavu {
         render(doc, ctx)
     }
 
-    /// Parse then render.
+    /// Parse then render (default `<% %>` delimiters).
     pub fn render_source(source: &str, ctx: &serde_json::Value) -> Result<String, IrError> {
         render_source(source, ctx)
     }
 
-    /// Syntax check (parse only).
+    /// Parse then render with explicit Language config (custom delimiters).
+    pub fn render_source_with(
+        source: &str,
+        ctx: &serde_json::Value,
+        language: &Language,
+    ) -> Result<String, IrError> {
+        let doc = Self::parse_with(source, language).map_err(|e| IrError::from(parse_error_diagnostic(e)))?;
+        render(&doc, ctx)
+    }
+
+    /// Syntax check (default `<% %>` delimiters).
     pub fn check(source: &str) -> ParseResult<()> {
         parse(source).map(|_| ())
+    }
+
+    /// Syntax check with explicit Language config.
+    pub fn check_with(source: &str, language: &Language) -> ParseResult<()> {
+        Self::parse_with(source, language).map(|_| ())
     }
 }
