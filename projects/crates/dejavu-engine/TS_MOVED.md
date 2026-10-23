@@ -3,12 +3,10 @@
 The TypeScript implementation lives only under `projects/packages/` and is a **native TypeScript stack** (no
 WASM/WASI bridge).
 
-| Package            | Role                          |
-|--------------------|-------------------------------|
-| `@dejavu/language` | `source → IR`                 |
-| `@dejavu/types`    | IR types, normalize, filters  |
-| `@dejavu/engine`   | `render(IR)` / `renderSource` |
-| `@dejavu/tools`    | CLI around the above          |
+| Package                     | Role                                            |
+|-----------------------------|-------------------------------------------------|
+| `@doki-land/dejavu-engine`  | Pure TypeScript AOT runtime used by generated modules |
+| `@doki-land/dejavu`         | N-API facade, JIT API, and `dejavu` CLI         |
 
 Cross-language contract: repo-root `specifications/ir` + `../../../specifications/conformance/t1`.
 
