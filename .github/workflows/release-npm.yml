@@ -164,8 +164,8 @@ jobs:
           set -euo pipefail
           pnpm install --no-frozen-lockfile
           pnpm --filter @doki-land/dejavu build
-          test -f runtimes/dejavu/dist/index.js
-          test -f runtimes/dejavu/dist/cli/cli.js
+          test -f projects/packages/dejavu/dist/index.js
+          test -f projects/packages/dejavu/dist/cli.js
 
       - name: Download all 6 platform addons
         uses: actions/download-artifact@v4
@@ -252,11 +252,11 @@ jobs:
           done
 
           # 2) Meta-package @doki-land/dejavu (TypeScript CLI + N-API facade)
-          PKG=runtimes/dejavu
+          PKG=projects/packages/dejavu
           node <<'NODE'
           const fs = require("fs");
           const version = process.env.VERSION;
-          const file = "runtimes/dejavu/package.json";
+          const file = "projects/packages/dejavu/package.json";
           const j = JSON.parse(fs.readFileSync(file, "utf8"));
           j.version = version;
           if (j.optionalDependencies) {
