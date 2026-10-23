@@ -41,15 +41,16 @@ fn main() {
         .trim()
         .to_string();
 
-    // ---- 遍历 templates/*.dejavu，parse 并登记 ----
+    // ---- 遍历 templates/*，parse 并登记 ----
     let mut files = BTreeMap::<String, _>::new();
+    let extensions = [".dejavu", ".doki", ".jinja", ".html", ".tmpl", ".tpl"];
     for entry in fs::read_dir(&templates_dir).expect("read templates dir") {
         let entry = entry.expect("dir entry");
         let path = entry.path();
-        if path.extension().map_or(true, |e| e != "dejavu") {
+        let name = path.file_name().unwrap().to_string_lossy().to_string();
+        if !extensions.iter().any(|ext| name.ends_with(ext)) {
             continue;
         }
-        let name = path.file_name().unwrap().to_string_lossy().to_string();
         let source = fs::read_to_string(&path).expect(&format!("read {}", name));
         let ir = match dejavu_parse(&source) {
             Ok(d) => d,

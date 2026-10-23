@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const T1 = join(ROOT, "specifications", "conformance", "t1");
+const INHERITANCE = join(ROOT, "specifications", "conformance", "inheritance");
 const TMP = join(ROOT, ".conformance-tmp");
 
 function cases() {
@@ -30,6 +31,33 @@ function loadCase(name) {
         ctxPath: join(dir, "context.ctx.json"),
         out: readFileSync(join(dir, "expected.out.txt"), "utf8"),
     };
+}
+
+function inheritanceCases() {
+    if (!existsSync(INHERITANCE)) return [];
+    return readdirSync(INHERITANCE, { withFileTypes: true })
+        .filter((d) => d.isDirectory())
+        .map((d) => {
+            const dir = join(INHERITANCE, d.name);
+            const langPath = join(dir, "language.json");
+            let rustSupported = true;
+            if (existsSync(langPath)) {
+                try {
+                    const lang = JSON.parse(readFileSync(langPath, "utf8"));
+                    // Rust parser currently hardcodes `<% %>` code delimiters
+                    const cs = lang.template?.codeStart ?? "<%";
+                    const ce = lang.template?.codeEnd ?? "%>";
+                    if (cs !== "<%" || ce !== "%>") rustSupported = false;
+                } catch { /* ignore */ }
+            }
+            return {
+                name: d.name,
+                dir,
+                out: readFileSync(join(dir, "expected.out.txt"), "utf8"),
+                rustSupported,
+            };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function run(cmd, args, cwd = ROOT) {
@@ -130,6 +158,24 @@ sys.stdout.write(Dejavu.render(ir, ctx))
             return r.ok ? r.stdout : null;
         },
     },
+    "rs-catalog": {
+        label: "Rust catalog",
+        required: true,
+        /** Render a multi-template inheritance fixture via `render_catalog`. */
+        render(caseDir) {
+            const workspaceManifest = join(ROOT, "Cargo.toml");
+            if (!existsSync(workspaceManifest)) return null;
+            const r = run(
+                "cargo",
+                ["run", "--quiet", "--example", "render_catalog", "--", caseDir.dir],
+                join(ROOT, "projects"),
+            );
+            if (!r.ok && r.stderr.includes("SKIP")) {
+                return null;
+            }
+            return r.ok ? r.stdout : null;
+        },
+    },
     kt: {
         label: "Kotlin",
         required: false,
@@ -167,7 +213,10 @@ sys.stdout.write(Dejavu.render(ir, ctx))
 
 function main() {
     const filter = process.argv.slice(2).filter((a) => !a.startsWith("-"));
-    const langs = filter.length ? filter : Object.keys(adapters);
+    // T1 fixture adapter list: exclude rs-catalog (only for inheritance)
+    const t1Langs = filter.length
+        ? filter.filter((l) => l !== "rs-catalog")
+        : Object.keys(adapters).filter((l) => l !== "rs-catalog");
     let failed = 0;
     const skipped = new Set();
 
@@ -178,7 +227,7 @@ function main() {
         const c = { ...loadCase(name), name };
         console.log(`## ${name}`);
         const outputs = {};
-        for (const lang of langs) {
+        for (const lang of t1Langs) {
             const adapter = adapters[lang];
             if (!adapter) {
                 console.log(`  ${lang}: unknown`);
@@ -210,6 +259,31 @@ function main() {
             if (outputs[keys[0]] !== outputs[keys[i]]) {
                 failed++;
                 console.log(`  CROSS-FAIL: ${keys[0]} != ${keys[i]}`);
+            }
+        }
+        console.log("");
+    }
+
+    // ---- inheritance fixtures (multi-template catalog) ----
+    const inheritanceAdapter = adapters["rs-catalog"];
+    if (inheritanceAdapter) {
+        console.log("## inheritance fixtures (Rust parser → catalog → render)");
+        for (const dir of inheritanceCases()) {
+            process.stdout.write(`  ${dir.name}: `);
+            if (!dir.rustSupported) {
+                console.log("SKIP (Rust parser only supports `<% %>` delimiters)");
+                continue;
+            }
+            const out = inheritanceAdapter.render(dir);
+            if (out === null) {
+                console.log("SKIP (parser does not support this fixture's syntax)");
+            } else if (out === dir.out) {
+                console.log("OK");
+            } else {
+                console.log("FAIL");
+                failed++;
+                console.log(`    expected ${JSON.stringify(dir.out)}`);
+                console.log(`    actual   ${JSON.stringify(out)}`);
             }
         }
         console.log("");
