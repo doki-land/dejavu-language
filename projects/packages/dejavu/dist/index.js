@@ -93,7 +93,7 @@ export function compile(source, options = {}) {
  * files. Use CLI (`dejavu compile <file> --out <file.js>`) or combine with
  * FS code yourself to persist artifacts.
  *
- * The generated ESM module imports `@dejavu/engine/runtime` (pure TS,
+ * The generated ESM module imports `@doki-land/dejavu-engine/runtime` (pure TS,
  * no N-API dependency).
  */
 export function precompile(source, options = {}) {
