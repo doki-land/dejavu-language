@@ -1,19 +1,38 @@
 # dejavu-napi
 
-Dejavu 的 N-API 引擎面：把 Rust 引擎的正交能力导出给 Node 宿主。
+N-API bridge that exports the Dejavu Rust engine's orthogonal capabilities to Node hosts.
 
-## 合同
+## Contract
 
-- 绑定合同标识为 `dejavu.napi/1`，由 `bindingContractVersion()` 返回，宿主先校验再调用。
-- 导出能力仅包括：`parseIr`、`normalizeIr`、`renderIr`、`renderSource`、`resolveTemplateRef`。
-- 命令语义（`build` / `dev` / `check` 的参数、配置、stdio、退出码、交互）属于 TypeScript CLI，
-  不在本 crate 导出，也不包装 clap。
-- 诊断只有一种形态：`code` + `severity` + `stage` + `message` + `span` + `path` + `argsJson` + `related`。
-- `context`、`catalog`、`options` 一律以 JSON 字符串传入，避免对象与 `serde_json::Value` 的类型分歧。
+- Binding contract id is `dejavu.napi/1`, returned by `bindingContractVersion()`. Hosts **must** verify before calling.
+- Exported surface: `parseIr`, `normalizeIr`, `renderIr`, `renderSource`, `resolveTemplateRef`.
+- Command semantics (`build`, `dev`, `check` flags, config files, stdio, exit codes, interactivity) belong to the TypeScript CLI, **not** this crate — no clap wrapper here.
+- One diagnostic shape: `code` + `severity` + `stage` + `message` + `span` + `path` + `argsJson` + `related`.
+- `context`, `catalog`, `options`, and `delimiters` are JSON strings at the N-API boundary — avoids object vs `serde_json::Value` type drift.
 
-## catalog 规格
+## Delimiters
 
-`renderIr` / `renderSource` 的 `catalog` 是 JSON 字符串：
+`ParseRequest` and `RenderSourceRequest` accept an optional `delimiters` JSON string:
+
+```json
+{
+  "syntaxMode": "template",
+  "template": {
+    "codeStart": "{%",
+    "codeEnd": "%}",
+    "commentStart": "{#",
+    "commentEnd": "#}",
+    "supportFilterPipe": true,
+    "legacyFor": false
+  }
+}
+```
+
+Omitting it defaults to Dejavu delimiters (`<% %>` / `<# #>`). Doki and other hosts that need non-default delimiters **must** pass this field — the N-API layer otherwise falls through to the default parser.
+
+## catalog schema
+
+The `catalog` JSON string on `renderIr` / `renderSource`:
 
 ```json
 {
@@ -24,10 +43,12 @@ Dejavu 的 N-API 引擎面：把 Rust 引擎的正交能力导出给 Node 宿主
       "scheme": "pages",
       "priority": 0,
       "basePath": "templates",
-      "files": { "index.dejavu": { "irVersion": "1.0", "language": {}, "body": {} } }
+      "files": {
+        "index.dejavu": "{ \"irVersion\": \"1.0\", \"language\": { ... }, \"body\": { ... } }"
+      }
     }
   ]
 }
 ```
 
-`files` 的值是已解析的 IR JSON，解析与外层 IR 一样由宿主通过 `parseIr` 得到。
+Values under `files` are pre-parsed IR JSON strings — the host parses each template with `parseIr` first, then passes the full catalog into `renderSource`.

@@ -2,8 +2,7 @@
 
 **One template language, shared IR, host-specific runtimes.**
 
-Dejavu separates template intent from the host runtime. Write a template once, then pick the binding that fits your app.
-A shared IR keeps behavior aligned across TypeScript, Rust, C#, Kotlin, and Python.
+Dejavu separates template intent from the host runtime. Write a template once, then pick the binding that fits your app. A shared IR keeps behavior aligned across TypeScript, Rust, C#, Kotlin, and Python.
 
 Repository: [`doki-land/dejavu-language`](https://github.com/doki-land/dejavu-language/tree/dev) (`dev`).
 
@@ -17,50 +16,95 @@ Hello, <% account.name %>!
 - Shared conformance fixtures under `specifications/`
 - Interpolation, `if` / `loop`, `|>` filters, HTML escaping, `safe` / `raw`
 - Inheritance: `extends` / `block` / `super` / `include` + path-v1 loader
+- Configurable delimiters — default `<% %>`, Doki uses `{% %}`, Jinja anything
 - AOT where a host supports it; runtime rendering otherwise
-- Host adapters kept separate from the public `@doki-land/dejavu` facade
 
-## 🚀 Quick start (TypeScript)
+## 🚀 Quick start
+
+### TypeScript
 
 ```bash
 pnpm add @doki-land/dejavu
 ```
 
 ```ts
-import {parse, render} from "@doki-land/dejavu";
+import { parse, render } from "@doki-land/dejavu";
 
-const out = render(parse("Hello, <% name %>!"), {name: "World"});
+const out = render(parse("Hello, <% name %>!"), { name: "World" });
 // → Hello, World!
 ```
 
-Install and API notes for other hosts live under each `projects/dejavu.*` tree. Application code should not depend on
-`@dejavu/*` engine-layer packages.
+### Rust
+
+```toml
+[dependencies]
+dejavu = "0.0.1"
+serde_json = "1"
+```
+
+```rust
+use dejavu::Dejavu;
+use serde_json::json;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let out = Dejavu::render_source(
+        "Hello, <% account.name %>!",
+        &json!({ "account": { "name": "Mira" } }),
+    )?;
+    println!("{out}"); // → Hello, Mira!
+    Ok(())
+}
+```
+
+### Non-default delimiters (Doki / Jinja)
+
+```rust
+use dejavu::{Dejavu, Language, TemplateConfig};
+
+let doki = Language {
+    syntax_mode: "template".into(),
+    template: TemplateConfig {
+        code_start: "{%".into(),
+        code_end: "%}".into(),
+        comment_start: "{#".into(),
+        comment_end: "#}".into(),
+        support_filter_pipe: true,
+        legacy_for: false,
+    },
+};
+
+let out = Dejavu::render_source_with(
+    "Hello, {% name %}!",
+    &json!({ "name": "Mira" }),
+    &doki,
+)?;
+```
 
 ## 🧩 Hosts
 
-| Host       | Public surface                         | Notes                                      |
-|------------|----------------------------------------|--------------------------------------------|
-| TypeScript | `@doki-land/dejavu`                    | Application facade + CLI over the N-API engine |
-| Rust       | `dejavu` (`use dejavu::*`)             | Application facade                         |
-| C#         | `Dejavu`                               | .NET binding                               |
-| Kotlin     | `dejavu`                               | JVM / tooling                              |
-| Python     | `dejavu`                               | Binding                                    |
-| CLI        | `dejavu` (`parse` / `render` / `check`) | TypeScript CLI in `@doki-land/dejavu`      |
-| LSP        | `dejavu-tools` (`dejavu lsp`)          | Rust-only placeholder — not shipped to npm |
-| Doki only  | `@doki-land/dejavu-engine`             | Product host **library** adapter           |
+| Host       | Public surface                         | Status   | Notes                                      |
+|------------|----------------------------------------|----------|--------------------------------------------|
+| TypeScript | `@doki-land/dejavu`                    | ✅ Active | Application facade + CLI over the N-API engine |
+| Rust       | `dejavu` (`use dejavu::*`)             | ✅ Active | Application facade + public crate workspace |
+| C#         | `Dejavu`                               | 🔒 Frozen | .NET binding — protocol consumer only      |
+| Kotlin     | `dejavu`                               | 🔒 Frozen | JVM / tooling — protocol consumer only     |
+| Python     | `dejavu`                               | 🔒 Frozen | Binding                                     |
+| CLI        | `doki` (entry) + `dejavu-tools` (rust) | ✅ Active | Doki product CLI + standalone lint/extract |
+| LSP        | `dejavu-tools` (`dejavu lsp`)          | 🧪 Draft | Rust-only — not shipped to npm             |
+| Doki core  | `doki-core` (this repo)                | ✅ Active | SSG build kernel — consumes the `dejavu` crate |
 
-Cross-host status: [`documentation/compatibility.md`](./documentation/compatibility.md).
+Cross-host status matrix: [`documentation/compatibility.md`](./documentation/compatibility.md).
 
 ## 🗂 Repository layout
 
-| Path                                 | Role                                      |
-|--------------------------------------|-------------------------------------------|
-| `projects/packages`                 | TypeScript packages, homepage, user docs  |
-| `projects/crates`                 | Rust crates                               |
-| `projects/dejavu.cs` / `.kt` / `.py` | Other host trees                          |
-| `specifications/`                    | Contract, IR schema, conformance fixtures |
-| `documentation/`                     | Contributor / maintainer docs             |
-| `scripts/`                           | Format, test, conformance runners         |
+| Path                                  | Role                                      |
+|---------------------------------------|-------------------------------------------|
+| `projects/crates/`                    | Rust crates (`dejavu`, `dejavu-language`, `dejavu-ir`, `dejavu-engine`, …) |
+| `projects/packages/`                  | TypeScript packages, homepage, user docs  |
+| `projects/dejavu.cs` / `.kt` / `.py`  | Other host trees (frozen protocol consumers) |
+| `specifications/`                     | Contract, IR schema, conformance fixtures |
+| `documentation/`                      | Contributor / maintainer docs             |
+| `scripts/`                            | Format, test, conformance runners         |
 
 ## 📚 Documentation
 
@@ -71,6 +115,7 @@ Cross-host status: [`documentation/compatibility.md`](./documentation/compatibil
 | Developer docs      | [`documentation/index.md`](./documentation/index.md)                                                        |
 | Doc map             | [`documentation/readme.md`](./documentation/readme.md)                                                      |
 | Specs               | [`specifications/`](./specifications/)                                                                      |
+| Conformance         | [`scripts/conformance-runner.mjs`](./scripts/conformance-runner.mjs)                                        |
 | Compatibility       | [`documentation/compatibility.md`](./documentation/compatibility.md)                                        |
 | Release checklist   | [`documentation/contribute/release.md`](./documentation/contribute/release.md)                              |
 
@@ -80,22 +125,26 @@ Requires Node.js 20+ and pnpm 10 (`packageManager` in root `package.json`), plus
 for the N-API engine addon.
 
 ```bash
+# Rust workspace
+cd projects && cargo test --workspace
+
+# TypeScript + N-API + conformance (repo root)
 pnpm install
-pnpm napi:build
+pnpm napi:build:release      # builds + stages the native addon
 pnpm fmt:check
-pnpm test
-pnpm conformance
+pnpm test                    # facade + CLI tests
+pnpm conformance              # cross-host conformance runner (requires hosts)
 ```
 
 ## 📦 Package scope
 
-| Package                                                  | Audience                                   |
-|----------------------------------------------------------|--------------------------------------------|
-| `@doki-land/dejavu`                                      | TypeScript applications                    |
-| `dejavu` (crates.io)                                     | Rust applications (`use dejavu::*`)        |
-| `@dejavu/engine`, `@dejavu/language`, `@dejavu/types`, … | Binding / core maintainers only            |
-| `@doki-land/dejavu-engine`                               | Doki product host adapter only             |
-| Host adapters (`hono-dejavu`, …)                         | Framework integration                      |
+| Package / Crate                                          | Audience                          |
+|----------------------------------------------------------|-----------------------------------|
+| `@doki-land/dejavu`                                      | TypeScript applications           |
+| `dejavu` (crates.io)                                     | Rust applications (`use dejavu::*`) |
+| `dejavu-language` / `dejavu-ir` / `dejavu-runtime`       | Binding / core maintainers only   |
+| `dejavu-napi`                                            | N-API binding only                |
+| `@doki-land/dejavu-engine` (legacy TS)                   | — frozen —                        |
 
 ## 📄 License
 
