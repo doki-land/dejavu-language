@@ -102,6 +102,12 @@ type NativeGeneratedModule = {
     path: string;
     code: string;
     dependencies: string[];
+    origins: NativeGeneratedOrigin[];
+};
+type NativeGeneratedOrigin = {
+    line: number;
+    start: number;
+    end: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -109,7 +115,7 @@ type NativeGeneratedModule = {
 // ---------------------------------------------------------------------------
 
 /** Binding contract version this facade is written against. */
-export const BINDING_CONTRACT = "dejavu.napi/1";
+export const BINDING_CONTRACT = "dejavu.napi/2";
 
 const PLATFORM_PACKAGES: Record<string, string> = {
     "linux-x64": "@doki-land/dejavu-linux-x64",
@@ -208,6 +214,11 @@ function translateModule(native: NativeGeneratedModule): PrecompileModule {
         path: native.path,
         code: native.code,
         dependencies: [...native.dependencies],
+        origins: native.origins.map((origin) => ({
+            line: origin.line,
+            start: origin.start,
+            end: origin.end,
+        })),
     };
 }
 

@@ -32,7 +32,7 @@ import { isEsmScope, loadConfig, resolveConfigPath } from "./config-load.js";
 import type { ResolvedConfig } from "./config-load.js";
 import { DejavuError } from "./errors.js";
 import { precompileCatalog } from "./index.js";
-import type { Catalog, Diagnostic, PrecompileModule } from "./types.js";
+import type { Catalog, Diagnostic, GeneratedOrigin, PrecompileModule } from "./types.js";
 
 /** Runtime package generated modules depend on. */
 const RUNTIME_IMPORT = "@doki-land/dejavu-engine/runtime";
@@ -247,8 +247,17 @@ function compileEntries(config: ResolvedConfig, catalog: Catalog): GenerateCompi
 
 /** Map compiled modules onto the public output layout. */
 export function planOutput(config: ResolvedConfig, compilation: GenerateCompilation): GeneratePlan {
-    const modules = new Map<string, { code: string; sourceId: string }>();
+    const modules = new Map<
+        string,
+        { code: string; sourceId: string; origins: GeneratedOrigin[] }
+    >();
     const codegenContracts = new Set<string>();
+    const sources = new Map<string, string>();
+    for (const root of compilation.catalog.roots) {
+        for (const [path, text] of Object.entries(root.files)) {
+            sources.set(`${root.name}:${path}`, text);
+        }
+    }
 
     for (const entry of [...compilation.entries].sort((a, b) => compare(a.name, b.name))) {
         if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(entry.name)) {
@@ -290,7 +299,11 @@ export function planOutput(config: ResolvedConfig, compilation: GenerateCompilat
                 }
                 continue;
             }
-            modules.set(finalPath, { code: module.code, sourceId });
+            modules.set(finalPath, {
+                code: module.code,
+                sourceId,
+                origins: module.origins,
+            });
         }
     }
 
@@ -318,7 +331,7 @@ export function planOutput(config: ResolvedConfig, compilation: GenerateCompilat
         });
         files.push({
             path: mapPath,
-            content: sourceMapJson(file, module.sourceId),
+            content: sourceMapJson(file, module.sourceId, sourceTemplate(module.sourceId, sources), module.origins),
         });
     }
 
@@ -720,14 +733,135 @@ function sourceMapComment(fileName: string): string {
     return `//# sourceMappingURL=${fileName}\n`;
 }
 
-function sourceMapJson(file: string, sourceId: string): string {
+/** Template source text behind a canonical id (needed for `sourcesContent`). */
+function sourceTemplate(sourceId: string, sources: Map<string, string>): string {
+    const text = sources.get(sourceId);
+    if (text === undefined) {
+        throw generateError(
+            "dejavu.generate.source-missing",
+            `generated module references ${JSON.stringify(sourceId)} but the catalog has no source for it`,
+            undefined,
+            "compile",
+        );
+    }
+    return text;
+}
+
+/** Source map v3 with one segment per generated line that starts a construct. */
+function sourceMapJson(
+    file: string,
+    sourceId: string,
+    text: string,
+    origins: GeneratedOrigin[],
+): string {
     return JSON.stringify({
         version: 3,
         file,
         sources: [sourceId],
+        sourcesContent: [text],
         names: [],
-        mappings: "",
+        mappings: encodeMappings(text, origins),
     });
+}
+
+const BASE64_DIGITS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+/** Base64 VLQ, the only encoding source maps use for segment fields. */
+function encodeVlq(value: number): string {
+    let rest = value < 0 ? (-value << 1) | 1 : value << 1;
+    let out = "";
+    do {
+        let digit = rest & 31;
+        rest >>>= 5;
+        if (rest > 0) digit |= 32;
+        out += BASE64_DIGITS[digit];
+    } while (rest > 0);
+    return out;
+}
+
+/** Byte offset of each 0-based line start, plus its JS (UTF-16) offset. */
+type LineStart = { byte: number; unit: number };
+
+/**
+ * Rust spans are byte offsets while source-map columns count UTF-16 units, so
+ * both coordinate systems are tracked side by side.
+ */
+function lineStarts(text: string): LineStart[] {
+    const starts: LineStart[] = [{ byte: 0, unit: 0 }];
+    let byte = 0;
+    let unit = 0;
+    for (const char of text) {
+        byte += Buffer.byteLength(char, "utf8");
+        unit += char.length;
+        if (char === "\n") starts.push({ byte, unit });
+    }
+    return starts;
+}
+
+/** Convert one template byte offset into 0-based line + UTF-16 column. */
+function positionAt(text: string, starts: LineStart[], byteOffset: number): { line: number; column: number } {
+    const total = starts[starts.length - 1] ?? { byte: 0, unit: 0 };
+    const offset = Math.max(0, Math.min(byteOffset, total.byte));
+    let low = 0;
+    let high = starts.length - 1;
+    while (low < high) {
+        const mid = (low + high + 1) >> 1;
+        if ((starts[mid]?.byte ?? 0) <= offset) low = mid;
+        else high = mid - 1;
+    }
+    const start = starts[low] ?? { byte: 0, unit: 0 };
+    const end = starts[low + 1]?.unit ?? text.length;
+    const line = text.slice(start.unit, end);
+    let bytes = 0;
+    let column = 0;
+    for (const char of line) {
+        const size = Buffer.byteLength(char, "utf8");
+        if (bytes + size > offset - start.byte) break;
+        bytes += size;
+        column += char.length;
+    }
+    return { line: low, column };
+}
+
+/**
+ * Build the `mappings` string. Each generated line gets at most one segment at
+ * column 0 pointing at the template construct that produced it; fields are
+ * delta-encoded against the previous segment, as the format requires.
+ */
+function encodeMappings(text: string, origins: GeneratedOrigin[]): string {
+    if (origins.length === 0) return "";
+
+    const byLine = new Map<number, GeneratedOrigin>();
+    for (const origin of origins) {
+        if (!byLine.has(origin.line)) byLine.set(origin.line, origin);
+    }
+    const starts = lineStarts(text);
+    const lastLine = Math.max(...byLine.keys());
+
+    const lines: string[] = [];
+    let previousLine = 0;
+    let previousColumn = 0;
+
+    for (let line = 0; line <= lastLine; line++) {
+        const origin = byLine.get(line);
+        if (!origin) {
+            lines.push("");
+            continue;
+        }
+        const position = positionAt(text, starts, origin.start);
+        lines.push(
+            [
+                encodeVlq(0),
+                encodeVlq(0),
+                encodeVlq(position.line - previousLine),
+                encodeVlq(position.column - previousColumn),
+            ].join(""),
+        );
+        previousLine = position.line;
+        previousColumn = position.column;
+    }
+
+    return lines.join(";");
 }
 
 // ---------------------------------------------------------------------------

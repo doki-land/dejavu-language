@@ -14,7 +14,8 @@
 //! * `Stmt.Block` / `Stmt.Extends` / `Stmt.Include` / `Stmt.Super` → handled
 //!   at build time in catalog mode; fall back to a compile diagnostic in
 //!   single-template mode
-//! * No source map emission (`null` for now)
+//! * Line origins: every emitted construct reports the generated line it starts
+//!   on plus its template span, so hosts can build real source maps
 
 pub mod catalog;
 pub mod codegen;
@@ -22,4 +23,5 @@ pub mod emit;
 pub mod options;
 
 pub use codegen::{PrecompileCatalogResult, PrecompileResult, GeneratedModule, precompile_catalog, precompile_single};
+pub use emit::LineOrigin;
 pub use options::CodegenOptions;

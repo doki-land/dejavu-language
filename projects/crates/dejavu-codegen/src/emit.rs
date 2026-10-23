@@ -21,6 +21,7 @@
 //! `Stmt.Super`, and `Stmt.Include` emit meaningful JS instead of throwing.
 
 use once_cell::sync::Lazy;
+use serde::Serialize;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 
@@ -62,6 +63,24 @@ pub fn is_reserved(name: &str) -> bool {
 }
 
 // ---------------------------------------------------------------------------
+// Line origins
+// ---------------------------------------------------------------------------
+
+/// One generated JS line that starts a template construct.
+///
+/// `line` is 0-based inside the emitted *module body*. Callers add the module
+/// header offset before turning these into source-map entries.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct LineOrigin {
+    /// Generated line index (0-based bytes counted by `\n`).
+    pub line: u32,
+    /// Template byte offset where the construct starts.
+    pub start: u32,
+    /// Template byte offset where the construct ends (exclusive).
+    pub end: u32,
+}
+
+// ---------------------------------------------------------------------------
 // CodegenCtx
 // ---------------------------------------------------------------------------
 
@@ -70,13 +89,15 @@ pub struct CodegenCtx<'a> {
     pub options: &'a CodegenOptions,
     /// Collected diagnostics (errors + warnings about unsupported nodes etc.).
     pub diagnostics: Vec<Diagnostic>,
+    /// Generated-line → template-span points, in emission order.
+    pub origins: Vec<LineOrigin>,
     /// Monotonic counter for `__vN` temp variables.
     temp_counter: u32,
 }
 
 impl<'a> CodegenCtx<'a> {
     pub fn new(options: &'a CodegenOptions) -> Self {
-        Self { options, diagnostics: Vec::new(), temp_counter: 0 }
+        Self { options, diagnostics: Vec::new(), origins: Vec::new(), temp_counter: 0 }
     }
 
     /// Return the next unique temp variable name (`__v`, `__v1`, `__v2`, ...).
@@ -319,6 +340,25 @@ pub struct CatalogEmitCtx<'a> {
 // Statement emit
 // ---------------------------------------------------------------------------
 
+/// Record where this node's output starts, so source maps can point at it.
+///
+/// Comments emit nothing and therefore have no line. Nested bodies are recorded
+/// by their own `emit_stmt` calls, so every entry covers exactly one construct.
+fn record_origin(node: &IrNode, out: &str, ctx: &mut CodegenCtx) {
+    if matches!(node, IrNode::Comment { .. }) {
+        return;
+    }
+    let Some(span) = CodegenCtx::span_of(node) else {
+        return;
+    };
+    let line = out.bytes().filter(|b| *b == b'\n').count();
+    ctx.origins.push(LineOrigin {
+        line: u32::try_from(line).unwrap_or(u32::MAX),
+        start: u32::try_from(span.start).unwrap_or(u32::MAX),
+        end: u32::try_from(span.end).unwrap_or(u32::MAX),
+    });
+}
+
 /// Emit a sequence of top-level body nodes (Template.children, If.consequent, ...).
 ///
 /// `catalog` is `None` in single-template mode (Stmt.Block/Extends/Include/Super
@@ -342,6 +382,7 @@ pub fn emit_stmt(
     out: &mut String,
     catalog: Option<&CatalogEmitCtx>,
 ) {
+    record_origin(node, out, ctx);
     match node {
         IrNode::Text { value, .. } => {
             out.push_str("__out.push(");

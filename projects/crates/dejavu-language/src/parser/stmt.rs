@@ -1,7 +1,8 @@
 //! Template control-flow parsing (`if` / `loop` / `block`) over classified code heads.
 
 use dejavu_diagnostic::codes;
-use dejavu_ir::NativeNode;
+use dejavu_ir::types::Span;
+use dejavu_ir::{NativeKind, NativeNode};
 
 use super::expr::parse_expr;
 use super::stmt_head::{CodeHead, classify_code};
@@ -12,6 +13,7 @@ use crate::lexer::TrimMode;
 impl Parser<'_> {
     pub(crate) fn parse_if(
         &self,
+        open: usize,
         mut i: usize,
         test_src: &str,
         test_base: usize,
@@ -78,11 +80,18 @@ impl Parser<'_> {
             }
         }
 
-        Ok((NativeNode::If { test, consequent, else_ifs, alternate, trim: trim.as_str().into() }, i))
+        Ok((
+            NativeNode::new(
+                NativeKind::If { test, consequent, else_ifs, alternate, trim: trim.as_str().into() },
+                Some(Span { start: open, end: i }),
+            ),
+            i,
+        ))
     }
 
     pub(crate) fn parse_loop(
         &self,
+        open: usize,
         mut i: usize,
         item: String,
         iter_src: &str,
@@ -111,11 +120,18 @@ impl Parser<'_> {
             }
         }
 
-        Ok((NativeNode::For { item, index: None, iterable, body, trim: trim.as_str().into() }, i))
+        Ok((
+            NativeNode::new(
+                NativeKind::For { item, index: None, iterable, body, trim: trim.as_str().into() },
+                Some(Span { start: open, end: i }),
+            ),
+            i,
+        ))
     }
 
     pub(crate) fn parse_block(
         &self,
+        open: usize,
         mut i: usize,
         name: String,
         trim: TrimMode,
@@ -140,6 +156,12 @@ impl Parser<'_> {
             }
         }
 
-        Ok((NativeNode::Block { name, body, trim: trim.as_str().into() }, i))
+        Ok((
+            NativeNode::new(
+                NativeKind::Block { name, body, trim: trim.as_str().into() },
+                Some(Span { start: open, end: i }),
+            ),
+            i,
+        ))
     }
 }

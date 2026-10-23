@@ -11,7 +11,7 @@ pub mod types;
 pub use catalog::{
     CatalogFiles, CatalogLoader, CatalogRoot, ResolveHit, ResolveRoot, TemplateCatalog, canonical_id, resolve_ref,
 };
-pub use native::{NativeExpr, NativeNode, NativeTemplate};
+pub use native::{NativeExpr, NativeKind, NativeNode, NativeTemplate};
 pub use normalize::normalize_value;
 pub use render::{RenderOptions, ResolvedTemplate, TemplateLoader, render_ir, render_ir_opts, render_ir_with_loader};
 pub use types::{IrDocument, IrNode, Language, TemplateConfig, default_language};

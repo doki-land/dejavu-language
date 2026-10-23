@@ -39,7 +39,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
-    "test": "tsc -p tsconfig.json && node dist/cli.js --help"
+    "test": "tsc -p tsconfig.json && node dist/cli.js --help && node --test \"tests/**/*.test.mjs\""
   },
   "dependencies": {
     "@vmz/commander": "^0.3.6"

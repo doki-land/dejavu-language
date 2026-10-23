@@ -16,7 +16,7 @@ use crate::catalog::{
     collect_all_reachable, collect_blocks, detect_cycle, js_import_name,
     parse_catalog_json, sanitize_id, split_canonical,
 };
-use crate::emit::{self, CatalogEmitCtx, CodegenCtx};
+use crate::emit::{self, CatalogEmitCtx, CodegenCtx, LineOrigin};
 use crate::options::CodegenOptions;
 
 // ---------------------------------------------------------------------------
@@ -35,6 +35,8 @@ pub struct PrecompileResult {
     pub diagnostics: Vec<Diagnostic>,
     /// Entry template id used for dependency tracking. Defaults to `"__entry__"`.
     pub entry_id: String,
+    /// Generated-line → template-span points for source maps.
+    pub origins: Vec<LineOrigin>,
 }
 
 /// One generated ESM module produced by catalog AOT.
@@ -46,6 +48,8 @@ pub struct GeneratedModule {
     pub code: String,
     /// Canonical ids of templates this module imports (via `include`).
     pub dependencies: Vec<String>,
+    /// Generated-line → template-span points for source maps.
+    pub origins: Vec<LineOrigin>,
 }
 
 /// Result of a catalog precompile.
@@ -117,12 +121,14 @@ pub fn precompile_single(
     };
 
     let code = build_module(&body_str, &[], None);
+    let origins = shift_origins(&ctx.origins, module_header_lines(0));
 
     Ok(PrecompileResult {
         code,
         dependencies: Vec::new(),
         diagnostics: ctx.diagnostics,
         entry_id,
+        origins,
     })
 }
 
@@ -270,11 +276,12 @@ pub fn precompile_catalog(
 
         let entry_imports = build_import_lines(&dependencies, id, &id_to_path);
         let code = build_module(&body_str, &entry_imports, Some(&id_to_deps));
+        let origins = shift_origins(&ctx.origins, module_header_lines(entry_imports.len()));
 
         diagnostics.extend(ctx.diagnostics);
 
         let path = id_to_path.get(id).unwrap().as_str().unwrap_or("").to_string();
-        let m = GeneratedModule { path, code, dependencies };
+        let m = GeneratedModule { path, code, dependencies, origins };
         id_to_module.insert(id.clone(), m.clone());
         modules.push(m);
     }
@@ -340,6 +347,28 @@ pub(crate) fn build_module(body: &str, template_imports: &[String], _dep_map: Op
     s.push_str("  return __out.join(\"\");\n");
     s.push_str("}\n");
     s
+}
+
+/// Number of lines [`build_module`] writes before the first body line.
+///
+/// Body lines map 1:1 onto module lines (empty body lines still occupy a line),
+/// so this offset is all a source map needs.
+fn module_header_lines(template_imports: usize) -> u32 {
+    // runtime import + template imports, blank, `export function render`, three
+    // prologue statements, blank.
+    u32::try_from(1 + template_imports + 1 + 4 + 1).unwrap_or(u32::MAX)
+}
+
+/// Move body-line origins to module-line positions.
+fn shift_origins(origins: &[LineOrigin], offset: u32) -> Vec<LineOrigin> {
+    origins
+        .iter()
+        .map(|origin| LineOrigin {
+            line: origin.line.saturating_add(offset),
+            start: origin.start,
+            end: origin.end,
+        })
+        .collect()
 }
 
 /// Build ESM import statements for a module given its dependencies and

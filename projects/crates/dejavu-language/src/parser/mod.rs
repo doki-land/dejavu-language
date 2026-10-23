@@ -5,7 +5,8 @@ mod stmt;
 mod stmt_head;
 
 use dejavu_diagnostic::codes;
-use dejavu_ir::{IrDocument, Language, NativeNode, NativeTemplate, TemplateConfig, default_language, encode_native};
+use dejavu_ir::types::Span;
+use dejavu_ir::{IrDocument, Language, NativeKind, NativeNode, NativeTemplate, TemplateConfig, default_language, encode_native};
 use expr::parse_expr;
 use stmt_head::{CodeHead, classify_code, head_stop_kind};
 
@@ -133,8 +134,12 @@ impl<'a> Parser<'a> {
             if self.source[i..].starts_with(cms) {
                 if let Some(end) = self.source[i + cms_len..].find(cme) {
                     let inner = &self.source[i + cms_len..i + cms_len + end];
-                    children.push(NativeNode::Comment(inner.to_string()));
-                    i = i + cms_len + end + cme_len;
+                    let next = i + cms_len + end + cme_len;
+                    children.push(NativeNode::new(
+                        NativeKind::Comment(inner.to_string()),
+                        Some(Span { start: i, end: next }),
+                    ));
+                    i = next;
                     continue;
                 }
                 return Err(ParseError::at(self.source, self.file, i, cms_len, "unclosed comment", "comment starts here")
@@ -150,7 +155,10 @@ impl<'a> Parser<'a> {
                         trim = t;
                         j += 1;
                     } else if bytes[j] == b'!' {
-                        children.push(NativeNode::Text(cs.clone()));
+                        children.push(NativeNode::new(
+                            NativeKind::Text(cs.clone()),
+                            Some(Span { start: i, end: i + cs_len + 1 }),
+                        ));
                         i += cs_len + 1;
                         continue;
                     }
@@ -174,32 +182,41 @@ impl<'a> Parser<'a> {
 
                 match head {
                     CodeHead::If { test_src, test_base } => {
-                        let (node, new_i) = self.parse_if(next_i, test_src, test_base, trim)?;
+                        let (node, new_i) = self.parse_if(open, next_i, test_src, test_base, trim)?;
                         children.push(node);
                         i = new_i;
                     }
                     CodeHead::Loop { item, iter_src, iter_base } => {
-                        let (node, new_i) = self.parse_loop(next_i, item, iter_src, iter_base, trim)?;
+                        let (node, new_i) = self.parse_loop(open, next_i, item, iter_src, iter_base, trim)?;
                         children.push(node);
                         i = new_i;
                     }
                     CodeHead::Extends { parent_src, parent_base } => {
                         let parent = parse_expr(self.source, self.file, parent_base, parent_src)?;
-                        children.push(NativeNode::Extends { parent, trim: trim.as_str().into() });
+                        children.push(NativeNode::new(
+                            NativeKind::Extends { parent, trim: trim.as_str().into() },
+                            Some(Span { start: open, end: next_i }),
+                        ));
                         i = next_i;
                     }
                     CodeHead::Include { path_src, path_base } => {
                         let path = parse_expr(self.source, self.file, path_base, path_src)?;
-                        children.push(NativeNode::Include { path, trim: trim.as_str().into() });
+                        children.push(NativeNode::new(
+                            NativeKind::Include { path, trim: trim.as_str().into() },
+                            Some(Span { start: open, end: next_i }),
+                        ));
                         i = next_i;
                     }
                     CodeHead::Block { name } => {
-                        let (node, new_i) = self.parse_block(next_i, name, trim)?;
+                        let (node, new_i) = self.parse_block(open, next_i, name, trim)?;
                         children.push(node);
                         i = new_i;
                     }
                     CodeHead::Super => {
-                        children.push(NativeNode::Super { trim: trim.as_str().into() });
+                        children.push(NativeNode::new(
+                            NativeKind::Super { trim: trim.as_str().into() },
+                            Some(Span { start: open, end: next_i }),
+                        ));
                         i = next_i;
                     }
                     CodeHead::EndIf | CodeHead::EndLoop | CodeHead::EndBlock | CodeHead::Else | CodeHead::ElseIf { .. } => {
@@ -226,7 +243,10 @@ impl<'a> Parser<'a> {
                     }
                     CodeHead::Expr { src, base } => {
                         let expr = parse_expr(self.source, self.file, base, src)?;
-                        children.push(NativeNode::Interpolation { expression: expr, trim: trim.as_str().into(), raw: false });
+                        children.push(NativeNode::new(
+                            NativeKind::Interpolation { expression: expr, trim: trim.as_str().into(), raw: false },
+                            Some(Span { start: open, end: next_i }),
+                        ));
                         i = next_i;
                     }
                 }
@@ -243,12 +263,18 @@ impl<'a> Parser<'a> {
             };
             match next {
                 Some(n) if n > i => {
-                    children.push(NativeNode::Text(self.source[i..n].to_string()));
+                    children.push(NativeNode::new(
+                        NativeKind::Text(self.source[i..n].to_string()),
+                        Some(Span { start: i, end: n }),
+                    ));
                     i = n;
                 }
                 Some(_) => i += 1,
                 None => {
-                    children.push(NativeNode::Text(self.source[i..].to_string()));
+                    children.push(NativeNode::new(
+                        NativeKind::Text(self.source[i..].to_string()),
+                        Some(Span { start: i, end: self.source.len() }),
+                    ));
                     break;
                 }
             }

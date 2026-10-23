@@ -183,6 +183,16 @@ export class Template {
 // AOT Precompile results
 // ---------------------------------------------------------------------------
 
+/** Where one generated JS line starts inside the template source. */
+export type GeneratedOrigin = {
+    /** 0-based generated module line. */
+    line: number;
+    /** Template byte offset where the construct starts. */
+    start: number;
+    /** Template byte offset where the construct ends (exclusive). */
+    end: number;
+};
+
 /** One generated ESM module from AOT codegen. */
 export type PrecompileModule = {
     /** Relative path inside the output root, e.g. `"index.js"`. */
@@ -191,6 +201,8 @@ export type PrecompileModule = {
     code: string;
     /** Canonical ids of templates this module imports (via `include`/`extends`). */
     dependencies: string[];
+    /** Generated line → template span points, used to build source maps. */
+    origins: GeneratedOrigin[];
 };
 
 /** Result of a single-template AOT precompile. */

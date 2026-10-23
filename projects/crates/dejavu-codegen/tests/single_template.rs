@@ -12,7 +12,7 @@
 //! 4. Run the generated JS under a tiny Node.js helper stub via
 //!    `node -e` subprocess (skipped gracefully if node is absent).
 
-use dejavu_codegen::{PrecompileResult, precompile_single};
+use dejavu_codegen::{LineOrigin, PrecompileResult, precompile_single};
 use serde_json::{Value, json};
 
 // ---------------------------------------------------------------------------
@@ -473,6 +473,54 @@ fn entry_id_from_options() {
     let res = compile_opts(&serde_json::to_string(&ir).unwrap(),
                            r#"{"entryId":"theme:layout.dejavu"}"#);
     assert_eq!(res.entry_id, "theme:layout.dejavu");
+}
+
+// ---------------------------------------------------------------------------
+// Line origins (source map input)
+// ---------------------------------------------------------------------------
+
+/// Attach a template span to a fixture node.
+fn spanned(mut node: Value, start: u32, end: u32) -> Value {
+    node["span"] = json!({ "start": start, "end": end });
+    node
+}
+
+#[test]
+fn origins_point_each_construct_at_its_template_span() {
+    let ir = doc(vec![
+        spanned(text("hello"), 0, 5),
+        spanned(interp(ident("name"), false), 5, 15),
+        spanned(
+            stmt_if(ident("ok"), vec![spanned(text("yes"), 21, 24)], vec![], None),
+            15,
+            40,
+        ),
+    ]);
+    let res = compile(&serde_json::to_string(&ir).unwrap());
+
+    // Module header is 7 lines when there are no template imports.
+    assert_eq!(
+        res.origins,
+        vec![
+            LineOrigin { line: 7, start: 0, end: 5 },
+            LineOrigin { line: 8, start: 5, end: 15 },
+            LineOrigin { line: 10, start: 15, end: 40 },
+            LineOrigin { line: 11, start: 21, end: 24 },
+        ]
+    );
+
+    // Every origin must land on a real module line.
+    let total = res.code.lines().count() as u32;
+    for origin in &res.origins {
+        assert!(origin.line < total, "origin {origin:?} outside {total} lines");
+        assert!(origin.start <= origin.end);
+    }
+}
+
+#[test]
+fn origins_skip_comments_and_spans_absent_from_fixtures() {
+    let res = compile(&serde_json::to_string(&doc(vec![text("a"), comment("b")])).unwrap());
+    assert!(res.origins.is_empty());
 }
 
 // ---------------------------------------------------------------------------

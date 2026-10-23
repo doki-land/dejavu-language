@@ -1,6 +1,6 @@
 //! Host-native T1 AST (Rust side) that round-trips with IR.
 
-use crate::types::IrNode;
+use crate::types::{IrNode, Span};
 use serde_json::Value;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -8,8 +8,24 @@ pub struct NativeTemplate {
     pub children: Vec<NativeNode>,
 }
 
+/// One template node and the source range it was parsed from.
+///
+/// Spans use the same UTF-8 byte offsets as [`IrNode`]. IR that carries no
+/// spans decodes to `None`, so hosts that only feed IR still work unchanged.
 #[derive(Debug, Clone, PartialEq)]
-pub enum NativeNode {
+pub struct NativeNode {
+    pub kind: NativeKind,
+    pub span: Option<Span>,
+}
+
+impl NativeNode {
+    pub fn new(kind: NativeKind, span: Option<Span>) -> Self {
+        Self { kind, span }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum NativeKind {
     Text(String),
     Comment(String),
     Interpolation {
@@ -77,13 +93,17 @@ pub fn decode_template(node: &IrNode) -> NativeTemplate {
 }
 
 fn encode_node(n: &NativeNode) -> IrNode {
-    match n {
-        NativeNode::Text(v) => IrNode::Text { value: v.clone(), span: None },
-        NativeNode::Comment(v) => IrNode::Comment { value: v.clone(), span: None },
-        NativeNode::Interpolation { expression, trim, raw } => {
-            IrNode::Interpolation { expression: Box::new(encode_expr(expression)), trim: trim.clone(), raw: *raw, span: None }
-        }
-        NativeNode::If { test, consequent, else_ifs, alternate, trim } => IrNode::StmtIf {
+    let span = n.span.clone();
+    match &n.kind {
+        NativeKind::Text(v) => IrNode::Text { value: v.clone(), span },
+        NativeKind::Comment(v) => IrNode::Comment { value: v.clone(), span },
+        NativeKind::Interpolation { expression, trim, raw } => IrNode::Interpolation {
+            expression: Box::new(encode_expr(expression)),
+            trim: trim.clone(),
+            raw: *raw,
+            span,
+        },
+        NativeKind::If { test, consequent, else_ifs, alternate, trim } => IrNode::StmtIf {
             test: Box::new(encode_expr(test)),
             consequent: consequent.iter().map(encode_node).collect(),
             else_ifs: else_ifs
@@ -97,30 +117,30 @@ fn encode_node(n: &NativeNode) -> IrNode {
                 .collect(),
             alternate: alternate.as_ref().map(|nodes| nodes.iter().map(encode_node).collect()),
             trim: trim.clone(),
-            span: None,
+            span,
         },
-        NativeNode::For { item, index, iterable, body, trim } => IrNode::StmtFor {
+        NativeKind::For { item, index, iterable, body, trim } => IrNode::StmtFor {
             item: item.clone(),
             index: index.clone(),
             iterable: Box::new(encode_expr(iterable)),
             body: body.iter().map(encode_node).collect(),
             trim: trim.clone(),
-            span: None,
+            span,
         },
-        NativeNode::Block { name, body, trim } => IrNode::StmtBlock {
+        NativeKind::Block { name, body, trim } => IrNode::StmtBlock {
             name: name.clone(),
             body: body.iter().map(encode_node).collect(),
             trim: trim.clone(),
-            span: None,
+            span,
         },
-        NativeNode::Extends { parent, trim } => {
-            IrNode::StmtExtends { parent: Box::new(encode_expr(parent)), trim: trim.clone(), span: None }
+        NativeKind::Extends { parent, trim } => {
+            IrNode::StmtExtends { parent: Box::new(encode_expr(parent)), trim: trim.clone(), span }
         }
-        NativeNode::Include { path, trim } => {
-            IrNode::StmtInclude { path: Box::new(encode_expr(path)), trim: trim.clone(), span: None }
+        NativeKind::Include { path, trim } => {
+            IrNode::StmtInclude { path: Box::new(encode_expr(path)), trim: trim.clone(), span }
         }
-        NativeNode::Super { trim } => IrNode::StmtSuper { trim: trim.clone(), span: None },
-        NativeNode::Raw { value, trim } => IrNode::StmtRaw { value: value.clone(), trim: trim.clone(), span: None },
+        NativeKind::Super { trim } => IrNode::StmtSuper { trim: trim.clone(), span },
+        NativeKind::Raw { value, trim } => IrNode::StmtRaw { value: value.clone(), trim: trim.clone(), span },
     }
 }
 
@@ -159,41 +179,60 @@ fn encode_expr(e: &NativeExpr) -> IrNode {
 
 fn decode_node(n: &IrNode) -> NativeNode {
     match n {
-        IrNode::Text { value, .. } => NativeNode::Text(value.clone()),
-        IrNode::Comment { value, .. } => NativeNode::Comment(value.clone()),
-        IrNode::Interpolation { expression, trim, raw, .. } => {
-            NativeNode::Interpolation { expression: decode_expr(expression), trim: trim.clone(), raw: *raw }
+        IrNode::Text { value, span } => NativeNode::new(NativeKind::Text(value.clone()), span.clone()),
+        IrNode::Comment { value, span } => NativeNode::new(NativeKind::Comment(value.clone()), span.clone()),
+        IrNode::Interpolation { expression, trim, raw, span } => NativeNode::new(
+            NativeKind::Interpolation { expression: decode_expr(expression), trim: trim.clone(), raw: *raw },
+            span.clone(),
+        ),
+        IrNode::StmtIf { test, consequent, else_ifs, alternate, trim, span } => NativeNode::new(
+            NativeKind::If {
+                test: decode_expr(test),
+                consequent: consequent.iter().map(decode_node).collect(),
+                else_ifs: else_ifs
+                    .iter()
+                    .map(|ei| match ei {
+                        IrNode::StmtElseIf { test, consequent, .. } => {
+                            (decode_expr(test), consequent.iter().map(decode_node).collect())
+                        }
+                        _ => (NativeExpr::Literal(Value::Bool(false)), vec![]),
+                    })
+                    .collect(),
+                alternate: alternate.as_ref().map(|nodes| nodes.iter().map(decode_node).collect()),
+                trim: trim.clone(),
+            },
+            span.clone(),
+        ),
+        IrNode::StmtFor { item, index, iterable, body, trim, span } => NativeNode::new(
+            NativeKind::For {
+                item: item.clone(),
+                index: index.clone(),
+                iterable: decode_expr(iterable),
+                body: body.iter().map(decode_node).collect(),
+                trim: trim.clone(),
+            },
+            span.clone(),
+        ),
+        IrNode::StmtBlock { name, body, trim, span } => NativeNode::new(
+            NativeKind::Block {
+                name: name.clone(),
+                body: body.iter().map(decode_node).collect(),
+                trim: trim.clone(),
+            },
+            span.clone(),
+        ),
+        IrNode::StmtExtends { parent, trim, span } => NativeNode::new(
+            NativeKind::Extends { parent: decode_expr(parent), trim: trim.clone() },
+            span.clone(),
+        ),
+        IrNode::StmtInclude { path, trim, span } => {
+            NativeNode::new(NativeKind::Include { path: decode_expr(path), trim: trim.clone() }, span.clone())
         }
-        IrNode::StmtIf { test, consequent, else_ifs, alternate, trim, .. } => NativeNode::If {
-            test: decode_expr(test),
-            consequent: consequent.iter().map(decode_node).collect(),
-            else_ifs: else_ifs
-                .iter()
-                .map(|ei| match ei {
-                    IrNode::StmtElseIf { test, consequent, .. } => {
-                        (decode_expr(test), consequent.iter().map(decode_node).collect())
-                    }
-                    _ => (NativeExpr::Literal(Value::Bool(false)), vec![]),
-                })
-                .collect(),
-            alternate: alternate.as_ref().map(|nodes| nodes.iter().map(decode_node).collect()),
-            trim: trim.clone(),
-        },
-        IrNode::StmtFor { item, index, iterable, body, trim, .. } => NativeNode::For {
-            item: item.clone(),
-            index: index.clone(),
-            iterable: decode_expr(iterable),
-            body: body.iter().map(decode_node).collect(),
-            trim: trim.clone(),
-        },
-        IrNode::StmtBlock { name, body, trim, .. } => {
-            NativeNode::Block { name: name.clone(), body: body.iter().map(decode_node).collect(), trim: trim.clone() }
+        IrNode::StmtSuper { trim, span } => NativeNode::new(NativeKind::Super { trim: trim.clone() }, span.clone()),
+        IrNode::StmtRaw { value, trim, span } => {
+            NativeNode::new(NativeKind::Raw { value: value.clone(), trim: trim.clone() }, span.clone())
         }
-        IrNode::StmtExtends { parent, trim, .. } => NativeNode::Extends { parent: decode_expr(parent), trim: trim.clone() },
-        IrNode::StmtInclude { path, trim, .. } => NativeNode::Include { path: decode_expr(path), trim: trim.clone() },
-        IrNode::StmtSuper { trim, .. } => NativeNode::Super { trim: trim.clone() },
-        IrNode::StmtRaw { value, trim, .. } => NativeNode::Raw { value: value.clone(), trim: trim.clone() },
-        other => NativeNode::Text(format!("/* unsupported {:?} */", other)),
+        other => NativeNode::new(NativeKind::Text(format!("/* unsupported {other:?} */")), None),
     }
 }
 

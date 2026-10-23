@@ -23,7 +23,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 /// 绑定合同标识。
-pub const BINDING_CONTRACT: &str = "dejavu.napi/1";
+pub const BINDING_CONTRACT: &str = "dejavu.napi/2";
 
 /// path-v1 默认扩展名表（与 catalog loader 一致）。
 const DEFAULT_EXTENSIONS: [&str; 4] = ["", ".html", ".doki", ".dejavu"];
@@ -200,6 +200,30 @@ pub struct GeneratedModule {
     pub code: String,
     /// 本模块 import 的 canonical template id 列表（用于多模板场景追踪依赖）。
     pub dependencies: Vec<String>,
+    /// 生成行 → 模板 span 的映射点，宿主据此生成 source map。
+    pub origins: Vec<GeneratedOrigin>,
+}
+
+/// 一个生成行起点及其模板 span。
+#[napi(object)]
+pub struct GeneratedOrigin {
+    /// 模块内 0-based 生成行号。
+    pub line: u32,
+    /// 模板字节偏移起点。
+    pub start: u32,
+    /// 模板字节偏移终点（exclusive）。
+    pub end: u32,
+}
+
+fn to_js_origins(origins: &[dejavu_codegen::LineOrigin]) -> Vec<GeneratedOrigin> {
+    origins
+        .iter()
+        .map(|origin| GeneratedOrigin {
+            line: origin.line,
+            start: origin.start,
+            end: origin.end,
+        })
+        .collect()
 }
 
 /// 单模板 AOT 响应。
@@ -352,6 +376,7 @@ pub fn precompile_ir_single_api(request: PrecompileSingleRequest) -> PrecompileS
                 path: "index.js".to_string(),
                 code: result.code,
                 dependencies: result.dependencies,
+                origins: to_js_origins(&result.origins),
             }),
             diagnostics: result.diagnostics.iter().map(to_js).collect(),
             entry_id: result.entry_id,
@@ -379,6 +404,7 @@ pub fn precompile_catalog_api(request: PrecompileCatalogRequest) -> PrecompileCa
                     path: m.path,
                     code: m.code,
                     dependencies: m.dependencies,
+                    origins: to_js_origins(&m.origins),
                 })
                 .collect(),
             manifest: Some(result.manifest),
