@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /**
  * Dejavu CLI command tree.
  *
