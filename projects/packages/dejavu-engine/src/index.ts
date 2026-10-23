@@ -175,3 +175,6 @@ export function deepEqualNormalized(a: unknown, b: unknown): boolean {
 export function compareIrJson(got: string, expected: string): boolean {
     return deepEqualNormalized(normalizeIrJson(got), normalizeIrJson(expected));
 }
+
+// AOT runtime helpers —— 同时从主入口 re-export，方便直接 import。
+export * from "./runtime/index.js";

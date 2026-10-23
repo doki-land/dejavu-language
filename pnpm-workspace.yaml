@@ -1,3 +1,4 @@
 packages:
   - "runtimes/dejavu"
   - "compilers/dejavu/npm/*"
+  - "projects/packages/*"
