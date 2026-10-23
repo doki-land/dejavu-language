@@ -5,10 +5,13 @@
             "version": "Print version and binding contract",
             "check": "Parse a template and report diagnostics",
             "compile": "AOT compile a single template to ESM JavaScript",
-            "generate": "Generate AOT bundle from dejavu.config.ts (NOT YET IMPLEMENTED)"
+            "generate": "Generate AOT bundle from dejavu.config.ts"
         },
         "opt": {
-            "out": "Output file path (default: <input>.js)"
+            "out": "Output file path (default: <input>.js)",
+            "config": "Config file to load (default: discover dejavu.config.ts upward from cwd)",
+            "check": "Report drift between the config and the generated output without writing",
+            "watch": "Regenerate on template and config changes (mutually exclusive with --check)"
         }
     }
 }

@@ -10,7 +10,7 @@
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import { resolve, dirname, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createCli } from "@vmz/commander";
@@ -22,6 +22,24 @@ import {
     DejavuError,
 } from "./index.js";
 import type { Diagnostic } from "./index.js";
+import {
+    buildGeneratePlan,
+    checkOutput,
+    reportGenerateError,
+    watchGenerate,
+    writeOutput,
+} from "./generate.js";
+import type { WatchIO } from "./generate.js";
+
+/** Shared stdio sink for generate reporting. */
+const stdio: WatchIO = {
+    stdout: (text) => {
+        process.stdout.write(text);
+    },
+    stderr: (text) => {
+        process.stderr.write(text);
+    },
+};
 
 /** Build the CLI tree. Exported so tests can inspect help without spawning. */
 export function createDejavuCli() {
@@ -52,13 +70,30 @@ export function createDejavuCli() {
             return runCompile(input, output);
         });
 
-    // TODO(B5): replace stub with full dejavu.config.ts-driven generate.
-    cli.command("generate", "cli.cmd.generate").action(() => {
-        process.stderr.write(
-            "dejavu generate: not yet implemented (B5). Use `dejavu compile <file>` for single-template AOT.\n",
-        );
-        return 0;
-    });
+    cli.command("generate", "cli.cmd.generate")
+        .option("--config <file>", "cli.opt.config")
+        .option("--check", "cli.opt.check")
+        .option("--watch", "cli.opt.watch")
+        .action((options, ...positionals) => {
+            if (positionals.length > 0) {
+                process.stderr.write(
+                    `dejavu generate: unexpected argument ${JSON.stringify(positionals[0])}` +
+                        " (generate reads dejavu.config.ts and takes no positional arguments)\n",
+                );
+                return 2;
+            }
+            const check = options.check === true;
+            const watch = options.watch === true;
+            if (check && watch) {
+                process.stderr.write("dejavu generate: --check and --watch are mutually exclusive\n");
+                return 2;
+            }
+            return runGenerate({
+                config: typeof options.config === "string" ? options.config : undefined,
+                check,
+                watch,
+            });
+        });
 
     return cli;
 }
@@ -165,6 +200,63 @@ function runCompile(input: string, output: string): number {
         );
         return 1;
     }
+}
+
+// ---------------------------------------------------------------------------
+// generate
+// ---------------------------------------------------------------------------
+
+type GenerateOptions = {
+    config?: string;
+    check: boolean;
+    watch: boolean;
+};
+
+async function runGenerate(options: GenerateOptions): Promise<number> {
+    if (options.watch) {
+        return watchGenerate({ config: options.config, io: stdio });
+    }
+
+    let plan;
+    try {
+        plan = await buildGeneratePlan({ config: options.config });
+    } catch (error) {
+        reportGenerateError(error, stdio);
+        return 1;
+    }
+
+    for (const warning of plan.warnings) {
+        stdio.stderr(`${warning.severity.toUpperCase()} ${warning.code}: ${warning.message}\n`);
+    }
+
+    if (options.check) {
+        const drift = checkOutput(plan);
+        if (drift.length === 0) {
+            stdio.stdout(`ok: ${plan.files.length} generated files up to date\n`);
+            return 0;
+        }
+        for (const item of drift) {
+            stdio.stderr(`DRIFT ${item.kind}: ${item.path}\n`);
+        }
+        return 1;
+    }
+
+    try {
+        writeOutput(plan);
+    } catch (error) {
+        reportGenerateError(error, stdio);
+        return 1;
+    }
+
+    stdio.stdout(
+        `dejavu generate: wrote ${plan.files.length + 1} files to ${displayOutDir(plan.outDir)}\n`,
+    );
+    return 0;
+}
+
+function displayOutDir(outDir: string): string {
+    const rel = relative(process.cwd(), outDir).split(sep).join("/");
+    return rel === "" ? "." : rel;
 }
 
 // ---------------------------------------------------------------------------
