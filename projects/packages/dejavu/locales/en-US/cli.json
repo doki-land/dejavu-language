@@ -1,0 +1,14 @@
+{
+    "cli": {
+        "intro": "Dejavu template language CLI",
+        "cmd": {
+            "version": "Print version and binding contract",
+            "check": "Parse a template and report diagnostics",
+            "compile": "AOT compile a single template to ESM JavaScript",
+            "generate": "Generate AOT bundle from dejavu.config.ts (NOT YET IMPLEMENTED)"
+        },
+        "opt": {
+            "out": "Output file path (default: <input>.js)"
+        }
+    }
+}

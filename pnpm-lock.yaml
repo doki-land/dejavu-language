@@ -27,14 +27,39 @@ importers:
 
   compilers/dejavu/npm/win32-x64: {}
 
-  projects/packages/dejavu-engine:
+  projects/packages/dejavu:
     dependencies:
-      '@dejavu/language':
+      '@vmz/commander':
+        specifier: ^0.3.6
+        version: 0.3.6
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.0
+        version: 22.20.5
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+    optionalDependencies:
+      '@doki-land/dejavu-darwin-arm64':
         specifier: workspace:*
-        version: link:../dejavu-language
-      '@dejavu/types':
+        version: link:../../../compilers/dejavu/npm/darwin-arm64
+      '@doki-land/dejavu-darwin-x64':
         specifier: workspace:*
-        version: link:../dejavu-types
+        version: link:../../../compilers/dejavu/npm/darwin-x64
+      '@doki-land/dejavu-linux-arm64':
+        specifier: workspace:*
+        version: link:../../../compilers/dejavu/npm/linux-arm64
+      '@doki-land/dejavu-linux-x64':
+        specifier: workspace:*
+        version: link:../../../compilers/dejavu/npm/linux-x64
+      '@doki-land/dejavu-win32-arm64':
+        specifier: workspace:*
+        version: link:../../../compilers/dejavu/npm/win32-arm64
+      '@doki-land/dejavu-win32-x64':
+        specifier: workspace:*
+        version: link:../../../compilers/dejavu/npm/win32-x64
+
+  projects/packages/dejavu-engine:
     devDependencies:
       typescript:
         specifier: ^5.8.0
@@ -53,9 +78,9 @@ importers:
 
   projects/packages/dejavu-tools:
     dependencies:
-      '@dejavu/engine':
+      '@dejavu/language':
         specifier: workspace:*
-        version: link:../dejavu-engine
+        version: link:../dejavu-language
       cac:
         specifier: ^6.7.14
         version: 6.7.14
@@ -109,7 +134,7 @@ importers:
     dependencies:
       '@doki-land/dejavu':
         specifier: workspace:*
-        version: link:../../../runtimes/dejavu
+        version: link:../dejavu
     devDependencies:
       hono:
         specifier: ^4.0.0
@@ -117,41 +142,6 @@ importers:
       typescript:
         specifier: ^5.8.0
         version: 5.9.3
-
-  runtimes/dejavu:
-    dependencies:
-      '@vmz/commander':
-        specifier: ^0.3.6
-        version: 0.3.6
-    devDependencies:
-      '@types/node':
-        specifier: ^22.15.0
-        version: 22.20.5
-      typescript:
-        specifier: ^5.8.3
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.8
-        version: 2.1.9(@types/node@22.20.5)
-    optionalDependencies:
-      '@doki-land/dejavu-darwin-arm64':
-        specifier: workspace:*
-        version: link:../../compilers/dejavu/npm/darwin-arm64
-      '@doki-land/dejavu-darwin-x64':
-        specifier: workspace:*
-        version: link:../../compilers/dejavu/npm/darwin-x64
-      '@doki-land/dejavu-linux-arm64':
-        specifier: workspace:*
-        version: link:../../compilers/dejavu/npm/linux-arm64
-      '@doki-land/dejavu-linux-x64':
-        specifier: workspace:*
-        version: link:../../compilers/dejavu/npm/linux-x64
-      '@doki-land/dejavu-win32-arm64':
-        specifier: workspace:*
-        version: link:../../compilers/dejavu/npm/win32-arm64
-      '@doki-land/dejavu-win32-x64':
-        specifier: workspace:*
-        version: link:../../compilers/dejavu/npm/win32-x64
 
 packages:
 
