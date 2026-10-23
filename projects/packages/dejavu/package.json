@@ -15,7 +15,7 @@
         "url": "https://github.com/doki-land/dejavu-language/issues"
     },
     "engines": {
-        "node": ">=20"
+        "node": ">=22.18"
     },
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
