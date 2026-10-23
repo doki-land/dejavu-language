@@ -10,10 +10,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const { render } = await import(
-    pathToFileURL(join(root, "runtimes", "dejavu", "dist", "index.js")).href
+const { renderIr } = await import(
+    pathToFileURL(join(root, "projects", "packages", "dejavu", "dist", "index.js")).href
 );
 
-const ir = JSON.parse(readFileSync(process.argv[2], "utf8"));
+// Read IR JSON as string directly — facade `renderIr` takes IR JSON string.
+const irJson = readFileSync(process.argv[2], "utf8");
 const ctx = JSON.parse(readFileSync(process.argv[3], "utf8"));
-process.stdout.write(render(ir, ctx));
+process.stdout.write(renderIr(irJson, ctx));
