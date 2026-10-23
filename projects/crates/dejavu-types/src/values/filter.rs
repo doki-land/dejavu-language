@@ -349,7 +349,7 @@ impl Filter for StripTagsFilter {
                 // Simple HTML tag stripping
                 let stripped: String = s
                     .chars()
-                    .fold((String::new(), false), |(mut result, in_tag), c| match c {
+                    .fold((String::new(), false), |(result, in_tag), c| match c {
                         '<' => (result, true),
                         '>' => (result, false),
                         _ if in_tag => (result, true),

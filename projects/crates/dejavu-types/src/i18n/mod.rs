@@ -337,8 +337,11 @@ impl I18nContext {
 /// Helper trait to enable downcasting
 use std::any::Any;
 
+/// 支持任意类型向下转型的辅助 trait
 pub trait AsAny {
+    /// 获取对 Any 的不可变引用
     fn as_any(&self) -> &dyn Any;
+    /// 获取对 Any 的可变引用
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 

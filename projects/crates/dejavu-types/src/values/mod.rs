@@ -5,7 +5,7 @@ use crate::{
     errors::{DejavuError, DejavuResult, RuntimeError},
     types::type_info::DejavuType,
 };
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 pub mod filter;
 use filter::FilterRegistry;
@@ -140,12 +140,12 @@ impl Value {
         match (self, expected_type) {
             (_, DejavuType::Any) => Ok(self.clone()),
             (Value::Null, _) => Ok(self.clone()),
-            (Value::String(s), DejavuType::String) => Ok(self.clone()),
-            (Value::Integer(i), DejavuType::Integer) => Ok(self.clone()),
-            (Value::Decimal(f), DejavuType::Decimal) => Ok(self.clone()),
-            (Value::Bool(b), DejavuType::Bool) => Ok(self.clone()),
-            (Value::Array(a), DejavuType::Array(_)) => Ok(self.clone()),
-            (Value::Object(o), DejavuType::Object(_)) => Ok(self.clone()),
+            (Value::String(_s), DejavuType::String) => Ok(self.clone()),
+            (Value::Integer(_i), DejavuType::Integer) => Ok(self.clone()),
+            (Value::Decimal(_f), DejavuType::Decimal) => Ok(self.clone()),
+            (Value::Bool(_b), DejavuType::Bool) => Ok(self.clone()),
+            (Value::Array(_a), DejavuType::Array(_)) => Ok(self.clone()),
+            (Value::Object(_o), DejavuType::Object(_)) => Ok(self.clone()),
             (Value::Integer(i), DejavuType::Decimal) => Ok(Value::Decimal(*i as f64)),
             (Value::Decimal(f), DejavuType::String) => Ok(Value::String(f.to_string())),
             (Value::Integer(i), DejavuType::String) => Ok(Value::String(i.to_string())),
@@ -337,6 +337,7 @@ pub struct Context {
     /// Type environment
     pub type_env: crate::types::type_info::TypeEnv,
     /// Variable lookup cache for frequently accessed variables
+    /// 变量缓存，优化频繁访问的变量查找
     variable_cache: std::collections::HashMap<String, Value>,
 }
 

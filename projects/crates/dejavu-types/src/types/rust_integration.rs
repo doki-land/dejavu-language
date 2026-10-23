@@ -3,7 +3,7 @@
 use super::type_info::DejavuType;
 use std::{
     any::TypeId,
-    collections::{BTreeMap, HashMap},
+    collections::HashMap,
 };
 
 /// Rust type to Dejavu type mapping
@@ -99,7 +99,7 @@ impl<T: RustTypeToDejavu> RustTypeToDejavu for Vec<T> {
 
 impl<K: RustTypeToDejavu, V: RustTypeToDejavu> RustTypeToDejavu for HashMap<K, V> {
     fn to_dejavu_type() -> DejavuType {
-        let mut props = std::collections::HashMap::new();
+        let props = std::collections::HashMap::new();
         // Note: This is a simplified implementation
         // In practice, we would need to analyze the actual keys
         DejavuType::Object(props)
@@ -169,7 +169,9 @@ impl Default for TypeMappingRegistry {
 
 /// Type information for Rust structs
 pub struct RustStructTypeInfo {
+    /// 结构体名称
     pub name: String,
+    /// 字段名到类型的映射
     pub fields: std::collections::HashMap<String, DejavuType>,
 }
 

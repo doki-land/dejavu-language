@@ -2,7 +2,7 @@
 //!
 //! Parsing lives in `dejavu-language`; IR lives in `dejavu-ir`.
 
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 
 pub mod errors;
 pub mod i18n;
