@@ -81,7 +81,7 @@ struct Manifest<'a> {
 // ---------------------------------------------------------------------------
 
 /// Import path for the runtime helpers.
-pub(crate) const RUNTIME_IMPORT: &str = "@dejavu/engine/runtime";
+pub(crate) const RUNTIME_IMPORT: &str = "@doki-land/dejavu-engine/runtime";
 
 /// Top-level single-template entry point.
 ///

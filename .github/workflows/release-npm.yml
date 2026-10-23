@@ -159,11 +159,14 @@ jobs:
       - name: npm CLI for OIDC provenance
         run: npm install -g npm@^11.5.1
 
-      - name: Build TypeScript facade
+      - name: Build TypeScript packages
         run: |
           set -euo pipefail
           pnpm install --no-frozen-lockfile
+          pnpm --filter @doki-land/dejavu-engine build
           pnpm --filter @doki-land/dejavu build
+          test -f projects/packages/dejavu-engine/dist/index.js
+          test -f projects/packages/dejavu-engine/dist/runtime/index.js
           test -f projects/packages/dejavu/dist/index.js
           test -f projects/packages/dejavu/dist/cli.js
 
@@ -251,7 +254,10 @@ jobs:
             fi
           done
 
-          # 2) Meta-package @doki-land/dejavu (TypeScript CLI + N-API facade)
+          # 2) Runtime engine @doki-land/dejavu-engine (pure TS AOT runtime, no native addon)
+          publish_one projects/packages/dejavu-engine || failed=1
+
+          # 3) Meta-package @doki-land/dejavu (TypeScript CLI + N-API facade)
           PKG=projects/packages/dejavu
           node <<'NODE'
           const fs = require("fs");
