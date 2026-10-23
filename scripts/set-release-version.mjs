@@ -4,6 +4,11 @@
  * Mirrors doki-engine/scripts/set-release-version.mjs shape.
  *
  * Usage: node scripts/set-release-version.mjs 0.0.1
+ *
+ * CI runs this right before `npm publish`, so the optional platform
+ * dependencies must become concrete versions for the published tarball. Do not
+ * commit that rewrite: the workspace needs `workspace:*` to link the platform
+ * packages during install, otherwise every CI job loses the native addon.
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
