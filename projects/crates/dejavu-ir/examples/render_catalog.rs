@@ -4,14 +4,12 @@
 //!
 //! `<fixture_dir>` 必须包含：
 //!   `entry.txt`          — 入口模板的 canonical path（如 `child.dejavu`）
-//!   `templates/*.dejavu` — 一个或多个模板源码文件
+//!   `templates/*`        — 一个或多个模板源码文件
 //!   `context.ctx.json`   — JSON context
+//!   `language.json`       — 可选，覆盖默认 delimiters（`<% %>` / `<# #>`）
 //!
 //! 脚本会 parse 所有模板 → 构建 TemplateCatalog → CatalogLoader →
 //! 然后走 `render_ir_opts` 渲染入口。stdout 就是渲染输出。
-//!
-//! ⚠️ 前提：`dejavu-language` parser 必须支持 `extends` / `include` / `block` / `super` 语句。
-//! Rust parser 已追平 TS 的语句支持，本 example 可直接用于 conformance runner。
 
 use std::collections::BTreeMap;
 use std::env;
@@ -19,10 +17,10 @@ use std::fs;
 use std::path::Path;
 
 use dejavu_ir::{
-    CatalogRoot, ResolveHit, RenderOptions, ResolvedTemplate, TemplateCatalog, TemplateLoader,
-    diag_load, render_ir_opts,
+    CatalogRoot, Language, ResolveHit, RenderOptions, ResolvedTemplate, TemplateCatalog, TemplateLoader,
+    diag_load, default_language, render_ir_opts,
 };
-use dejavu_language::parse as dejavu_parse;
+use dejavu_language::parse_with as dejavu_parse_with;
 
 fn main() {
     let fixture_dir = env::args().nth(1).expect("usage: render_catalog <fixture_dir>");
@@ -30,6 +28,7 @@ fn main() {
     let templates_dir = fixture.join("templates");
     let ctx_path = fixture.join("context.ctx.json");
     let entry_path = fixture.join("entry.txt");
+    let language_path = fixture.join("language.json");
 
     // ---- 读 context ----
     let ctx_str = fs::read_to_string(&ctx_path).expect("read context.ctx.json");
@@ -41,18 +40,23 @@ fn main() {
         .trim()
         .to_string();
 
+    // ---- 读可选的 language.json ----
+    let language: Language = if language_path.exists() {
+        let lang_str = fs::read_to_string(&language_path).expect("read language.json");
+        serde_json::from_str(&lang_str).expect("parse language.json")
+    } else {
+        default_language()
+    };
+
     // ---- 遍历 templates/*，parse 并登记 ----
     let mut files = BTreeMap::<String, _>::new();
-    let extensions = [".dejavu", ".doki", ".jinja", ".html", ".tmpl", ".tpl"];
     for entry in fs::read_dir(&templates_dir).expect("read templates dir") {
         let entry = entry.expect("dir entry");
         let path = entry.path();
+        if !path.is_file() { continue; }
         let name = path.file_name().unwrap().to_string_lossy().to_string();
-        if !extensions.iter().any(|ext| name.ends_with(ext)) {
-            continue;
-        }
         let source = fs::read_to_string(&path).expect(&format!("read {}", name));
-        let ir = match dejavu_parse(&source) {
+        let ir = match dejavu_parse_with(&source, &name, &language) {
             Ok(d) => d,
             Err(e) => {
                 eprintln!("SKIP {name}: parser does not support this template syntax ({e})");

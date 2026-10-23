@@ -5,17 +5,19 @@
  *
  * Usage: node scripts/render-catalog-ts.mjs <fixture_dir>
  *
- * Reads `entry.txt`, `templates/*`, `context.ctx.json` from the fixture
- * dir, builds a catalog via `loadCatalogFromDirs`, then renders the entry
- * template source through `renderSource`.
+ * Reads `entry.txt`, `templates/*`, `context.ctx.json` and optional
+ * `language.json` from the fixture dir, builds a catalog via
+ * `loadCatalogFromDirs`, then renders the entry template source through
+ * `renderSource`. Passes `delimiters` through to support non-default
+ * `<% %>` code delimiters (e.g. Jinja-style `{% %}`).
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
-const { loadCatalogFromDirs, renderSource } = await import(
+const { parse, renderSource } = await import(
     pathToFileURL(join(root, "runtimes", "dejavu", "dist", "index.js")).href
 );
 
@@ -24,10 +26,14 @@ const templatesDir = join(fixtureDir, "templates");
 const ctx = JSON.parse(readFileSync(join(fixtureDir, "context.ctx.json"), "utf8"));
 const entryName = readFileSync(join(fixtureDir, "entry.txt"), "utf8").trim();
 
-// --- build catalog from template dir ---
-const catalog = loadCatalogFromDirs([{ name: "fixture", dir: templatesDir }]);
+// ---- optional language.json ----
+let delimiters = undefined;
+const languagePath = join(fixtureDir, "language.json");
+if (existsSync(languagePath)) {
+    delimiters = JSON.parse(readFileSync(languagePath, "utf8"));
+}
 
-// --- find entry template source ---
+// ---- find entry template source ----
 let entrySource = "";
 for (const entry of readdirSync(templatesDir, { withFileTypes: true })) {
     if (!entry.isFile()) continue;
@@ -42,5 +48,32 @@ if (!entrySource) {
     process.exit(2);
 }
 
-const out = renderSource(entrySource, ctx, { catalog });
+// ---- parse all templates into IR (with configured delimiters) ----
+const extensions = [".dejavu", ".doki", ".jinja", ".html", ".tmpl", ".tpl"];
+const rootEntries = [];
+for (const entry of readdirSync(templatesDir, { withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    const name = entry.name;
+    if (!extensions.some((ext) => name.endsWith(ext))) continue;
+    const source = readFileSync(join(templatesDir, name), "utf8");
+    const irDoc = parse(source, { file: name, delimiters });
+    // The IR body's Template.children is what the catalog stores
+    rootEntries.push([name, JSON.stringify(irDoc)]);
+}
+
+// ---- build catalog manually ----
+const catalog = {
+    extensions: ["", ...extensions],
+    roots: [
+        {
+            name: "fixture",
+            scheme: "fixture",
+            priority: 10,
+            basePath: templatesDir,
+            files: Object.fromEntries(rootEntries),
+        },
+    ],
+};
+
+const out = renderSource(entrySource, ctx, { catalog, delimiters });
 process.stdout.write(out);

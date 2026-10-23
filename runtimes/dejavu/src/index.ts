@@ -44,13 +44,14 @@ import type {
 /** Parse template source into IR, throwing on error diagnostics. */
 export function parse(
     source: string,
-    options: { file?: string; language?: string; engine?: NativeEngine } = {},
+    options: { file?: string; language?: string; delimiters?: unknown; engine?: NativeEngine } = {},
 ): IrDocument {
     const engine = options.engine ?? loadNative();
     const response = engine.parseIr({
         source,
         ...(options.file === undefined ? {} : { file: options.file }),
         ...(options.language === undefined ? {} : { language: options.language }),
+        ...(options.delimiters === undefined ? {} : { delimiters: JSON.stringify(options.delimiters) }),
     });
     throwIfErrors(response.diagnostics);
     if (typeof response.ir !== "string") {
@@ -91,7 +92,7 @@ export function render(
 export function renderSource(
     source: string,
     context: TemplateContext = {},
-    options: DejavuRenderOptions & { catalog?: DejavuCatalog; engine?: NativeEngine } = {},
+    options: DejavuRenderOptions & { catalog?: DejavuCatalog; delimiters?: unknown; engine?: NativeEngine } = {},
 ): string {
     const engine = options.engine ?? loadNative();
     const response = engine.renderSource({
@@ -99,6 +100,7 @@ export function renderSource(
         context: JSON.stringify(context),
         options: JSON.stringify(renderOptions(options)),
         ...(options.catalog === undefined ? {} : { catalog: catalogToJson(options.catalog) }),
+        ...(options.delimiters === undefined ? {} : { delimiters: JSON.stringify(options.delimiters) }),
     });
     throwIfErrors(response.diagnostics);
     return response.output ?? "";

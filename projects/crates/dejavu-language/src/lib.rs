@@ -13,7 +13,7 @@ mod parser;
 mod token;
 
 pub use error::{ParseError, ParseResult};
-pub use parser::{parse, parse_named, parse_native};
+pub use parser::{parse, parse_named, parse_native, parse_with, parse_native_with};
 
-/// Re-export IR document type for convenience.
-pub use dejavu_ir::{IrDocument, NativeTemplate};
+/// Re-export IR document + Language types for convenience.
+pub use dejavu_ir::{IrDocument, Language, NativeTemplate, default_language};

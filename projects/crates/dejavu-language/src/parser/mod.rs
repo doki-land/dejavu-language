@@ -5,7 +5,7 @@ mod stmt;
 mod stmt_head;
 
 use dejavu_diagnostic::codes;
-use dejavu_ir::{IrDocument, NativeNode, NativeTemplate, encode_native};
+use dejavu_ir::{IrDocument, Language, NativeNode, NativeTemplate, TemplateConfig, default_language, encode_native};
 use expr::parse_expr;
 use stmt_head::{CodeHead, classify_code, head_stop_kind};
 
@@ -15,11 +15,44 @@ use crate::lexer::TrimMode;
 pub struct Parser<'a> {
     pub(crate) source: &'a str,
     pub(crate) file: &'a str,
+    pub(crate) delimiters: Delimiters,
+}
+
+/// Delimiter configuration extracted from `Language.template`.
+#[derive(Debug, Clone)]
+pub(crate) struct Delimiters {
+    pub(crate) code_start: String,
+    pub(crate) code_end: String,
+    pub(crate) comment_start: String,
+    pub(crate) comment_end: String,
+}
+
+impl From<&TemplateConfig> for Delimiters {
+    fn from(t: &TemplateConfig) -> Self {
+        Self {
+            code_start: t.code_start.clone(),
+            code_end: t.code_end.clone(),
+            comment_start: t.comment_start.clone(),
+            comment_end: t.comment_end.clone(),
+        }
+    }
+}
+
+impl Delimiters {
+    /// Byte length of the code start delimiter (for fast `.starts_with` checks).
+    pub(crate) fn code_start_len(&self) -> usize { self.code_start.len() }
+    pub(crate) fn code_end_len(&self) -> usize { self.code_end.len() }
+    pub(crate) fn comment_start_len(&self) -> usize { self.comment_start.len() }
+    pub(crate) fn comment_end_len(&self) -> usize { self.comment_end.len() }
 }
 
 impl<'a> Parser<'a> {
     pub fn new(source: &'a str, file: &'a str) -> Self {
-        Self { source, file }
+        Self::with_language(source, file, &default_language())
+    }
+
+    pub fn with_language(source: &'a str, file: &'a str, language: &Language) -> Self {
+        Self { source, file, delimiters: (&language.template).into() }
     }
 
     pub fn parse_template(&self) -> Result<NativeTemplate, ParseError> {
@@ -27,13 +60,68 @@ impl<'a> Parser<'a> {
         Ok(NativeTemplate { children })
     }
 
+    /// Peek at a code block starting at index `i`.
+    /// Returns `(code_inner, content_span_in_source, index_after_close)`.
+    /// Uses configured delimiters.
+    pub(crate) fn peek_code(&self, i: usize) -> Result<(String, std::ops::Range<usize>, usize), ParseError> {
+        let ds = &self.delimiters;
+        if !self.source[i..].starts_with(&ds.code_start) {
+            return Err(ParseError::at(
+                self.source,
+                self.file,
+                i,
+                1,
+                format!("expected code open `{}`", ds.code_start),
+                "here",
+            )
+            .with_code(codes::PARSE_UNEXPECTED_TOKEN));
+        }
+        let start_len = ds.code_start_len();
+        let end_len = ds.code_end_len();
+        let mut j = i + start_len;
+        let b = self.source.as_bytes();
+        // Trim markers: check the first byte after code start for `.-_~=`
+        if j < self.source.len() && matches!(b[j], b'.' | b'_' | b'-' | b'~' | b'=') {
+            j += 1;
+        }
+        let rest = &self.source[j..];
+        let end = rest.find(&ds.code_end).ok_or_else(|| {
+            ParseError::at(
+                self.source,
+                self.file,
+                i,
+                start_len,
+                "unclosed code block",
+                "opens here",
+            )
+            .with_code(codes::PARSE_UNCLOSED_BLOCK)
+        })?;
+        let inner = rest[..end].to_string();
+        let content_start = j;
+        Ok((inner, content_start..content_start + end, j + end + end_len))
+    }
+
+    /// Parse until a stop head is encountered.
+    pub(crate) fn parse_until(&self, i: usize, stop: &[&str]) -> Result<(Vec<NativeNode>, usize), ParseError> {
+        self.parse_body(i, stop)
+    }
+
     fn parse_body(&self, mut i: usize, stop: &[&str]) -> Result<(Vec<NativeNode>, usize), ParseError> {
         let mut children = Vec::new();
         let bytes = self.source.as_bytes();
+        let ds = &self.delimiters;
+        let cs_len = ds.code_start_len();
+        let ce_len = ds.code_end_len();
+        let cms_len = ds.comment_start_len();
+        let cme_len = ds.comment_end_len();
+        let cs = &ds.code_start;
+        let ce = &ds.code_end;
+        let cms = &ds.comment_start;
+        let cme = &ds.comment_end;
 
         while i < self.source.len() {
-            if self.source[i..].starts_with("<%") && !stop.is_empty() {
-                let (code, code_span, _) = peek_code(self.source, self.file, i)?;
+            if self.source[i..].starts_with(cs) && !stop.is_empty() {
+                let (code, code_span, _) = self.peek_code(i)?;
                 let trimmed = code.trim();
                 let content_base = code_span.start + (code.len() - code.trim_start().len());
                 let head = classify_code(self.source, self.file, trimmed, content_base)?;
@@ -42,42 +130,42 @@ impl<'a> Parser<'a> {
                 }
             }
 
-            if self.source[i..].starts_with("<#") {
-                if let Some(end) = self.source[i + 2..].find("#>") {
-                    let inner = &self.source[i + 2..i + 2 + end];
+            if self.source[i..].starts_with(cms) {
+                if let Some(end) = self.source[i + cms_len..].find(cme) {
+                    let inner = &self.source[i + cms_len..i + cms_len + end];
                     children.push(NativeNode::Comment(inner.to_string()));
-                    i = i + 2 + end + 2;
+                    i = i + cms_len + end + cme_len;
                     continue;
                 }
-                return Err(ParseError::at(self.source, self.file, i, 2, "unclosed comment", "comment starts here")
+                return Err(ParseError::at(self.source, self.file, i, cms_len, "unclosed comment", "comment starts here")
                     .with_code(codes::PARSE_UNCLOSED_BLOCK));
             }
 
-            if self.source[i..].starts_with("<%") {
+            if self.source[i..].starts_with(cs) {
                 let open = i;
-                let mut j = i + 2;
+                let mut j = i + cs_len;
                 let mut trim = TrimMode::None;
                 if j < self.source.len() {
                     if let Some(t) = TrimMode::from_byte(bytes[j]) {
                         trim = t;
                         j += 1;
                     } else if bytes[j] == b'!' {
-                        children.push(NativeNode::Text("<%".into()));
-                        i += 3;
+                        children.push(NativeNode::Text(cs.clone()));
+                        i += cs_len + 1;
                         continue;
                     }
                 }
                 let rest = &self.source[j..];
                 let end = rest
-                    .find("%>")
+                    .find(ce)
                     .ok_or_else(|| {
-                        ParseError::at(self.source, self.file, open, 2, "unclosed code block", "opens here")
+                        ParseError::at(self.source, self.file, open, cs_len, "unclosed code block", "opens here")
                             .with_code(codes::PARSE_UNCLOSED_BLOCK)
                     })?;
                 let code_raw = &rest[..end];
                 let code = code_raw.trim();
                 let code_content_start = j + (code_raw.len() - code_raw.trim_start().len());
-                let next_i = j + end + 2;
+                let next_i = j + end + ce_len;
                 let head = classify_code(self.source, self.file, code, code_content_start)?;
 
                 if !stop.is_empty() && should_stop_head(&head, stop) {
@@ -145,8 +233,8 @@ impl<'a> Parser<'a> {
                 continue;
             }
 
-            let next_code = self.source[i..].find("<%").map(|p| i + p);
-            let next_comment = self.source[i..].find("<#").map(|p| i + p);
+            let next_code = self.source[i..].find(cs).map(|p| i + p);
+            let next_comment = self.source[i..].find(cms).map(|p| i + p);
             let next = match (next_code, next_comment) {
                 (Some(a), Some(b)) => Some(a.min(b)),
                 (Some(a), None) => Some(a),
@@ -175,51 +263,38 @@ fn should_stop_head(head: &CodeHead<'_>, stop: &[&str]) -> bool {
     !kind.is_empty() && stop.iter().any(|s| *s == kind)
 }
 
-pub(crate) fn parse_until(parser: &Parser<'_>, i: usize, stop: &[&str]) -> Result<(Vec<NativeNode>, usize), ParseError> {
-    parser.parse_body(i, stop)
-}
-
-/// Returns `(code_inner, content_span_in_source, index_after_close)`.
-pub(crate) fn peek_code<'a>(
-    source: &'a str,
-    file: &str,
-    i: usize,
-) -> Result<(String, std::ops::Range<usize>, usize), ParseError> {
-    if !source[i..].starts_with("<%") {
-        return Err(ParseError::at(source, file, i, 1, "expected code open `<%`", "here")
-            .with_code(codes::PARSE_UNEXPECTED_TOKEN));
-    }
-    let mut j = i + 2;
-    let b = source.as_bytes();
-    if matches!(b.get(j), Some(b'.' | b'_' | b'-' | b'~' | b'=')) {
-        j += 1;
-    }
-    let rest = &source[j..];
-    let end = rest.find("%>").ok_or_else(|| {
-        ParseError::at(source, file, i, 2, "unclosed code block", "opens here")
-            .with_code(codes::PARSE_UNCLOSED_BLOCK)
-    })?;
-    let inner = rest[..end].to_string();
-    let content_start = j;
-    Ok((inner, content_start..content_start + end, j + end + 2))
-}
-
-/// Parse source into an [`IrDocument`].
+/// Parse source into an [`IrDocument`] using default delimiters (`<%` / `%>` / `<#` / `#>`).
 pub fn parse(source: impl AsRef<str>) -> ParseResult<IrDocument> {
     parse_named(source.as_ref(), "template.dejavu")
 }
 
-/// Parse with a file name for diagnostics.
+/// Parse with a file name for diagnostics, using default delimiters.
 pub fn parse_named(source: &str, file: &str) -> ParseResult<IrDocument> {
     let parser = Parser::new(source, file);
+    finish_parse(parser)
+}
+
+/// Parse with a [`Language`] config (delimiters + feature flags).
+pub fn parse_with(source: &str, file: &str, language: &Language) -> ParseResult<IrDocument> {
+    let parser = Parser::with_language(source, file, language);
+    finish_parse(parser)
+}
+
+fn finish_parse(parser: Parser<'_>) -> ParseResult<IrDocument> {
     let native = parser.parse_template()?;
     let mut doc = encode_native(&native);
-    doc.language = dejavu_ir::default_language();
+    doc.language = default_language();
     Ok(doc)
 }
 
-/// Parse into the Rust-native T1 AST.
+/// Parse into the Rust-native T1 AST with default delimiters.
 pub fn parse_native(source: impl AsRef<str>) -> ParseResult<NativeTemplate> {
     let source = source.as_ref();
     Parser::new(source, "template.dejavu").parse_template()
+}
+
+/// Parse into the Rust-native T1 AST with a [`Language`] config.
+pub fn parse_native_with(source: impl AsRef<str>, language: &Language) -> ParseResult<NativeTemplate> {
+    let source = source.as_ref();
+    Parser::with_language(source, "template.dejavu", language).parse_template()
 }

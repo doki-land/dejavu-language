@@ -90,6 +90,8 @@ pub struct ParseRequest {
     pub file: Option<String>,
     /// 保留字段：当前引擎只有 T1 语法。
     pub language: Option<String>,
+    /// 可选的 Language JSON，覆盖默认 delimiters（`<% %>` / `<# #>`）。
+    pub delimiters: Option<String>,
 }
 
 /// IR 响应。
@@ -132,6 +134,8 @@ pub struct RenderSourceRequest {
     pub options: Option<String>,
     /// catalog 规格 JSON。
     pub catalog: Option<String>,
+    /// 可选的 Language JSON，覆盖默认 delimiters。
+    pub delimiters: Option<String>,
 }
 
 /// 渲染响应。
@@ -191,10 +195,13 @@ pub fn binding_contract_version() -> String {
 /// 解析模板源码为 IR。
 #[napi(js_name = "parseIr")]
 pub fn parse_ir(request: ParseRequest) -> IrResponse {
-    let parsed = match request.file.as_deref() {
-        Some(file) => dejavu_language::parse_named(&request.source, file),
-        None => dejavu_language::parse(&request.source),
-    };
+    let language = request
+        .delimiters
+        .as_deref()
+        .and_then(|s| serde_json::from_str::<dejavu_ir::Language>(s).ok())
+        .unwrap_or_else(dejavu_ir::default_language);
+    let file = request.file.as_deref().unwrap_or("template.dejavu");
+    let parsed = dejavu_language::parse_with(&request.source, file, &language);
 
     match parsed {
         Ok(document) => match serde_json::to_string(&document) {
@@ -235,10 +242,18 @@ pub fn render_ir_api(request: RenderRequest) -> RenderResponse {
 /// 解析并渲染模板源码。
 #[napi(js_name = "renderSource")]
 pub fn render_source_api(request: RenderSourceRequest) -> RenderResponse {
-    let document = match request.name_file() {
-        Some(file) => dejavu_language::parse_named(&request.source, &file),
-        None => dejavu_language::parse(&request.source),
-    };
+    let language = request
+        .delimiters
+        .as_deref()
+        .and_then(|s| serde_json::from_str::<dejavu_ir::Language>(s).ok())
+        .unwrap_or_else(dejavu_ir::default_language);
+    let file = request
+        .options
+        .as_deref()
+        .and_then(|raw| serde_json::from_str::<RenderOptionsWire>(raw).ok())
+        .and_then(|wire| wire.name)
+        .unwrap_or_else(|| "template.dejavu".into());
+    let document = dejavu_language::parse_with(&request.source, &file, &language);
     let document = match document {
         Ok(document) => document,
         Err(error) => {
@@ -246,12 +261,6 @@ pub fn render_source_api(request: RenderSourceRequest) -> RenderResponse {
         }
     };
     render_document(&document, &request.context, request.options.as_deref(), request.catalog.as_deref())
-}
-
-impl RenderSourceRequest {
-    fn name_file(&self) -> Option<String> {
-        self.options.as_deref().and_then(|raw| serde_json::from_str::<RenderOptionsWire>(raw).ok()).and_then(|wire| wire.name)
-    }
 }
 
 /// 纯 path-v1 引用解析：不读文件、不解析模板。

@@ -1,11 +1,11 @@
-//! Template control-flow parsing (`if` / `loop`) over classified code heads.
+//! Template control-flow parsing (`if` / `loop` / `block`) over classified code heads.
 
 use dejavu_diagnostic::codes;
 use dejavu_ir::NativeNode;
 
 use super::expr::parse_expr;
 use super::stmt_head::{CodeHead, classify_code};
-use super::{Parser, parse_until, peek_code};
+use super::Parser;
 use crate::error::ParseError;
 use crate::lexer::TrimMode;
 
@@ -18,13 +18,13 @@ impl Parser<'_> {
         trim: TrimMode,
     ) -> Result<(NativeNode, usize), ParseError> {
         let test = parse_expr(self.source, self.file, test_base, test_src)?;
-        let (consequent, i2) = parse_until(self, i, &["else if", "else", "end if"])?;
+        let (consequent, i2) = self.parse_until(i, &["else if", "else", "end if"])?;
         i = i2;
         let mut else_ifs = Vec::new();
         let mut alternate = None;
 
         loop {
-            let (code, code_span, next_i) = peek_code(self.source, self.file, i)?;
+            let (code, code_span, next_i) = self.peek_code(i)?;
             let trimmed = code.trim();
             let content_base = code_span.start + (code.len() - code.trim_start().len());
             let head = classify_code(self.source, self.file, trimmed, content_base)?;
@@ -32,16 +32,16 @@ impl Parser<'_> {
                 CodeHead::ElseIf { test_src, test_base } => {
                     i = next_i;
                     let t = parse_expr(self.source, self.file, test_base, test_src)?;
-                    let (body, i3) = parse_until(self, i, &["else if", "else", "end if"])?;
+                    let (body, i3) = self.parse_until(i, &["else if", "else", "end if"])?;
                     else_ifs.push((t, body));
                     i = i3;
                 }
                 CodeHead::Else => {
                     i = next_i;
-                    let (body, i3) = parse_until(self, i, &["end if"])?;
+                    let (body, i3) = self.parse_until(i, &["end if"])?;
                     alternate = Some(body);
                     i = i3;
-                    let (end_code, end_span, end_i) = peek_code(self.source, self.file, i)?;
+                    let (end_code, end_span, end_i) = self.peek_code(i)?;
                     let end_trim = end_code.trim();
                     let end_base = end_span.start + (end_code.len() - end_code.trim_start().len());
                     match classify_code(self.source, self.file, end_trim, end_base)? {
@@ -91,9 +91,9 @@ impl Parser<'_> {
     ) -> Result<(NativeNode, usize), ParseError> {
         let iterable = parse_expr(self.source, self.file, iter_base, iter_src)?;
 
-        let (body, i2) = parse_until(self, i, &["end loop"])?;
+        let (body, i2) = self.parse_until(i, &["end loop"])?;
         i = i2;
-        let (end_code, end_span, end_i) = peek_code(self.source, self.file, i)?;
+        let (end_code, end_span, end_i) = self.peek_code(i)?;
         let end_trim = end_code.trim();
         let end_base = end_span.start + (end_code.len() - end_code.trim_start().len());
         match classify_code(self.source, self.file, end_trim, end_base)? {
@@ -120,9 +120,9 @@ impl Parser<'_> {
         name: String,
         trim: TrimMode,
     ) -> Result<(NativeNode, usize), ParseError> {
-        let (body, i2) = parse_until(self, i, &["end block"])?;
+        let (body, i2) = self.parse_until(i, &["end block"])?;
         i = i2;
-        let (end_code, end_span, end_i) = peek_code(self.source, self.file, i)?;
+        let (end_code, end_span, end_i) = self.peek_code(i)?;
         let end_trim = end_code.trim();
         let end_base = end_span.start + (end_code.len() - end_code.trim_start().len());
         match classify_code(self.source, self.file, end_trim, end_base)? {

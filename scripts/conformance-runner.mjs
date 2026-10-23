@@ -39,22 +39,10 @@ function inheritanceCases() {
         .filter((d) => d.isDirectory())
         .map((d) => {
             const dir = join(INHERITANCE, d.name);
-            const langPath = join(dir, "language.json");
-            let rustSupported = true;
-            if (existsSync(langPath)) {
-                try {
-                    const lang = JSON.parse(readFileSync(langPath, "utf8"));
-                    // Rust parser currently hardcodes `<% %>` code delimiters
-                    const cs = lang.template?.codeStart ?? "<%";
-                    const ce = lang.template?.codeEnd ?? "%>";
-                    if (cs !== "<%" || ce !== "%>") rustSupported = false;
-                } catch { /* ignore */ }
-            }
             return {
                 name: d.name,
                 dir,
                 out: readFileSync(join(dir, "expected.out.txt"), "utf8"),
-                rustSupported,
             };
         })
         .sort((a, b) => a.name.localeCompare(b.name));
@@ -285,10 +273,6 @@ function main() {
         console.log("## inheritance fixtures (parser → catalog → render)");
         for (const dir of inheritanceCases()) {
             process.stdout.write(`  ${dir.name}: `);
-            if (!dir.rustSupported) {
-                console.log("SKIP (Rust parser only supports `<% %>` delimiters)");
-                continue;
-            }
             const outputs = {};
             let failed_any = false;
             for (const adapter of inheritanceAdapters) {
