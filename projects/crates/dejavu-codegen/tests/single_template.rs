@@ -452,7 +452,7 @@ fn module_has_runtime_import_and_render_export() {
     let ir = doc(vec![]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
-    assert!(r.contains("from \"@doki-land/dejavu-engine/runtime\""));
+    assert!(r.contains("from \"@dejavu/engine/runtime\""));
     assert!(r.contains("export function render(ctx, options = {})"));
     assert!(r.contains("if (!ctx || typeof ctx !== 'object') ctx = {};"));
     assert!(r.contains("const __out = [];"));
