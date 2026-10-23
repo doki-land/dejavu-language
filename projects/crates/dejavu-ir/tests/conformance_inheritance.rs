@@ -547,3 +547,168 @@ fn extends_cycle_via_canonical_id_alias() {
         other => panic!("expected Diagnostic, got {other:?}"),
     }
 }
+
+// ===========================================================================
+// 以下 5 个测试是 2026-10-23 修复的 Rust renderer correctness 回归测试
+// ===========================================================================
+
+/// 三层 extends（child → middle → base）：最底层 child block 最终覆盖全部 parent。
+/// 修复前的 bug：递归时 self.blocks 被上层 child_blocks 覆盖，中间层 override 会压掉底层。
+#[test]
+fn three_level_extends_child_block_wins() {
+    // base:     "<% block body %>BASE<% end %>"
+    let base = tpl_ir(vec![block_node("body", vec![text_node("BASE")])]);
+    // middle:   "<% extends 'base' %><% block body %>MIDDLE<% end %>"
+    let middle = tpl_ir(vec![
+        extends_node("base"),
+        block_node("body", vec![text_node("MIDDLE")]),
+    ]);
+    // child:    "<% extends 'middle' %><% block body %>CHILD<% end %>"
+    let child = tpl_ir(vec![
+        extends_node("middle"),
+        block_node("body", vec![text_node("CHILD")]),
+    ]);
+
+    let mut loader = InMemoryLoader::new()
+        .insert("base", base)
+        .insert("middle", middle)
+        .insert("child", child);
+
+    let entry = loader.resolve("child", None).unwrap().document;
+    let out = render_ir_with_loader(
+        &entry,
+        &Value::Object(serde_json::Map::new()),
+        &mut loader,
+    ).unwrap();
+
+    assert_eq!(out, "CHILD", "最底层 child 的 block override 必须穿透整条继承链");
+}
+
+/// 链式 include（main include a include b）：每层的 `from` 参数必须正确指向来源模板。
+/// 修复前的 bug：include 后 `current_id` 不恢复，第二次 include 会按错误的来源解析。
+#[test]
+fn chained_include_restores_current_id() {
+    // 用一个能记录 resolve 调用链的 loader，但只在渲染时记录（过滤入口 resolve）
+    struct TraceLoader {
+        docs: HashMap<String, IrDocument>,
+        calls: Vec<(String, Option<String>)>, // (ref, from)
+    }
+    impl TemplateLoader for TraceLoader {
+        fn resolve(&mut self, ref_: &str, from: Option<&str>) -> Result<ResolvedTemplate, IrError> {
+            // 入口渲染时 resolve("main", None) 不算 include 调用链
+            if from.is_some() || ref_ != "main" {
+                self.calls.push((ref_.to_string(), from.map(|s| s.to_string())));
+            }
+            let doc = self.docs.get(ref_).cloned().ok_or_else(|| diag_load(codes::TEMPLATE_NOT_FOUND).arg("template", ref_))?;
+            Ok(ResolvedTemplate { id: ref_.to_string(), document: doc })
+        }
+    }
+
+    let main = tpl_ir(vec![include_node("a")]);
+    let a = tpl_ir(vec![include_node("b")]);
+    let b = tpl_ir(vec![text_node("B")]);
+
+    let mut loader = TraceLoader {
+        docs: HashMap::from([
+            ("main".into(), main),
+            ("a".into(), a),
+            ("b".into(), b),
+        ]),
+        calls: vec![],
+    };
+
+    let entry = loader.resolve("main", None).unwrap().document;
+    let out = render_ir_opts(
+        &entry,
+        &Value::Object(serde_json::Map::new()),
+        RenderOptions { name: Some("main".into()), ..Default::default() },
+        Some(&mut loader),
+    ).unwrap();
+
+    assert_eq!(out, "B");
+    // 每次 include 的 from 必须正确：a 来自 main，b 来自 a（不是 main）
+    assert_eq!(loader.calls, vec![
+        ("a".into(), Some("main".into())),
+        ("b".into(), Some("a".into())),
+    ]);
+}
+
+/// include 带 extends 的模板：被 include 的模板自身有 extends 链，必须独立解析。
+/// 修复前的 bug：render_loaded 直接调 render_nodes 而不是 render_doc，
+/// 导致被 include 模板中的 Stmt.Extends 触发 EXTENDS_NOT_TOP_LEVEL。
+#[test]
+fn include_template_that_has_extends() {
+    // base: "<% block body %>BASE<% end %>"
+    let base = tpl_ir(vec![block_node("body", vec![text_node("BASE")])]);
+    // child_of_base: "<% extends 'base' %><% block body %>INCLUDED_CHILD<% end %>"
+    let child_of_base = tpl_ir(vec![
+        extends_node("base"),
+        block_node("body", vec![text_node("INCLUDED_CHILD")]),
+    ]);
+    // main: "<% include 'child_of_base' %>"
+    let main = tpl_ir(vec![include_node("child_of_base")]);
+
+    let mut loader = InMemoryLoader::new()
+        .insert("base", base)
+        .insert("child_of_base", child_of_base)
+        .insert("main", main);
+
+    let entry = loader.resolve("main", None).unwrap().document;
+    let out = render_ir_with_loader(
+        &entry,
+        &Value::Object(serde_json::Map::new()),
+        &mut loader,
+    ).unwrap();
+
+    // 被 include 的模板成功解析自己的 extends → body block → INCLUDED_CHILD
+    assert_eq!(out, "INCLUDED_CHILD");
+}
+
+/// slug 的 NFKD 规范化：连字 `ﬃ` → `ffi`、全角 `ＡＢＣ` → `abc`。
+/// 修复前用 NFD（canonical decomposition），不会分解连字和全角字符。
+#[test]
+fn slug_filter_nfkd_ligature_and_fullwidth() {
+    let doc = tpl_ir(vec![interpolation_pipe("s", "slug", vec![])]);
+    let mut ctx = serde_json::Map::new();
+    // ffi 是拉丁连字 U+FB03，ＡＢＣ 是全角大写
+    ctx.insert("s".into(), Value::String("ﬃ ＡＢＣ".into()));
+    let out = render_ir_opts(
+        &doc,
+        &Value::Object(ctx),
+        RenderOptions::default(),
+        None,
+    ).unwrap();
+    // NFKD 把 ffi 连字分解成 ffi，全角大写分解成小写字母
+    assert_eq!(out, "ffi-abc");
+}
+
+/// date 非法输入：`2024-99-99`（月/日越界）必须返回空串，对齐 TS `Date` Invalid 行为。
+/// 修复前只 parse 数字不验证月/日范围，会原样输出 "2024-99-99"。
+#[test]
+fn date_filter_invalid_iso_returns_empty() {
+    let doc = tpl_ir(vec![interpolation_pipe("d", "date", vec![])]);
+
+    // 月越界
+    let mut ctx = serde_json::Map::new();
+    ctx.insert("d".into(), Value::String("2024-99-15".into()));
+    let out = render_ir_opts(&doc, &Value::Object(ctx), RenderOptions::default(), None).unwrap();
+    assert_eq!(out, "", "月份越界应返回空串");
+
+    // 日越界
+    let mut ctx = serde_json::Map::new();
+    ctx.insert("d".into(), Value::String("2024-02-30".into())); // 2月没有30号
+    let out = render_ir_opts(&doc, &Value::Object(ctx), RenderOptions::default(), None).unwrap();
+    assert_eq!(out, "", "日期越界应返回空串");
+
+    // 闰年边界：2024-02-29 合法
+    let mut ctx = serde_json::Map::new();
+    ctx.insert("d".into(), Value::String("2024-02-29".into()));
+    let out = render_ir_opts(&doc, &Value::Object(ctx), RenderOptions::default(), None).unwrap();
+    assert_eq!(out, "2024-02-29", "闰年2月29日应有效");
+
+    // 平年：2023-02-29 非法
+    let mut ctx = serde_json::Map::new();
+    ctx.insert("d".into(), Value::String("2023-02-29".into()));
+    let out = render_ir_opts(&doc, &Value::Object(ctx), RenderOptions::default(), None).unwrap();
+    assert_eq!(out, "", "平年2月29日应返回空串");
+}
