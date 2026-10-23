@@ -67,6 +67,7 @@ dejavu-ir = { path = "projects/crates/dejavu-ir", version = "0.0.2" }
 dejavu-language = { path = "projects/crates/dejavu-language", version = "0.0.2" }
 dejavu-diagnostic = { path = "projects/crates/dejavu-diagnostic", version = "0.0.2" }
 axum-dejavu = { path = "projects/crates/axum-dejavu", version = "0.0.2" }
+dejavu-codegen = { path = "projects/crates/dejavu-codegen", version = "0.0.2" }
 
 [profile.release]
 lto = true

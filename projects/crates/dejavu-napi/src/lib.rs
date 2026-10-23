@@ -182,6 +182,61 @@ pub struct ResolveResponse {
     pub diagnostics: Vec<JsDiagnostic>,
 }
 
+/// `precompileIrSingle` 请求。
+#[napi(object)]
+pub struct PrecompileSingleRequest {
+    /// 入口模板的 IR JSON。
+    pub ir: String,
+    /// `{ strictUndefined?: bool, entryId?: string }` JSON。
+    pub options: Option<String>,
+}
+
+/// 单/多模块 AOT codegen 产出的模块描述（N-API wire）。
+#[napi(object)]
+pub struct GeneratedModule {
+    /// 相对输出根的模块路径，例如 `index.js` 或 `_internal/partial__footer.js`。
+    pub path: String,
+    /// ESM JS 源码。
+    pub code: String,
+    /// 本模块 import 的 canonical template id 列表（用于多模板场景追踪依赖）。
+    pub dependencies: Vec<String>,
+}
+
+/// 单模板 AOT 响应。
+#[napi(object)]
+pub struct PrecompileSingleResponse {
+    /// 生成的模块（单模板就是一个模块）。
+    pub module: Option<GeneratedModule>,
+    /// 全部诊断。
+    pub diagnostics: Vec<JsDiagnostic>,
+    /// 入口 template id。
+    pub entry_id: String,
+}
+
+/// `precompileCatalog` 请求。
+#[napi(object)]
+pub struct PrecompileCatalogRequest {
+    /// 入口模板的 IR JSON。
+    pub entry_ir: String,
+    /// Catalog 规格 JSON（`{ roots: [{name, files: {path: ir_json}}], extensions? }`）。
+    pub catalog: String,
+    /// `{ strictUndefined?: bool, entryId?: string }` JSON。
+    pub options: Option<String>,
+}
+
+/// Catalog AOT 响应。
+#[napi(object)]
+pub struct PrecompileCatalogResponse {
+    /// 全部生成的模块。
+    pub modules: Vec<GeneratedModule>,
+    /// 整个 catalog 的 manifest JSON（TS 侧可直接写文件）。
+    pub manifest: Option<String>,
+    /// 全部诊断。
+    pub diagnostics: Vec<JsDiagnostic>,
+    /// 入口 template id。
+    pub entry_id: String,
+}
+
 // ---------------------------------------------------------------------------
 // 能力导出
 // ---------------------------------------------------------------------------
@@ -285,6 +340,60 @@ pub fn resolve_template_ref(request: ResolveRequest) -> ResolveResponse {
             diagnostics: Vec::new(),
         },
         Err(diagnostic) => ResolveResponse { id: None, diagnostics: vec![to_js(&diagnostic)] },
+    }
+}
+
+/// 将单模板 IR 预编译为 ESM JavaScript 模块。
+#[napi(js_name = "precompileIrSingle")]
+pub fn precompile_ir_single_api(request: PrecompileSingleRequest) -> PrecompileSingleResponse {
+    match dejavu_codegen::precompile_single(&request.ir, request.options.as_deref()) {
+        Ok(result) => PrecompileSingleResponse {
+            module: Some(GeneratedModule {
+                path: "index.js".to_string(),
+                code: result.code,
+                dependencies: result.dependencies,
+            }),
+            diagnostics: result.diagnostics.iter().map(to_js).collect(),
+            entry_id: result.entry_id,
+        },
+        Err(err) => PrecompileSingleResponse {
+            module: None,
+            diagnostics: vec![to_js(
+                &Diagnostic::new(Severity::Error, codes::IR_INVALID_JSON, Stage::Compile)
+                    .message(err.to_string()),
+            )],
+            entry_id: String::new(),
+        },
+    }
+}
+
+/// 将模板 catalog 预编译为多模块 ESM AOT bundle。
+#[napi(js_name = "precompileCatalog")]
+pub fn precompile_catalog_api(request: PrecompileCatalogRequest) -> PrecompileCatalogResponse {
+    match dejavu_codegen::precompile_catalog(&request.entry_ir, &request.catalog, request.options.as_deref()) {
+        Ok(result) => PrecompileCatalogResponse {
+            modules: result
+                .modules
+                .into_iter()
+                .map(|m| GeneratedModule {
+                    path: m.path,
+                    code: m.code,
+                    dependencies: m.dependencies,
+                })
+                .collect(),
+            manifest: Some(result.manifest),
+            diagnostics: result.diagnostics.iter().map(to_js).collect(),
+            entry_id: result.entry_id,
+        },
+        Err(err) => PrecompileCatalogResponse {
+            modules: Vec::new(),
+            manifest: None,
+            diagnostics: vec![to_js(
+                &Diagnostic::new(Severity::Error, codes::IR_INVALID_JSON, Stage::Compile)
+                    .message(err.to_string()),
+            )],
+            entry_id: String::new(),
+        },
     }
 }
 

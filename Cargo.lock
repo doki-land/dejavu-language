@@ -223,6 +223,7 @@ dependencies = [
 name = "dejavu-napi"
 version = "0.0.2"
 dependencies = [
+ "dejavu-codegen",
  "dejavu-diagnostic",
  "dejavu-engine",
  "dejavu-ir",
