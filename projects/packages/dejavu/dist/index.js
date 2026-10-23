@@ -14,7 +14,7 @@
  * to `./cli.js`.
  */
 import { DejavuError } from "./errors.js";
-import { parseIr as nativeParseIr, normalizeIr as nativeNormalizeIr, renderIr as nativeRenderIr, renderSource as nativeRenderSource, precompileIrSingle as nativePrecompileIrSingle, resolveTemplateRef as nativeResolveTemplateRef, bindingContractVersion as nativeBindingContractVersion, } from "./napi.js";
+import { parseIr as nativeParseIr, normalizeIr as nativeNormalizeIr, renderIr as nativeRenderIr, renderSource as nativeRenderSource, precompileIrSingle as nativePrecompileIrSingle, precompileCatalog as nativePrecompileCatalog, resolveTemplateRef as nativeResolveTemplateRef, bindingContractVersion as nativeBindingContractVersion, } from "./napi.js";
 import { Template, } from "./types.js";
 // ---------------------------------------------------------------------------
 // Re-exports
@@ -22,24 +22,44 @@ import { Template, } from "./types.js";
 export { DejavuError } from "./errors.js";
 export { Template };
 // ---------------------------------------------------------------------------
-// Low-level catalog wire helper (kept local — not public API yet)
+// Catalog wire helper (one implementation for facade + generate pipeline)
 // ---------------------------------------------------------------------------
-function catalogToJson(catalog) {
-    const roots = catalog.roots.map((root) => ({
-        ...root,
-        files: Object.fromEntries(Object.entries(root.files).map(([path, source]) => {
-            // Serialize each source through parseIr → IR JSON.
-            const parsed = nativeParseIr(source, { file: path });
+/**
+ * Serialize a `Catalog` of template sources into the catalog wire JSON that
+ * `dejavu-napi` accepts (roots[].files[path] = IR JSON).
+ *
+ * Each source is parsed exactly once through `parseIr`; paths are sorted so
+ * repeated serialization produces byte-identical input for codegen.
+ */
+function serializeCatalog(catalog) {
+    const roots = catalog.roots.map((root) => {
+        const files = {};
+        for (const path of Object.keys(root.files).sort()) {
+            const source = root.files[path] ?? "";
+            const parsed = nativeParseIr(source, { file: `${root.name}:${path}` });
+            throwIfErrors(parsed.diagnostics);
             if (!parsed.irJson) {
-                // If parse fails at catalog-build time, surface the first error.
-                throwIfErrors(parsed.diagnostics);
-                // Shouldn't reach here — throwIfErrors returns on error.
+                throw new DejavuError({
+                    code: "dejavu.catalog.no-ir",
+                    severity: "error",
+                    stage: "compile",
+                    message: `precompileCatalog(): parseIr returned no IR for ${root.name}:${path}`,
+                    path: `${root.name}:${path}`,
+                    argsJson: "{}",
+                    related: [],
+                });
             }
-            return [path, parsed.irJson];
-        })),
-    }));
+            files[path] = parsed.irJson;
+        }
+        return {
+            name: root.name,
+            ...(root.scheme ? { scheme: root.scheme } : {}),
+            ...(root.priority !== undefined ? { priority: root.priority } : {}),
+            files,
+        };
+    });
     return JSON.stringify({
-        extensions: catalog.extensions,
+        ...(catalog.extensions !== undefined ? { extensions: catalog.extensions } : {}),
         roots,
     });
 }
@@ -116,6 +136,18 @@ export function precompile(source, options = {}) {
         entryId: options.entryId,
     });
     return result;
+}
+/**
+ * AOT-compile a multi-template catalog.
+ *
+ * `options.entryId` selects the canonical entry id (e.g. `app:pages/home.dejavu`).
+ * The entry module is emitted as `index.js`; every template reachable through
+ * `include` / `extends` is emitted as `_internal/<sanitized-id>.js`. Artifacts
+ * stay in memory — `dejavu generate` (see `generate.ts`) owns the on-disk
+ * layout, declarations, source maps, and manifest.
+ */
+export function precompileCatalog(catalog, options = {}) {
+    return nativePrecompileCatalog("", serializeCatalog(catalog), options);
 }
 // ---------------------------------------------------------------------------
 // Advanced API

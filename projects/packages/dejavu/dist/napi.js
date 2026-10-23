@@ -82,11 +82,11 @@ function translateDiagnostic(native) {
         stage: native.stage,
         message: native.message,
         path: native.path ?? undefined,
-        templateId: native.template_id ?? undefined,
+        templateId: native.templateId ?? undefined,
         span: native.span
             ? { start: native.span.start, end: native.span.end }
             : undefined,
-        argsJson: native.args_json,
+        argsJson: native.argsJson,
         related: native.related.map((r) => ({
             start: r.start,
             end: r.end,
@@ -184,7 +184,7 @@ export function precompileIrSingle(irJson, options = {}) {
     });
     return {
         modules: response.module ? [translateModule(response.module)] : [],
-        entryId: response.entry_id,
+        entryId: response.entryId,
         diagnostics: response.diagnostics.map(translateDiagnostic),
     };
 }
@@ -192,7 +192,7 @@ export function precompileIrSingle(irJson, options = {}) {
 export function precompileCatalog(entryIrJson, catalogJson, options = {}) {
     const native = loadNative();
     const response = native.precompileCatalog({
-        entry_ir: entryIrJson,
+        entryIr: entryIrJson,
         catalog: catalogJson,
         options: JSON.stringify({
             strictUndefined: options.strictUndefined ?? false,
@@ -202,7 +202,7 @@ export function precompileCatalog(entryIrJson, catalogJson, options = {}) {
     return {
         modules: response.modules.map(translateModule),
         manifest: response.manifest ?? "",
-        entryId: response.entry_id,
+        entryId: response.entryId,
         diagnostics: response.diagnostics.map(translateDiagnostic),
     };
 }

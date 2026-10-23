@@ -69,17 +69,17 @@ type NativeEngine = {
     }): {
         module?: NativeGeneratedModule;
         diagnostics: NativeDiagnostic[];
-        entry_id: string;
+        entryId: string;
     };
     precompileCatalog(request: {
-        entry_ir: string;
+        entryIr: string;
         catalog: string;
         options?: string;
     }): {
         modules: NativeGeneratedModule[];
         manifest?: string;
         diagnostics: NativeDiagnostic[];
-        entry_id: string;
+        entryId: string;
     };
 };
 type NativeSpan = {
@@ -98,9 +98,9 @@ type NativeDiagnostic = {
     stage: string;
     message: string;
     path?: string | null;
-    template_id?: string | null;
+    templateId?: string | null;
     span?: NativeSpan | null;
-    args_json: string;
+    argsJson: string;
     related: NativeRelatedSpan[];
 };
 type NativeGeneratedModule = {

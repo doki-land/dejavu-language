@@ -14,7 +14,7 @@
  * to `./cli.js`.
  */
 import { Template } from "./types.js";
-import type { CompileOptions, ParseOptions, PrecompileOptions, PrecompileResult, RenderOptions, ResolveTemplateRefRequest, ResolveTemplateRefResult, TemplateContext } from "./types.js";
+import type { Catalog, CompileOptions, ParseOptions, PrecompileCatalogResult, PrecompileOptions, PrecompileResult, RenderOptions, ResolveTemplateRefRequest, ResolveTemplateRefResult, TemplateContext } from "./types.js";
 export { DejavuError } from "./errors.js";
 export { Template };
 export type { Catalog, CatalogRoot, CompileOptions, Diagnostic, PrecompileCatalogResult, PrecompileModule, PrecompileOptions, PrecompileResult, ParseOptions, RelatedSpan, RenderOptions, ResolveTemplateRefRequest, ResolveTemplateRefResult, Severity, Span, TemplateContext, } from "./types.js";
@@ -46,6 +46,16 @@ export declare function compile(source: string, options?: CompileOptions): Templ
 export declare function precompile(source: string, options?: PrecompileOptions & {
     file?: string;
 }): PrecompileResult;
+/**
+ * AOT-compile a multi-template catalog.
+ *
+ * `options.entryId` selects the canonical entry id (e.g. `app:pages/home.dejavu`).
+ * The entry module is emitted as `index.js`; every template reachable through
+ * `include` / `extends` is emitted as `_internal/<sanitized-id>.js`. Artifacts
+ * stay in memory — `dejavu generate` (see `generate.ts`) owns the on-disk
+ * layout, declarations, source maps, and manifest.
+ */
+export declare function precompileCatalog(catalog: Catalog, options?: PrecompileOptions): PrecompileCatalogResult;
 /**
  * Parse template source into an IR JSON object. Throws `DejavuError` on
  * error-severity diagnostics.

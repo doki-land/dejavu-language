@@ -71,17 +71,17 @@ type NativeEngine = {
     precompileIrSingle(request: { ir: string; options?: string }): {
         module?: NativeGeneratedModule;
         diagnostics: NativeDiagnostic[];
-        entry_id: string;
+        entryId: string;
     };
     precompileCatalog(request: {
-        entry_ir: string;
+        entryIr: string;
         catalog: string;
         options?: string;
     }): {
         modules: NativeGeneratedModule[];
         manifest?: string;
         diagnostics: NativeDiagnostic[];
-        entry_id: string;
+        entryId: string;
     };
 };
 
@@ -93,9 +93,9 @@ type NativeDiagnostic = {
     stage: string;
     message: string;
     path?: string | null;
-    template_id?: string | null;
+    templateId?: string | null;
     span?: NativeSpan | null;
-    args_json: string;
+    argsJson: string;
     related: NativeRelatedSpan[];
 };
 type NativeGeneratedModule = {
@@ -189,11 +189,11 @@ function translateDiagnostic(native: NativeDiagnostic): Diagnostic {
         stage: native.stage,
         message: native.message,
         path: native.path ?? undefined,
-        templateId: native.template_id ?? undefined,
+        templateId: native.templateId ?? undefined,
         span: native.span
             ? ({ start: native.span.start, end: native.span.end } satisfies Span)
             : undefined,
-        argsJson: native.args_json,
+        argsJson: native.argsJson,
         related: native.related.map((r) => ({
             start: r.start,
             end: r.end,
@@ -329,7 +329,7 @@ export function precompileIrSingle(
     });
     return {
         modules: response.module ? [translateModule(response.module)] : [],
-        entryId: response.entry_id,
+        entryId: response.entryId,
         diagnostics: response.diagnostics.map(translateDiagnostic),
     };
 }
@@ -342,7 +342,7 @@ export function precompileCatalog(
 ): PrecompileCatalogResult {
     const native = loadNative();
     const response = native.precompileCatalog({
-        entry_ir: entryIrJson,
+        entryIr: entryIrJson,
         catalog: catalogJson,
         options: JSON.stringify({
             strictUndefined: options.strictUndefined ?? false,
@@ -352,7 +352,7 @@ export function precompileCatalog(
     return {
         modules: response.modules.map(translateModule),
         manifest: response.manifest ?? "",
-        entryId: response.entry_id,
+        entryId: response.entryId,
         diagnostics: response.diagnostics.map(translateDiagnostic),
     };
 }
