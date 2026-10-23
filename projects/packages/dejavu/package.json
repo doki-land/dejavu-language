@@ -1,62 +1,62 @@
 {
-    "name": "@doki-land/dejavu",
-    "version": "0.0.8",
-    "description": "Dejavu template engine — TypeScript CLI and facade over the N-API engine surface",
-    "license": "MPL-2.0",
-    "author": "Doki Land",
-    "type": "module",
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/doki-land/dejavu-language.git",
-        "directory": "projects/packages/dejavu"
+  "name": "@doki-land/dejavu",
+  "version": "0.0.9",
+  "description": "Dejavu template engine — TypeScript CLI and facade over the N-API engine surface",
+  "license": "MPL-2.0",
+  "author": "Doki Land",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doki-land/dejavu-language.git",
+    "directory": "projects/packages/dejavu"
+  },
+  "homepage": "https://github.com/doki-land/dejavu-language",
+  "bugs": {
+    "url": "https://github.com/doki-land/dejavu-language/issues"
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     },
-    "homepage": "https://github.com/doki-land/dejavu-language",
-    "bugs": {
-        "url": "https://github.com/doki-land/dejavu-language/issues"
-    },
-    "engines": {
-        "node": ">=22.18"
-    },
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "exports": {
-        ".": {
-            "types": "./dist/index.d.ts",
-            "default": "./dist/index.js"
-        },
-        "./config": {
-            "types": "./dist/config.d.ts",
-            "default": "./dist/config.js"
-        }
-    },
-    "bin": {
-        "dejavu": "./dist/cli.js"
-    },
-    "files": [
-        "dist",
-        "locales"
-    ],
-    "scripts": {
-        "build": "tsc -p tsconfig.json",
-        "typecheck": "tsc --noEmit",
-        "test": "tsc -p tsconfig.json && node dist/cli.js --help"
-    },
-    "dependencies": {
-        "@vmz/commander": "^0.3.6"
-    },
-    "optionalDependencies": {
-        "@doki-land/dejavu-linux-x64": "workspace:*",
-        "@doki-land/dejavu-linux-arm64": "workspace:*",
-        "@doki-land/dejavu-darwin-x64": "workspace:*",
-        "@doki-land/dejavu-darwin-arm64": "workspace:*",
-        "@doki-land/dejavu-win32-x64": "workspace:*",
-        "@doki-land/dejavu-win32-arm64": "workspace:*"
-    },
-    "devDependencies": {
-        "@types/node": "^22.15.0",
-        "typescript": "^5.8.3"
-    },
-    "publishConfig": {
-        "access": "public"
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "default": "./dist/config.js"
     }
+  },
+  "bin": {
+    "dejavu": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "locales"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc -p tsconfig.json && node dist/cli.js --help"
+  },
+  "dependencies": {
+    "@vmz/commander": "^0.3.6"
+  },
+  "optionalDependencies": {
+    "@doki-land/dejavu-linux-x64": "0.0.9",
+    "@doki-land/dejavu-linux-arm64": "0.0.9",
+    "@doki-land/dejavu-darwin-x64": "0.0.9",
+    "@doki-land/dejavu-darwin-arm64": "0.0.9",
+    "@doki-land/dejavu-win32-x64": "0.0.9",
+    "@doki-land/dejavu-win32-arm64": "0.0.9"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "typescript": "^5.8.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }
