@@ -3,16 +3,19 @@
  *
  * The config file is project-owned TypeScript evaluated by Node itself, so the
  * package only needs Node's native type stripping (`>=22.18`) and no extra
- * parser dependency. Every path in the result is resolved against the config
- * file's directory — never the process cwd.
+ * parser dependency. A `.ts` config is loaded as ESM even when the surrounding
+ * `package.json` does not set `"type": "module"`, matching the documented
+ * "TypeScript ESM" config contract. Every path in the result is resolved
+ * against the config file's directory — never the process cwd.
  *
  * Errors are `DejavuError` instances with `stage: "config"`; nothing here
  * touches the N-API bridge, the CLI, or template sources.
  */
 
-import { realpathSync, statSync } from "node:fs";
+import { readFileSync, realpathSync, statSync } from "node:fs";
+import { registerHooks } from "node:module";
 import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { DejavuError } from "./errors.js";
 
@@ -121,6 +124,67 @@ export function resolveConfigPath(options: ResolveConfigOptions = {}): string {
 /** Cache-busting counter so `--watch` always evaluates a fresh config module. */
 let loadSequence = 0;
 
+/** Absolute config paths that must bypass `package.json#type` module detection. */
+const forcedEsmConfigs = new Set<string>();
+let esmConfigHookInstalled = false;
+
+/**
+ * Node decides `.ts` module kind from the nearest `package.json#type`, so a
+ * `.ts` config in a CommonJS package would be evaluated as CommonJS and reject
+ * its own `import` statements. Register one loader hook that re-declares those
+ * config files as TypeScript ESM modules, still using Node's own type
+ * stripping — no parser, no bundler, and no temp files.
+ */
+function forceConfigEsm(abs: string): void {
+    forcedEsmConfigs.add(normalizeCase(abs));
+    if (esmConfigHookInstalled) return;
+    esmConfigHookInstalled = true;
+
+    registerHooks({
+        load(url, context, nextLoad) {
+            const parsed = new URL(url);
+            if (parsed.protocol === "file:" && forcedEsmConfigs.has(filePathKey(parsed))) {
+                const clean = new URL(parsed.href);
+                clean.search = "";
+                clean.hash = "";
+                return {
+                    format: "module-typescript",
+                    source: readFileSync(fileURLToPath(clean), "utf8"),
+                    shortCircuit: true,
+                };
+            }
+            return nextLoad(url, context);
+        },
+    });
+}
+
+/** Whether the nearest `package.json` (if any) opts into ESM. */
+export function isEsmScope(file: string): boolean {
+    let dir = dirname(file);
+    for (;;) {
+        const manifest = join(dir, "package.json");
+        if (isFile(manifest)) {
+            try {
+                const json = JSON.parse(readFileSync(manifest, "utf8")) as { type?: unknown };
+                return json.type === "module";
+            } catch {
+                return false;
+            }
+        }
+        const parent = dirname(dir);
+        if (parent === dir) return false;
+        dir = parent;
+    }
+}
+
+/** Case-normalized absolute key for a `file:` URL, ignoring query and hash. */
+function filePathKey(url: URL): string {
+    const clean = new URL(url.href);
+    clean.search = "";
+    clean.hash = "";
+    return normalizeCase(fileURLToPath(clean));
+}
+
 /**
  * Load and validate `dejavu.config.ts`.
  *
@@ -133,6 +197,10 @@ export async function loadConfig(file: string): Promise<ResolvedConfig> {
         throw configError("dejavu.config.not-found", `config file not found: ${abs}`, abs);
     }
     const configDir = dirname(abs);
+
+    if (abs.endsWith(".ts") && !abs.endsWith(".d.ts") && !isEsmScope(abs)) {
+        forceConfigEsm(abs);
+    }
 
     let module: { default?: unknown };
     try {

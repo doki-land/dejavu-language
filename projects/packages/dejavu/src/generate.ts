@@ -28,7 +28,7 @@ import {
 import type { FSWatcher } from "node:fs";
 import { dirname, join, posix, relative, resolve, sep } from "node:path";
 
-import { loadConfig, resolveConfigPath } from "./config-load.js";
+import { isEsmScope, loadConfig, resolveConfigPath } from "./config-load.js";
 import type { ResolvedConfig } from "./config-load.js";
 import { DejavuError } from "./errors.js";
 import { precompileCatalog } from "./index.js";
@@ -151,7 +151,30 @@ export async function buildGeneratePlan(
     const config = await loadConfig(configFile);
     const catalog = buildCatalog(config);
     const compilation = compileEntries(config, catalog);
-    return planOutput(config, compilation);
+    const plan = planOutput(config, compilation);
+    warnOnCommonJsOutputScope(plan);
+    return plan;
+}
+
+/**
+ * Generated modules are ESM but keep the documented `.js` names, so a nearest
+ * `package.json` without `"type": "module"` makes Node read them as CommonJS.
+ * That is a project-side scope problem, not a generation failure: report it as
+ * a warning instead of silently producing files the project cannot `import`.
+ */
+function warnOnCommonJsOutputScope(plan: GeneratePlan): void {
+    if (isEsmScope(join(plan.outDir, "index.js"))) return;
+    plan.warnings.push({
+        code: "dejavu.generate.commonjs-scope",
+        severity: "warning",
+        stage: "config",
+        message:
+            `generated ESM modules in ${plan.outDir} sit inside a CommonJS package scope ` +
+            '(no "type": "module" in the nearest package.json), so Node reads `.js` there as CommonJS. ' +
+            'Add "type": "module" to that package.json or consume the output from an ESM build.',
+        argsJson: JSON.stringify({ outDir: plan.outDir }),
+        related: [],
+    });
 }
 
 /**
