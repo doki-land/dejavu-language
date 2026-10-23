@@ -134,23 +134,21 @@ impl<'a> Renderer<'a> {
                 // 提取 parent 原始 blocks，供 super 使用
                 let parent_body_blocks = extract_blocks(&parent.document.body);
 
-                // 保存旧状态
-                let saved_blocks = std::mem::take(&mut self.blocks);
+                // 保存会被覆盖的状态（self.blocks 不再 take —— 整条 extends 链累积合并）
                 let saved_parent_blocks = std::mem::take(&mut self.parent_blocks);
                 let saved_id = std::mem::take(&mut self.current_id);
 
-                // child blocks 覆盖 self.blocks；parent 原始 blocks 进入 self.parent_blocks
+                // child blocks 合并到 self.blocks：底层优先，上层 block 不覆盖下层已定义的 key
                 for (name, body) in &child_blocks {
-                    self.blocks.insert(name.clone(), body.clone());
+                    self.blocks.entry(name.clone()).or_insert_with(|| body.clone());
                 }
                 self.parent_blocks = parent_body_blocks;
                 self.current_id = parent.id.clone();
 
                 let out = self.render_doc(&parent.document)?;
 
-                // 恢复
+                // 恢复（self.blocks 保留累积结果 —— 整条链的最具体 override）
                 self.visiting_extends.remove(&parent.id);
-                self.blocks = saved_blocks;
                 self.parent_blocks = saved_parent_blocks;
                 self.current_id = saved_id;
 
@@ -176,11 +174,22 @@ impl<'a> Renderer<'a> {
                 .arg("chain", chain.join(" -> ")));
         }
         self.include_stack.push(child.id.clone());
+        // 保存当前模板的上下文，让被 include 模板的继承链独立解析
+        let saved_id = std::mem::take(&mut self.current_id);
+        let saved_blocks = std::mem::take(&mut self.blocks);
+        let saved_parent_blocks = std::mem::take(&mut self.parent_blocks);
+        let saved_visiting_extends = std::mem::take(&mut self.visiting_extends);
         self.current_id = child.id.clone();
 
-        let out = self.render_nodes(&child.document.body);
+        // 走 render_doc：被 include 的模板也可能有 extends/block 链
+        let out = self.render_doc(&child.document);
 
+        // 恢复当前模板上下文
         self.include_stack.pop();
+        self.current_id = saved_id;
+        self.blocks = saved_blocks;
+        self.parent_blocks = saved_parent_blocks;
+        self.visiting_extends = saved_visiting_extends;
         out
     }
 
@@ -602,29 +611,52 @@ fn chrono_from_iso(s: &str) -> Option<(i32, u32, u32, u32, u32, u32)> {
     let month: u32 = mo_str.parse().ok()?;
     let day: u32 = d_str.parse().ok()?;
 
-    let (hour, min, sec) = if let Some(t) = parts.get(1) {
+    // 验证月/日范围 —— TS `new Date("2024-99-99")` 是 Invalid Date，format 后为空串
+    if !(1..=12).contains(&month) {
+        return None;
+    }
+    if !(1..=days_in_month(year, month)).contains(&day) {
+        return None;
+    }
+
+    let mut hour: u32 = 0;
+    let mut min: u32 = 0;
+    let mut sec: u32 = 0;
+    if let Some(t) = parts.get(1) {
         let t_clean = t.trim_end_matches('Z').split('+').next()?.split('-').next()?;
         let tp: Vec<&str> = t_clean.split(':').collect();
-        let h: u32 = tp.first().and_then(|v| v.parse().ok()).unwrap_or(0);
-        let m: u32 = tp.get(1).and_then(|v| v.parse().ok()).unwrap_or(0);
-        let s: u32 = tp.get(2).and_then(|v| v.parse().ok()).unwrap_or(0);
-        (h, m, s)
-    } else {
-        (0, 0, 0)
-    };
+        hour = tp.first().and_then(|v| v.parse().ok()).unwrap_or(0);
+        min = tp.get(1).and_then(|v| v.parse().ok()).unwrap_or(0);
+        sec = tp.get(2).and_then(|v| v.parse().ok()).unwrap_or(0);
+    }
+
+    // 时间字段也要合法
+    if hour >= 24 || min >= 60 || sec >= 60 {
+        return None;
+    }
 
     Some((year, month, day, hour, min, sec))
 }
 
+/// 返回某年某月的天数（考虑闰年）。
+fn days_in_month(year: i32, month: u32) -> u32 {
+    let days_per: [u32; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let d = days_per[(month - 1) as usize];
+    if month == 2 && is_leap_year(year) { d + 1 } else { d }
+}
+
 /// ASCII-fold slugify（匹配 TS `slugify`）。
 ///
-/// 1. NFKD 规范化后去除组合字符；
+/// 1. NFKD（compatibility + canonical decomposition）规范化后去除组合字符；
 /// 2. 小写化；
 /// 3. 非 `[a-z0-9]` 序列压缩为单个 `-`；
 /// 4. 裁掉首尾 `-`。
+///
+/// 使用 NFKD 而非 NFD：NFKD 把连字（`ﬃ` → `ffi`）和全角字符（`Ａ` → `A`）做兼容分解，
+/// TS `normalize("NFKD")` 也是这个语义。
 fn slugify(s: &str) -> String {
     use unicode_normalization::UnicodeNormalization;
-    // 手写 combining mark 过滤（unicode-normalization 0.1 暴露 nfd()，
+    // 手写 combining mark 过滤（unicode-normalization 0.1 暴露 nfkd()，
     // 但 is_combining_mark 在不同 rustc 上 API 位置不同）。
     const COMBINING_START: u32 = 0x0300;
     const COMBINING_END: u32 = 0x036F;
@@ -647,7 +679,7 @@ fn slugify(s: &str) -> String {
     };
 
     let folded: String = s
-        .nfd()
+        .nfkd()
         .filter(|c| !is_combining(*c))
         .collect::<String>()
         .to_lowercase();
