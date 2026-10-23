@@ -1,0 +1,3 @@
+<% if x { %>
+  hello
+<% // 故意不闭合：缺少 end if — 会触发 parse error

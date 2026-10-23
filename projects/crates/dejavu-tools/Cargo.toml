@@ -17,6 +17,10 @@ clap = { workspace = true }
 tokio = { workspace = true }
 dejavu-engine = { workspace = true }
 dejavu-types = { workspace = true }
+dejavu-language = { workspace = true }
+dejavu-diagnostic = { workspace = true }
 regex = { workspace = true }
 glob = { workspace = true }
+serde_json = { workspace = true }
+walkdir = "2"
 
