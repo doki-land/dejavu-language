@@ -274,10 +274,13 @@ fn for_with_index() {
     )]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
-    assert!(r.contains("let __it = ctx.items;"));
-    assert!(r.contains("for (let __i = 0; __i < __it.length; __i++) {"));
+    assert!(r.contains("let __v = ctx.items;"));
+    assert!(r.contains("for (let __i = 0; __i < __v.length; __i++) {"));
+    assert!(r.contains("ctx[\"item\"] = __v[__i];"));
     assert!(r.contains("ctx[\"i\"] = __i;"));
-    assert!(r.contains("ctx[\"item\"] = __it[__i];"));
+    // Loop variables are scoped and restored after the loop.
+    assert!(r.contains("Object.prototype.hasOwnProperty.call(ctx, \"item\")"));
+    assert!(r.contains("if (__v_item_has) ctx[\"item\"] = __v_item_prev; else delete ctx[\"item\"];"));
 }
 
 #[test]
@@ -288,7 +291,22 @@ fn for_without_index_skips_ctx_index_assignment() {
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
     assert!(!r.contains("ctx[\"i\"]"));
-    assert!(r.contains("ctx[\"x\"] = __it[__i];"));
+    assert!(r.contains("ctx[\"x\"] = __v[__i];"));
+    assert!(!r.contains("_index_has"));
+}
+
+#[test]
+fn two_loops_in_one_template_get_distinct_scopes() {
+    let ir = doc(vec![
+        stmt_for("a", None, ident("xs"), vec![text("x")]),
+        stmt_for("b", Some("i"), ident("ys"), vec![text("y")]),
+    ]);
+    let res = compile(&serde_json::to_string(&ir).unwrap());
+    let r = round(&res.code);
+    // Each loop uses its own iterable temp and block scope.
+    assert!(r.contains("let __v = ctx.xs;"));
+    assert!(r.contains("let __v1 = ctx.ys;"));
+    assert!(!r.contains("let __it"));
 }
 
 // ---------------------------------------------------------------------------
@@ -437,10 +455,15 @@ fn strict_undefined_injects_check_after_identifier_interp() {
 }
 
 #[test]
-fn non_strict_omits_undefined_check() {
+fn non_strict_defaults_runtime_strict_off() {
     let ir = doc(vec![interp(ident("missing"), false)]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
-    assert!(!res.code.contains("dejavu.template.undefined-variable"));
+    // The check is emitted but gated by `__strict`, whose build-time default
+    // is false here.
+    assert!(res
+        .code
+        .contains("const __strict = options.strictUndefined === undefined ? false : options.strictUndefined === true;"));
+    assert!(res.code.contains("if (__strict && __v === undefined)"));
 }
 
 // ---------------------------------------------------------------------------
@@ -504,8 +527,10 @@ fn origins_point_each_construct_at_its_template_span() {
         vec![
             LineOrigin { line: 7, start: 0, end: 5 },
             LineOrigin { line: 8, start: 5, end: 15 },
-            LineOrigin { line: 10, start: 15, end: 40 },
-            LineOrigin { line: 11, start: 21, end: 24 },
+            // The interpolation emits its (runtime-gated) strict check, so the
+            // following `if` starts one body line later.
+            LineOrigin { line: 11, start: 15, end: 40 },
+            LineOrigin { line: 12, start: 21, end: 24 },
         ]
     );
 

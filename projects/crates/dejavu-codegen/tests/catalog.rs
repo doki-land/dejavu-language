@@ -323,7 +323,8 @@ fn mixed_if_for_include_all_nodes_emit() {
     let entry_m = &res.modules[0];
     let r = round(&entry_m.code);
     assert!(r.contains("if (isTruthy(ctx.ok))"));
-    assert!(r.contains("for (let __i = 0; __i < __it.length; __i++)"));
+    assert!(r.contains("for (let __i = 0; __i < "));
+    assert!(r.contains("ctx[\"it\"] = "));
     assert!(r.contains("_internal"));
 
     if let Some(out) = run_modules_in_node(

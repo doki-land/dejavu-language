@@ -587,24 +587,72 @@ fn emit_for(
     out: &mut String,
     catalog: Option<&CatalogEmitCtx>,
 ) {
-    let it_temp = "__it".to_string();
+    // Unique temp names: two loops in one module body must not redeclare the
+    // same `let` (that is a JS SyntaxError). The extra braces give every loop
+    // its own block scope; nesting is therefore safe as well.
+    let it_temp = ctx.next_temp();
+    let item_has = format!("{it_temp}_item_has");
+    let item_prev = format!("{it_temp}_item_prev");
+
+    out.push_str("{\n");
     out.push_str(&format!("let {it_temp} = {};\n", emit_expr(iterable, ctx)));
 
-    if ctx.options.strict_undefined {
-        if let IrNode::ExprIdentifier { name, .. } = iterable {
-            out.push_str(&format!(
-                "if (__strict && {it_temp} === undefined) throw new Error({});\n",
-                json_string(&format!("dejavu.template.undefined-variable: {name}"))
-            ));
-        }
+    // Strict check is always emitted and gated by the runtime `__strict`
+    // flag, so a caller-supplied `strictUndefined` can override the
+    // build-time default.
+    if let IrNode::ExprIdentifier { name, .. } = iterable {
+        out.push_str(&format!(
+            "if (__strict && {it_temp} === undefined) throw new Error({});\n",
+            json_string(&format!("dejavu.template.undefined-variable: {name}"))
+        ));
     }
 
+    // Save the caller context's own `item` slot before the loop overwrites it.
+    out.push_str(&format!(
+        "const {item_has} = Object.prototype.hasOwnProperty.call(ctx, {});\n",
+        json_string(item)
+    ));
+    out.push_str(&format!(
+        "const {item_prev} = {item_has} ? ctx[{}] : undefined;\n",
+        json_string(item)
+    ));
+
+    let index_saved = index.map(|idx| {
+        let has = format!("{it_temp}_index_has");
+        let prev = format!("{it_temp}_index_prev");
+        out.push_str(&format!(
+            "const {has} = Object.prototype.hasOwnProperty.call(ctx, {});\n",
+            json_string(idx)
+        ));
+        out.push_str(&format!(
+            "const {prev} = {has} ? ctx[{}] : undefined;\n",
+            json_string(idx)
+        ));
+        (idx, has, prev)
+    });
+
     out.push_str(&format!("for (let __i = 0; __i < {it_temp}.length; __i++) {{\n"));
-    if let Some(idx) = index {
+    out.push_str(&format!("ctx[{}] = {it_temp}[__i];\n", json_string(item)));
+    if let Some((idx, _, _)) = &index_saved {
         out.push_str(&format!("ctx[{}] = __i;\n", json_string(idx)));
     }
-    out.push_str(&format!("ctx[{}] = {it_temp}[__i];\n", json_string(item)));
     emit_body(body, ctx, out, catalog);
+    out.push_str("}\n");
+
+    // Restore the caller context: write back the old value when the key was
+    // an own property, otherwise delete it (same as JIT scope restore).
+    out.push_str(&format!(
+        "if ({item_has}) ctx[{}] = {item_prev}; else delete ctx[{}];\n",
+        json_string(item),
+        json_string(item)
+    ));
+    if let Some((idx, has, prev)) = &index_saved {
+        out.push_str(&format!(
+            "if ({has}) ctx[{}] = {prev}; else delete ctx[{}];\n",
+            json_string(idx),
+            json_string(idx)
+        ));
+    }
     out.push_str("}\n");
 }
 
@@ -627,24 +675,22 @@ fn emit_interpolation(
 
     // Strict undefined check: when the *top-level expression* is an identifier,
     // we can name it for the error. Otherwise skip the named hint.
-    let (strict_msg, strict_name) = match expression {
-        IrNode::ExprIdentifier { name, .. } if ctx.options.strict_undefined => {
-            (
-                Some(format!(
-                    "if (__strict && {temp} === undefined) throw new Error({});",
-                    json_string(&format!("dejavu.template.undefined-variable: {name}"))
-                )),
-                Some(name.as_str()),
-            )
-        }
-        _ => (None, None),
+    //
+    // The check is emitted unconditionally and gated by the runtime `__strict`
+    // flag, so callers can turn strict mode on/off per render call regardless
+    // of the build-time default.
+    let strict_msg = match expression {
+        IrNode::ExprIdentifier { name, .. } => Some(format!(
+            "if (__strict && {temp} === undefined) throw new Error({});",
+            json_string(&format!("dejavu.template.undefined-variable: {name}"))
+        )),
+        _ => None,
     };
 
     out.push_str(&format!("let {temp} = {expr_fragment};\n"));
     if let Some(check) = strict_msg {
         out.push_str(&check);
         out.push('\n');
-        let _ = strict_name; // silence unused-var
     }
 
     if needs_escape {

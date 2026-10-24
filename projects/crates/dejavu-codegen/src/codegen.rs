@@ -120,7 +120,7 @@ pub fn precompile_single(
         }
     };
 
-    let code = build_module(&body_str, &[], None);
+    let code = build_module(&body_str, &[], None, opts.strict_undefined);
     let origins = shift_origins(&ctx.origins, module_header_lines(0));
 
     Ok(PrecompileResult {
@@ -275,7 +275,8 @@ pub fn precompile_catalog(
         // have Stmt.Extends — only the child would. Good.
 
         let entry_imports = build_import_lines(&dependencies, id, &id_to_path);
-        let code = build_module(&body_str, &entry_imports, Some(&id_to_deps));
+        let code =
+            build_module(&body_str, &entry_imports, Some(&id_to_deps), opts.strict_undefined);
         let origins = shift_origins(&ctx.origins, module_header_lines(entry_imports.len()));
 
         diagnostics.extend(ctx.diagnostics);
@@ -319,7 +320,12 @@ pub fn precompile_catalog(
 
 /// Wrap raw body fragments into a full ESM module, prepending any template
 /// `import` statements *after* the runtime import.
-pub(crate) fn build_module(body: &str, template_imports: &[String], _dep_map: Option<&HashMap<String, Vec<String>>>) -> String {
+pub(crate) fn build_module(
+    body: &str,
+    template_imports: &[String],
+    _dep_map: Option<&HashMap<String, Vec<String>>>,
+    strict_undefined: bool,
+) -> String {
     let mut s = String::with_capacity(512 + body.len());
     s.push_str(&format!(
         "import {{ htmlEscape, applyFilter, isTruthy, binary, unary, valueToString, exprMember, exprIndex }} from \"{RUNTIME_IMPORT}\";\n"
@@ -331,7 +337,11 @@ pub(crate) fn build_module(body: &str, template_imports: &[String], _dep_map: Op
     s.push('\n');
     s.push_str("export function render(ctx, options = {}) {\n");
     s.push_str("  if (!ctx || typeof ctx !== 'object') ctx = {};\n");
-    s.push_str("  const __strict = options.strictUndefined === true;\n");
+    // Build-time `strictUndefined` is the default; an explicit per-call value
+    // overrides it.
+    s.push_str(&format!(
+        "  const __strict = options.strictUndefined === undefined ? {strict_undefined} : options.strictUndefined === true;\n"
+    ));
     s.push_str("  const __out = [];\n");
     s.push('\n');
     for line in body.lines() {
