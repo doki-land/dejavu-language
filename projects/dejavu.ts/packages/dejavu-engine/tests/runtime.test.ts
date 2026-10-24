@@ -105,10 +105,9 @@ describe("applyFilter", () => {
         expect(applyFilter("e", "<b>", [])).toBe("&lt;b&gt;");
     });
 
-    it("raw / safe / s → 跳过 escape", () => {
+    it("raw / safe → 跳过 escape", () => {
         expect(applyFilter("raw", "<b>", [])).toBe("<b>");
         expect(applyFilter("safe", "<b>", [])).toBe("<b>");
-        expect(applyFilter("s", "<b>", [])).toBe("<b>");
     });
 
     it("uppercase / upper → toUpperCase", () => {
@@ -133,7 +132,9 @@ describe("applyFilter", () => {
         expect(applyFilter("default", 0, ["fallback"])).toBe(0);
         expect(applyFilter("default", false, ["fallback"])).toBe(false);
         expect(applyFilter("default", [], ["fallback"])).toEqual([]);
-        expect(applyFilter("default", "", [])).toBeNull();
+        expect(() => applyFilter("default", "", [])).toThrow(
+            "dejavu.template.filter-arity",
+        );
     });
 
     it("length", () => {
@@ -174,8 +175,13 @@ describe("applyFilter", () => {
         expect(applyFilter("slug", "Café", [])).toBe("cafe");
     });
 
-    it("未识别 filter → 原样返回 value（宽松语义）", () => {
-        expect(applyFilter("does-not-exist", 42, [])).toBe(42);
+    it("未识别 filter / 参数个数违约 → 抛结构化错误", () => {
+        expect(() => applyFilter("does-not-exist", 42, [])).toThrow(
+            "dejavu.template.unknown-filter: does-not-exist",
+        );
+        expect(() => applyFilter("replace", "a", ["a"])).toThrow(
+            "dejavu.template.filter-arity",
+        );
     });
 });
 

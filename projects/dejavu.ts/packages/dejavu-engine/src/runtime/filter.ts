@@ -4,16 +4,58 @@ import { valueToString } from "./value.js";
 /**
  * Dejavu 1.0 合同过滤器集。
  *
- * 与 Rust `dejavu-ir` 的 `apply_filter` 逐项对齐，所有字符串强制转换都走
+ * 与 Rust `dejavu-ir` 的 `registry` 逐项对齐，所有字符串强制转换都走
  * `valueToString`（null → ""），不使用 JS 的 `String()`。
  *
- * 未识别的过滤器 **宽松返回原值**（与 Rust 渲染器一致，不抛错）。
+ * 未识别的过滤器与参数个数违约都抛错，与 Rust 渲染器一致。
  */
+
+export type FilterCapability = "pure" | "safe-output";
+
+export interface FilterSpec {
+    name: string;
+    aliases: string[];
+    minArgs: number;
+    maxArgs: number;
+    capability: FilterCapability;
+}
+
+/** 与 Rust `dejavu_ir::registry::FILTERS` 同序同构的静态描述。 */
+export const FILTERS: readonly FilterSpec[] = [
+    { name: "uppercase", aliases: ["upper"], minArgs: 0, maxArgs: 0, capability: "pure" },
+    { name: "lowercase", aliases: ["lower"], minArgs: 0, maxArgs: 0, capability: "pure" },
+    { name: "trim", aliases: [], minArgs: 0, maxArgs: 0, capability: "pure" },
+    { name: "default", aliases: [], minArgs: 1, maxArgs: 1, capability: "pure" },
+    { name: "length", aliases: [], minArgs: 0, maxArgs: 0, capability: "pure" },
+    { name: "join", aliases: [], minArgs: 0, maxArgs: 1, capability: "pure" },
+    { name: "replace", aliases: [], minArgs: 2, maxArgs: 2, capability: "pure" },
+    { name: "escape", aliases: ["e"], minArgs: 0, maxArgs: 0, capability: "safe-output" },
+    { name: "safe", aliases: ["raw"], minArgs: 0, maxArgs: 0, capability: "safe-output" },
+    { name: "date", aliases: [], minArgs: 0, maxArgs: 1, capability: "pure" },
+    { name: "slug", aliases: [], minArgs: 0, maxArgs: 0, capability: "pure" },
+];
+
+export function filterSpec(name: string): FilterSpec | undefined {
+    return FILTERS.find(
+        (spec) => spec.name === name || spec.aliases.includes(name),
+    );
+}
+
 export function applyFilter(
     name: string,
     value: unknown,
     args: unknown[],
 ): unknown {
+    const spec = filterSpec(name);
+    if (!spec) {
+        throw new Error(`dejavu.template.unknown-filter: ${name}`);
+    }
+    if (args.length < spec.minArgs || args.length > spec.maxArgs) {
+        throw new Error(
+            `dejavu.template.filter-arity: ${spec.name} expects ` +
+                `${spec.minArgs}..${spec.maxArgs} argument(s), got ${args.length}`,
+        );
+    }
     switch (name) {
         case "escape":
         case "e":
@@ -21,7 +63,6 @@ export function applyFilter(
 
         case "raw":
         case "safe":
-        case "s":
             return value;
 
         case "uppercase":
@@ -74,7 +115,8 @@ export function applyFilter(
             return slugify(valueToString(value));
 
         default:
-            return value;
+            // Unreachable: `filterSpec` already rejected unknown names.
+            throw new Error(`dejavu.template.unknown-filter: ${name}`);
     }
 }
 

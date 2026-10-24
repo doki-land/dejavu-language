@@ -8,7 +8,7 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync, readdirSync, existsSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -88,6 +88,77 @@ function run(cmd, args, cwd = ROOT) {
 
 /** Normalize trailing whitespace (CRLF vs LF, trailing newlines). */
 const normalize = (s) => s.replace(/\s+$/, "");
+
+/** Canonical, order-insensitive form of a filter registry table. */
+function canonicalRegistry(entries) {
+    return JSON.stringify(
+        entries
+            .map((spec) => ({
+                name: spec.name,
+                aliases: [...spec.aliases].sort(),
+                minArgs: spec.minArgs,
+                maxArgs: spec.maxArgs,
+                capability: spec.capability,
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name)),
+    );
+}
+
+/**
+ * Hard gate: the Rust registry and the TypeScript AOT registry must describe
+ * the same filters, aliases, arity and capabilities.
+ */
+function checkFilterRegistry() {
+    console.log("## filter registry");
+    const rustDump = run("cargo", [
+        "run",
+        "--quiet",
+        "--manifest-path",
+        join(ROOT, "Cargo.toml"),
+        "--example",
+        "filter_registry",
+    ]);
+    if (!rustDump.ok) {
+        console.log("  rust: MISSING (required host)");
+        return false;
+    }
+    const engineFilter = join(
+        ROOT,
+        "projects/dejavu.ts/packages/dejavu-engine/dist/runtime/filter.js",
+    );
+    if (!existsSync(engineFilter)) {
+        console.log("  ts: MISSING (engine dist unavailable — required host)");
+        return false;
+    }
+    const probe = run("node", [
+        "--input-type=module",
+        "-e",
+        `import(${JSON.stringify(pathToFileURL(engineFilter).href)}).then((m) => process.stdout.write(JSON.stringify(m.FILTERS)))`,
+    ]);
+    if (!probe.ok) {
+        console.log("  ts: MISSING (probe failed)");
+        return false;
+    }
+    let rustEntries;
+    let tsEntries;
+    try {
+        rustEntries = JSON.parse(rustDump.stdout);
+        tsEntries = JSON.parse(probe.stdout);
+    } catch (error) {
+        console.log(`  parse: FAIL (${error instanceof Error ? error.message : error})`);
+        return false;
+    }
+    const rust = canonicalRegistry(rustEntries);
+    const ts = canonicalRegistry(tsEntries);
+    const ok = rust === ts;
+    console.log(`  rust vs ts: ${ok ? "OK" : "FAIL"}`);
+    if (!ok) {
+        console.log(`    rust ${rust}`);
+        console.log(`    ts   ${ts}`);
+    }
+    console.log("");
+    return ok;
+}
 
 const adapters = {
     ts: {
@@ -258,6 +329,10 @@ function main() {
 
     console.log("Hard invariant: identical render(DejavuIR, Context) across languages");
     console.log("Required hosts: Rust, TypeScript, AOT — SKIP = FAIL\n");
+
+    if (!checkFilterRegistry()) {
+        failed++;
+    }
 
     for (const entry of cases()) {
         const c = { ...loadCase(entry), name: entry.name };

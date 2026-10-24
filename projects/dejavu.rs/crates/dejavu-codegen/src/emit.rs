@@ -25,7 +25,8 @@ use serde::Serialize;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 
-use dejavu_diagnostic::{ArgValue, Diagnostic, Severity, Span, Stage};
+use dejavu_diagnostic::{ArgValue, Diagnostic, Severity, Span, Stage, codes};
+use dejavu_ir::registry::{FilterLookupError, FilterCapability, validate_filter};
 use dejavu_ir::IrNode;
 
 use crate::options::CodegenOptions;
@@ -231,6 +232,31 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
 
             let inner = emit_expr(expression, ctx);
             let args_str = emit_expr_list(arguments, ctx);
+            // Validate against the language-neutral registry at compile time so
+            // AOT output never contains an unknown or mis-arity filter.
+            match validate_filter(filter, arguments.len()) {
+                Ok(_) => {}
+                Err(FilterLookupError::Unknown) => ctx.diagnostic_arg(
+                    Severity::Error,
+                    codes::UNKNOWN_FILTER,
+                    format!("unknown filter `{filter}`"),
+                    "filter",
+                    filter.clone(),
+                ),
+                Err(FilterLookupError::Arity { spec }) => ctx.diagnostic_arg(
+                    Severity::Error,
+                    codes::FILTER_ARITY,
+                    format!(
+                        "filter `{}` expects {}..{} argument(s), got {}",
+                        spec.name,
+                        spec.min_args,
+                        spec.max_args,
+                        arguments.len()
+                    ),
+                    "filter",
+                    spec.name,
+                ),
+            }
             format!(
                 "applyFilter({}, {inner}, [{args_str}])",
                 json_string(filter)
@@ -808,23 +834,16 @@ fn analyze_interpolation(
         return (emit_expr(expression, ctx), false);
     }
     match expression {
-        IrNode::ExprPipe { filter, expression: inner, .. } => {
-            // Walk inward until we hit the last filter in the chain.
-            // Dejavu IR pipes nest: pipe.expression = prior expression.
-            let last = last_pipe_filter(filter, inner);
-            let no_escape = matches!(last.as_str(), "raw" | "safe" | "escape" | "e");
+        IrNode::ExprPipe { filter, .. } => {
+            // Only the outermost (final) filter decides escaping, via the
+            // registry capability shared with the JIT renderer.
+            let no_escape = matches!(
+                dejavu_ir::registry::filter_spec(filter).map(|spec| spec.capability),
+                Some(FilterCapability::SafeOutput)
+            );
             (emit_expr(expression, ctx), !no_escape)
         }
         _ => (emit_expr(expression, ctx), true),
-    }
-}
-
-/// Walk a nested ExprPipe chain to find the tailmost filter name.
-fn last_pipe_filter(filter: &str, expression: &IrNode) -> String {
-    if let IrNode::ExprPipe { filter: f, expression: inner, .. } = expression {
-        last_pipe_filter(f, inner)
-    } else {
-        filter.to_string()
     }
 }
 

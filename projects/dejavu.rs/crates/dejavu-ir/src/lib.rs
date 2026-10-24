@@ -5,6 +5,7 @@
 pub mod catalog;
 pub mod native;
 pub mod normalize;
+pub mod registry;
 pub mod render;
 pub mod trim;
 pub mod types;

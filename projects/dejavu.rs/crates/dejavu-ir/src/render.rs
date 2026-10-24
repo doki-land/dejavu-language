@@ -1,4 +1,5 @@
 use crate::{IrError, codes, diag_load, diag_render};
+use crate::registry::{FilterCapability, FilterLookupError, validate_filter};
 use crate::types::{IrDocument, IrNode};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -585,10 +586,23 @@ fn as_f64(v: &Value) -> Option<f64> {
 }
 
 fn apply_filter(name: &str, value: Value, args: &[Value]) -> Result<Value, IrError> {
-    match name {
-        // ——大小写：全名 + 别名——
-        "uppercase" | "upper" => Ok(Value::String(value_to_string(&value).to_uppercase())),
-        "lowercase" | "lower" => Ok(Value::String(value_to_string(&value).to_lowercase())),
+    let spec = match validate_filter(name, args.len()) {
+        Ok(spec) => spec,
+        Err(FilterLookupError::Unknown) => {
+            return Err(diag_render(codes::UNKNOWN_FILTER).arg("filter", name));
+        }
+        Err(FilterLookupError::Arity { spec }) => {
+            return Err(diag_render(codes::FILTER_ARITY)
+                .arg("filter", spec.name)
+                .arg("count", args.len() as i64)
+                .arg("min", spec.min_args as i64)
+                .arg("max", spec.max_args as i64));
+        }
+    };
+    match spec.name {
+        // ——大小写——
+        "uppercase" => Ok(Value::String(value_to_string(&value).to_uppercase())),
+        "lowercase" => Ok(Value::String(value_to_string(&value).to_lowercase())),
         "trim" => Ok(Value::String(value_to_string(&value).trim().to_string())),
         "default" => {
             if matches!(value, Value::Null) || matches!(&value, Value::String(s) if s.is_empty()) {
@@ -616,8 +630,8 @@ fn apply_filter(name: &str, value: Value, args: &[Value]) -> Result<Value, IrErr
             Ok(Value::String(value_to_string(&value).replace(&from, &to)))
         }
         // ——HTML escape 过滤器：内部做 escape，renderer 识别为 safe 不再二次 escape——
-        "escape" | "e" => Ok(Value::String(html_escape(&value_to_string(&value)))),
-        "raw" | "safe" => Ok(value),
+        "escape" => Ok(Value::String(html_escape(&value_to_string(&value)))),
+        "safe" => Ok(value),
         // ——日期（最小 strftime：%Y %m %d %H %M %S %%）——
         "date" => {
             let pattern = args.first().map(value_to_string).unwrap_or_else(|| "%Y-%m-%d".into());
@@ -632,11 +646,18 @@ fn apply_filter(name: &str, value: Value, args: &[Value]) -> Result<Value, IrErr
 
 /// 判断管道结果是否应跳过自动 escape。
 ///
-/// `escape`/`e` 在 filter 内部已做 html_escape，不能再二次 escape；
-/// `raw`/`safe` 是显式跳过 escape 的意图。
+/// 由 [`registry`](crate::registry) 的 capability 决定，避免宿主各自硬编码
+/// 过滤器名单。
 fn is_raw_filter(expr: &IrNode) -> bool {
-    matches!(expr, IrNode::ExprPipe { filter, .. }
-        if matches!(filter.as_str(), "raw" | "safe" | "escape" | "e"))
+    match expr {
+        // Only the final (outermost) filter decides escaping: `x |> safe`
+        // skips escaping, while `x |> safe |> uppercase` escapes the result.
+        IrNode::ExprPipe { filter, .. } => matches!(
+            crate::registry::filter_spec(filter).map(|spec| spec.capability),
+            Some(FilterCapability::SafeOutput)
+        ),
+        _ => false,
+    }
 }
 
 /// 最小 strftime — 支持 `%Y %m %d %H %M %S %%`。

@@ -330,6 +330,7 @@ pub mod codes {
 
     // Render
     pub const UNKNOWN_FILTER: &str = "dejavu.template.unknown-filter";
+    pub const FILTER_ARITY: &str = "dejavu.template.filter-arity";
     pub const INVALID_ITERABLE: &str = "dejavu.template.invalid-iterable";
     pub const UNDEFINED_VARIABLE: &str = "dejavu.template.undefined-variable";
     pub const SUPER_OUTSIDE_BLOCK: &str = "dejavu.template.super-outside-block";

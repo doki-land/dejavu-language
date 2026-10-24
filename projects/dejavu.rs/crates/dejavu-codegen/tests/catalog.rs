@@ -365,6 +365,41 @@ fn obj(entries: Vec<(&str, Value)>) -> Value {
     json!({ "type": "Expr.Object", "entries": entries })
 }
 
+fn interp_pipe(filter: &str, arguments: Vec<Value>) -> Value {
+    json!({
+        "type": "Interpolation",
+        "trim": "none",
+        "expression": {
+            "type": "Expr.Pipe",
+            "expression": { "type": "Expr.Literal", "value": "abc" },
+            "filter": filter,
+            "arguments": arguments,
+        },
+    })
+}
+
+#[test]
+fn unknown_filter_is_rejected_at_compile_time() {
+    let entry = doc(vec![interp_pipe("nope", vec![])]);
+    let compiled = compile_catalog(&[("index.dejavu", entry)], "index.dejavu");
+    assert!(
+        errors(&compiled).iter().any(|d| d.code == "dejavu.template.unknown-filter"),
+        "errors: {:?}",
+        errors(&compiled)
+    );
+}
+
+#[test]
+fn filter_arity_is_rejected_at_compile_time() {
+    let entry = doc(vec![interp_pipe("replace", vec![lit(json!("a"))])]);
+    let compiled = compile_catalog(&[("index.dejavu", entry)], "index.dejavu");
+    assert!(
+        errors(&compiled).iter().any(|d| d.code == "dejavu.template.filter-arity"),
+        "errors: {:?}",
+        errors(&compiled)
+    );
+}
+
 #[test]
 fn partial_binds_defaults_at_aot() {
     let card = doc(vec![stmt_partial(
