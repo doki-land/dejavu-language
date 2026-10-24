@@ -49,13 +49,19 @@ export function applyFilter(
 ): unknown {
     const spec = filterSpec(name);
     if (!spec) {
-        throw runtimeError("dejavu.template.unknown-filter", name);
+        throw runtimeError("dejavu.template.unknown-filter", name, { filter: name });
     }
     if (args.length < spec.minArgs || args.length > spec.maxArgs) {
         throw runtimeError(
             "dejavu.template.filter-arity",
             `${spec.name} expects ` +
                 `${spec.minArgs}..${spec.maxArgs} argument(s), got ${args.length}`,
+            {
+                filter: spec.name,
+                minArgs: spec.minArgs,
+                maxArgs: spec.maxArgs,
+                got: args.length,
+            },
         );
     }
     switch (name) {

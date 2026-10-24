@@ -139,6 +139,21 @@ impl<'a> CodegenCtx<'a> {
         );
     }
 
+    /// Emit a Diagnostic with several structured `args`.
+    pub fn diagnostic_args(
+        &mut self,
+        severity: Severity,
+        code: impl Into<String>,
+        message: impl Into<String>,
+        args: impl IntoIterator<Item = (&'static str, ArgValue)>,
+    ) {
+        let mut diagnostic = Diagnostic::new(severity, code, Stage::Compile).message(message);
+        for (key, value) in args {
+            diagnostic = diagnostic.arg(key, value);
+        }
+        self.diagnostics.push(diagnostic);
+    }
+
     /// Extract a `Span` from an IrNode (best-effort; not all nodes carry one).
     pub fn span_of(node: &IrNode) -> Option<Span> {
         match node {
@@ -247,7 +262,7 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
                     "filter",
                     filter.clone(),
                 ),
-                Err(FilterLookupError::Arity { spec }) => ctx.diagnostic_arg(
+                Err(FilterLookupError::Arity { spec }) => ctx.diagnostic_args(
                     Severity::Error,
                     codes::FILTER_ARITY,
                     format!(
@@ -257,8 +272,12 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
                         spec.max_args,
                         arguments.len()
                     ),
-                    "filter",
-                    spec.name,
+                    [
+                        ("filter", ArgValue::String(spec.name.to_string())),
+                        ("minArgs", ArgValue::Number(spec.min_args as f64)),
+                        ("maxArgs", ArgValue::Number(spec.max_args as f64)),
+                        ("got", ArgValue::Number(arguments.len() as f64)),
+                    ],
                 ),
             }
             format!(
@@ -300,7 +319,7 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
                     "null".into()
                 }
                 Err(FunctionLookupError::Arity { spec }) => {
-                    ctx.diagnostic_arg(
+                    ctx.diagnostic_args(
                         Severity::Error,
                         codes::FUNCTION_ARITY,
                         format!(
@@ -310,8 +329,12 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
                             spec.max_args,
                             arguments.len()
                         ),
-                        "function",
-                        spec.name,
+                        [
+                            ("function", ArgValue::String(spec.name.to_string())),
+                            ("minArgs", ArgValue::Number(spec.min_args as f64)),
+                            ("maxArgs", ArgValue::Number(spec.max_args as f64)),
+                            ("got", ArgValue::Number(arguments.len() as f64)),
+                        ],
                     );
                     "null".into()
                 }
@@ -336,7 +359,7 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
                     "null".into()
                 }
                 Err(TestLookupError::Arity { spec }) => {
-                    ctx.diagnostic_arg(
+                    ctx.diagnostic_args(
                         Severity::Error,
                         codes::TEST_ARITY,
                         format!(
@@ -346,8 +369,12 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
                             spec.max_args,
                             arguments.len()
                         ),
-                        "test",
-                        spec.name,
+                        [
+                            ("test", ArgValue::String(spec.name.to_string())),
+                            ("minArgs", ArgValue::Number(spec.min_args as f64)),
+                            ("maxArgs", ArgValue::Number(spec.max_args as f64)),
+                            ("got", ArgValue::Number(arguments.len() as f64)),
+                        ],
                     );
                     "null".into()
                 }
@@ -612,7 +639,7 @@ fn emit_partial(
     out.push_str(&format!("const {names} = [{}];\n", names_literal.join(", ")));
     out.push_str(&format!("for (const __k of Object.keys({saved})) {{\n"));
     out.push_str(&format!(
-        "  if ({names}.indexOf(__k) < 0) throw runtimeError(\"dejavu.template.unknown-parameter\", __k);\n"
+        "  if ({names}.indexOf(__k) < 0) throw runtimeError(\"dejavu.template.unknown-parameter\", __k, {{ name: __k }});\n"
     ));
     out.push_str("}\n");
     out.push_str("ctx = {};\n");
@@ -627,7 +654,7 @@ fn emit_partial(
             }
             None => {
                 out.push_str(&format!(
-                    "if (!Object.prototype.hasOwnProperty.call({saved}, {name})) throw runtimeError(\"dejavu.template.missing-parameter\", {name});\n"
+                    "if (!Object.prototype.hasOwnProperty.call({saved}, {name})) throw runtimeError(\"dejavu.template.missing-parameter\", {name}, {{ name: {name} }});\n"
                 ));
                 out.push_str(&format!("ctx[{name}] = {saved}[{name}];\n"));
             }
@@ -793,7 +820,8 @@ fn emit_for(
     // build-time default.
     if let IrNode::ExprIdentifier { name, .. } = iterable {
         out.push_str(&format!(
-            "if (__strict && {it_temp} === undefined) throw runtimeError(\"dejavu.template.undefined-variable\", {});\n",
+            "if (__strict && {it_temp} === undefined) throw runtimeError(\"dejavu.template.undefined-variable\", {}, {{ name: {} }});\n",
+            json_string(name),
             json_string(name)
         ));
     }
@@ -872,7 +900,8 @@ fn emit_interpolation(
     // of the build-time default.
     let strict_msg = match expression {
         IrNode::ExprIdentifier { name, .. } => Some(format!(
-            "if (__strict && {temp} === undefined) throw runtimeError(\"dejavu.template.undefined-variable\", {});",
+            "if (__strict && {temp} === undefined) throw runtimeError(\"dejavu.template.undefined-variable\", {}, {{ name: {} }});",
+            json_string(name),
             json_string(name)
         )),
         _ => None,

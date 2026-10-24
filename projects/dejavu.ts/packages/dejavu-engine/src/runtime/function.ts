@@ -33,13 +33,19 @@ export function functionSpec(name: string): FunctionSpec | undefined {
 export function callFunction(name: string, args: unknown[]): unknown {
     const spec = functionSpec(name);
     if (!spec) {
-        throw runtimeError("dejavu.template.unknown-function", name);
+        throw runtimeError("dejavu.template.unknown-function", name, { function: name });
     }
     if (args.length < spec.minArgs || args.length > spec.maxArgs) {
         throw runtimeError(
             "dejavu.template.function-arity",
             `${spec.name} expects ` +
                 `${spec.minArgs}..${spec.maxArgs} argument(s), got ${args.length}`,
+            {
+                function: spec.name,
+                minArgs: spec.minArgs,
+                maxArgs: spec.maxArgs,
+                got: args.length,
+            },
         );
     }
     switch (spec.name) {

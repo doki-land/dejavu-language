@@ -1,6 +1,7 @@
 [
     {
         "code": "dejavu.template.undefined-variable",
-        "stages": ["render"]
+        "stages": ["render"],
+        "args": { "name": "missing" }
     }
 ]

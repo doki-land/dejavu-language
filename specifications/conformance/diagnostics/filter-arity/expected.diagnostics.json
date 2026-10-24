@@ -1,6 +1,7 @@
 [
     {
         "code": "dejavu.template.filter-arity",
-        "stages": ["compile", "render"]
+        "stages": ["compile", "render"],
+        "args": { "filter": "uppercase", "minArgs": 0, "maxArgs": 0, "got": 1 }
     }
 ]

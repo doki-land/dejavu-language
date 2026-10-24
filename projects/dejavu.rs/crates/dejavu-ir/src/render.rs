@@ -605,9 +605,9 @@ fn apply_filter(name: &str, value: Value, args: &[Value]) -> Result<Value, IrErr
         Err(FilterLookupError::Arity { spec }) => {
             return Err(diag_render(codes::FILTER_ARITY)
                 .arg("filter", spec.name)
-                .arg("count", args.len() as i64)
-                .arg("min", spec.min_args as i64)
-                .arg("max", spec.max_args as i64));
+                .arg("minArgs", spec.min_args as i64)
+                .arg("maxArgs", spec.max_args as i64)
+                .arg("got", args.len() as i64));
         }
     };
     match spec.name {

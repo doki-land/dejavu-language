@@ -35,6 +35,11 @@ const result = renderIr({ ir: irJson, context: ctx, options });
 process.stdout.write(
     JSON.stringify({
         output: result.output,
-        diagnostics: result.diagnostics.map((d) => ({ code: d.code, stage: d.stage, span: d.span })),
+        diagnostics: result.diagnostics.map((d) => ({
+            code: d.code,
+            stage: d.stage,
+            span: d.span,
+            args: JSON.parse(d.argsJson || "{}"),
+        })),
     }),
 );

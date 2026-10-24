@@ -1,0 +1,7 @@
+[
+    {
+        "code": "dejavu.template.unknown-test",
+        "stages": ["compile", "render"],
+        "args": { "test": "nope" }
+    }
+]

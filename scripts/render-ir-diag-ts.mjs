@@ -28,7 +28,7 @@ try {
     if (error instanceof DejavuError) {
         process.stdout.write(
             JSON.stringify({
-                diagnostics: [{ code: error.code, stage: error.stage, span: error.span }],
+                diagnostics: [{ code: error.code, stage: error.stage, span: error.span, args: error.args }],
             }),
         );
     } else {

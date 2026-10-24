@@ -45,13 +45,19 @@ export function applyTest(
 ): boolean {
     const spec = testSpec(name);
     if (!spec) {
-        throw runtimeError("dejavu.template.unknown-test", name);
+        throw runtimeError("dejavu.template.unknown-test", name, { test: name });
     }
     if (args.length < spec.minArgs || args.length > spec.maxArgs) {
         throw runtimeError(
             "dejavu.template.test-arity",
             `${spec.name} expects ` +
                 `${spec.minArgs}..${spec.maxArgs} argument(s), got ${args.length}`,
+            {
+                test: spec.name,
+                minArgs: spec.minArgs,
+                maxArgs: spec.maxArgs,
+                got: args.length,
+            },
         );
     }
     let result: boolean;

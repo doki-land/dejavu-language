@@ -458,16 +458,35 @@ const diagnosticAdapters = {
     },
 };
 
-/** Reduce a host payload to comparable `code` / `stage` pairs. */
-function diagnosticPairs(payload) {
-    const parsed = JSON.parse(payload);
-    return (parsed.diagnostics ?? []).map((d) => ({ code: d.code, stage: d.stage }));
+/** Recursively sort object keys so `args` can be compared byte-for-byte. */
+function canonicalArgs(value) {
+    if (Array.isArray(value)) return value.map(canonicalArgs);
+    if (value && typeof value === "object") {
+        return Object.fromEntries(
+            Object.keys(value)
+                .sort()
+                .map((key) => [key, canonicalArgs(value[key])]),
+        );
+    }
+    return value;
 }
 
-/** Diagnostic codes must match across hosts; stages may differ for statically
- * detectable errors (AOT rejects unknown filters at compile time). */
+/** Reduce a host payload to comparable `code` / `stage` / `args` records. */
+function diagnosticPairs(payload) {
+    const parsed = JSON.parse(payload);
+    return (parsed.diagnostics ?? []).map((d) => {
+        const args = canonicalArgs(d.args ?? {});
+        return Object.keys(args).length ? { code: d.code, stage: d.stage, args } : { code: d.code, stage: d.stage };
+    });
+}
+
+/** Diagnostic identity must match across hosts: `code` plus structured `args`.
+ * `stage` may differ for statically detectable errors (AOT rejects unknown
+ * filters at compile time). */
 function codeKey(pairs) {
-    return JSON.stringify(pairs.map((p) => p.code));
+    return JSON.stringify(
+        pairs.map((p) => ({ code: p.code, args: canonicalArgs(p.args ?? {}) })),
+    );
 }
 
 function expectedStages(entry) {
@@ -476,7 +495,14 @@ function expectedStages(entry) {
 
 function matchesExpected(pairs, expected) {
     if (codeKey(pairs) !== codeKey(expected)) return false;
-    return pairs.every((pair, index) => expectedStages(expected[index]).includes(pair.stage));
+    return pairs.every((pair, index) => {
+        const entry = expected[index];
+        if (!expectedStages(entry).includes(pair.stage)) return false;
+        if (entry.args !== undefined) {
+            return JSON.stringify(canonicalArgs(entry.args)) === JSON.stringify(pair.args ?? {});
+        }
+        return true;
+    });
 }
 
 function main() {

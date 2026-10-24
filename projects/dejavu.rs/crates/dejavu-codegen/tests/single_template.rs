@@ -520,7 +520,7 @@ fn strict_undefined_injects_check_after_identifier_interp() {
     );
     let r = round(&res.code);
     assert!(r.contains(
-        "if (__strict && __v === undefined) throw runtimeError(\"dejavu.template.undefined-variable\", \"missing\");"
+        "if (__strict && __v === undefined) throw runtimeError(\"dejavu.template.undefined-variable\", \"missing\", { name: \"missing\" });"
     ));
 }
 

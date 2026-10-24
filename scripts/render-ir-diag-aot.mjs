@@ -44,7 +44,11 @@ const result = precompileIrSingle(irJson);
 if (result.diagnostics.some((d) => d.severity === "error")) {
     process.stdout.write(
         JSON.stringify({
-            diagnostics: result.diagnostics.map((d) => ({ code: d.code, stage: d.stage })),
+            diagnostics: result.diagnostics.map((d) => ({
+                code: d.code,
+                stage: d.stage,
+                args: JSON.parse(d.argsJson || "{}"),
+            })),
         }),
     );
     process.exit(0);
@@ -71,6 +75,7 @@ try {
                 {
                     code: error?.code ?? "dejavu.host.unknown",
                     stage: error?.stage ?? "host",
+                    args: error?.args ?? {},
                 },
             ],
         }),

@@ -1,0 +1,7 @@
+[
+    {
+        "code": "dejavu.template.function-arity",
+        "stages": ["compile", "render"],
+        "args": { "function": "range", "minArgs": 2, "maxArgs": 3, "got": 1 }
+    }
+]
