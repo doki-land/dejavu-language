@@ -1,30 +1,39 @@
 {
-    "name": "@dejavu/language",
+    "name": "@doki-land/dejavu-language",
     "version": "0.0.0",
-    "private": true,
-    "description": "Internal Dejavu language frontend — applications must depend on @doki-land/dejavu only",
-    "type": "module",
+    "description": "Dejavu WASM language bridge for browsers and Workers — host wrapper over @doki-land/dejavu-unknown-wasm32",
     "license": "MPL-2.0",
     "author": "Doki Land",
-    "homepage": "https://github.com/doki-land/dejavu-language/tree/dev/projects/packages/dejavu-language",
+    "type": "module",
+    "homepage": "https://github.com/doki-land/dejavu-language/tree/dev/projects/dejavu.ts/packages/dejavu-language",
     "repository": {
         "type": "git",
         "url": "git+https://github.com/doki-land/dejavu-language.git",
-        "directory": "projects/packages/dejavu-language"
+        "directory": "projects/dejavu.ts/packages/dejavu-language"
     },
     "bugs": {
         "url": "https://github.com/doki-land/dejavu-language/issues"
     },
-    "main": "src/index.ts",
-    "types": "./src/index.ts",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
     "exports": {
-        ".": "./src/index.ts"
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        }
     },
+    "files": [
+        "dist"
+    ],
     "scripts": {
-        "build": "tsup src/index.ts --format esm --dts",
-        "typecheck": "tsc --noEmit"
+        "build": "tsc -p tsconfig.json",
+        "typecheck": "tsc --noEmit",
+        "test": "tsc -p tsconfig.json && node --test \"tests/**/*.test.mjs\""
     },
     "dependencies": {
-        "@dejavu/types": "workspace:*"
+        "@doki-land/dejavu-unknown-wasm32": "workspace:*"
+    },
+    "devDependencies": {
+        "typescript": "^5.8.3"
     }
 }
