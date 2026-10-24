@@ -203,6 +203,32 @@ const adapters = {
             return r.stdout;
         },
     },
+    wasm: {
+        label: "WASM",
+        required: true,
+        /** Render IR through the `dejavu-language` wasm32 bridge (browser path). */
+        render(c) {
+            const dist = join(ROOT, "projects", "dejavu.ts", "packages", "dejavu-language", "dist", "index.js");
+            const wasm = join(
+                ROOT,
+                "projects",
+                "dejavu.ts",
+                "platforms",
+                "dejavu-unknown-wasm32",
+                "src",
+                "lib",
+                "dejavu_wasm_bg.wasm",
+            );
+            if (!existsSync(dist) || !existsSync(wasm)) return null;
+            const script = join(ROOT, "scripts/render-ir-wasm.mjs");
+            const r = run("node", [script, c.irPath, c.ctxPath]);
+            if (!r.ok) {
+                console.error(r.stderr || r.stdout);
+                return null;
+            }
+            return r.stdout;
+        },
+    },
     py: {
         label: "Python",
         required: false,
@@ -343,7 +369,7 @@ function main() {
     const skipped = new Set();
 
     console.log("Hard invariant: identical render(DejavuIR, Context) across languages");
-    console.log("Required hosts: Rust, TypeScript, AOT — SKIP = FAIL\n");
+    console.log("Required hosts: Rust, TypeScript, AOT, WASM — SKIP = FAIL\n");
 
     if (!checkBuiltinRegistry()) {
         failed++;
@@ -441,7 +467,7 @@ function main() {
         console.error(`FAILED (${failed})`);
         process.exit(1);
     }
-    console.log("All required hosts (Rust, TypeScript, AOT): identical IR render output.");
+    console.log("All required hosts (Rust, TypeScript, AOT, WASM): identical IR render output.");
 }
 
 main();

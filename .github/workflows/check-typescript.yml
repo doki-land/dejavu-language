@@ -68,5 +68,8 @@ jobs:
       - name: Build AOT runtime (@doki-land/dejavu-engine)
         run: pnpm --filter @doki-land/dejavu-engine build
 
+      - name: Build WASM bridge (@doki-land/dejavu-language)
+        run: node scripts/build/wasm.mjs
+
       - name: IR conformance
         run: pnpm conformance
