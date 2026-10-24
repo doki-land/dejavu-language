@@ -120,7 +120,7 @@ pub fn precompile_single(
         }
     };
 
-    let code = build_module(&body_str, &[], None, opts.strict_undefined);
+    let code = build_module(&body_str, &[], None, opts.strict_undefined, None);
     let origins = shift_origins(&ctx.origins, module_header_lines(0));
 
     Ok(PrecompileResult {
@@ -215,15 +215,16 @@ pub fn precompile_catalog(
             continue;
         };
 
-        // Collect merged blocks + parent blocks for this template.
-        let (merged_blocks, topmost_parent_id) = match collect_blocks(&catalog, id) {
-            Ok(pair) => pair,
+        // The entry body is flattened from the topmost parent; blocks are
+        // emitted through their per-block ancestor chain (`super` support).
+        let topmost_parent_id = match collect_blocks(&catalog, id) {
+            Ok(topmost) => topmost,
             Err(d) => {
                 diagnostics.push(d);
                 continue;
             }
         };
-        let parent_blocks = match crate::catalog::collect_parent_blocks(&catalog, id) {
+        let block_chains = match crate::catalog::collect_block_chains(&catalog, id) {
             Ok(m) => m,
             Err(d) => {
                 diagnostics.push(d);
@@ -281,8 +282,7 @@ pub fn precompile_catalog(
         };
 
         let cat_ctx = CatalogEmitCtx {
-            merged_blocks: &merged_blocks,
-            parent_blocks: &parent_blocks,
+            block_chains: &block_chains,
             include_imports: &include_imports,
             partial_ids: &partial_ids,
         };
@@ -298,8 +298,14 @@ pub fn precompile_catalog(
         // have Stmt.Extends — only the child would. Good.
 
         let entry_imports = build_import_lines(&dependencies, id, &id_to_path);
-        let code =
-            build_module(&body_str, &entry_imports, Some(&id_to_deps), opts.strict_undefined);
+        let export_name = js_import_name(id);
+        let code = build_module(
+            &body_str,
+            &entry_imports,
+            Some(&id_to_deps),
+            opts.strict_undefined,
+            Some(&export_name),
+        );
         let origins = shift_origins(&ctx.origins, module_header_lines(entry_imports.len()));
 
         diagnostics.extend(ctx.diagnostics);
@@ -348,6 +354,7 @@ pub(crate) fn build_module(
     template_imports: &[String],
     _dep_map: Option<&HashMap<String, Vec<String>>>,
     strict_undefined: bool,
+    export_name: Option<&str>,
 ) -> String {
     let mut s = String::with_capacity(512 + body.len());
     s.push_str(&format!(
@@ -379,6 +386,11 @@ pub(crate) fn build_module(
     }
     s.push_str("  return __out.join(\"\");\n");
     s.push_str("}\n");
+    // Included templates are imported by their canonical-id binding; keep the
+    // stable `render` export and alias it for cross-module includes.
+    if let Some(name) = export_name {
+        s.push_str(&format!("\nexport const {name} = render;\n"));
+    }
     s
 }
 
@@ -549,6 +561,11 @@ fn collect_includes_from_nodes(
                 }
             }
             IrNode::StmtFor { body, .. } => {
+                collect_includes_from_nodes(catalog, body, from_id, out);
+            }
+            // Included templates inside a partial or block body are still real
+            // module dependencies.
+            IrNode::StmtPartial { body, .. } | IrNode::StmtBlock { body, .. } => {
                 collect_includes_from_nodes(catalog, body, from_id, out);
             }
             IrNode::Template { children, .. } => {

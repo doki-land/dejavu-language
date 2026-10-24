@@ -687,7 +687,7 @@ const { htmlEscape, applyFilter, isTruthy, binary, unary, valueToString, exprMem
 
     // Strip the ESM import/export lines so this runs as a plain script.
     let mut js_lines: Vec<&str> = res.code.lines().collect();
-    js_lines.retain(|l| !l.trim().starts_with("import "));
+    js_lines.retain(|l| !l.trim().starts_with("import ") && !l.trim().starts_with("export const "));
     let body = js_lines.join("\n").replace("export function render", "function render");
 
     let full = format!(

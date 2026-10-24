@@ -98,7 +98,7 @@ fn run_render(
 ) -> Option<Result<(String, Value), String>> {
     let body = code
         .lines()
-        .filter(|l| !l.trim_start().starts_with("import "))
+        .filter(|l| !l.trim_start().starts_with("import ") && !l.trim_start().starts_with("export const "))
         .collect::<Vec<_>>()
         .join("\n")
         .replace("export function render", "function render");

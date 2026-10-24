@@ -342,6 +342,20 @@ sys.stdout.write(Dejavu.render(ir, ctx))
             return r.ok ? r.stdout : null;
         },
     },
+    "aot-catalog": {
+        label: "AOT catalog",
+        required: true,
+        /** Compile the catalog through AOT codegen and render the entry module. */
+        render(caseDir) {
+            const script = join(ROOT, "scripts", "render-catalog-aot.mjs");
+            const r = run("node", [script, caseDir.dir]);
+            if (!r.ok) {
+                console.error(r.stderr || r.stdout);
+                return null;
+            }
+            return r.stdout;
+        },
+    },
     kt: {
         label: "Kotlin",
         required: false,
@@ -563,7 +577,7 @@ function main() {
     }
 
     // ---- catalog fixtures (multi-template source parsing) ----
-    const inheritanceAdapters = ["rs-catalog", "ts-catalog"].map((k) => adapters[k]).filter(Boolean);
+    const inheritanceAdapters = ["rs-catalog", "ts-catalog", "aot-catalog"].map((k) => adapters[k]).filter(Boolean);
     if (inheritanceAdapters.length) {
         console.log("## catalog fixtures (parser → catalog → render)");
         for (const dir of catalogCases()) {

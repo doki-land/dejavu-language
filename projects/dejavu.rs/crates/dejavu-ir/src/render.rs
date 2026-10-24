@@ -73,8 +73,8 @@ pub fn render_ir_opts(
         loader,
         strict_undefined: opts.strict_undefined,
         current_id: default_id,
-        blocks: HashMap::new(),
-        parent_blocks: HashMap::new(),
+        block_levels: Vec::new(),
+        block_level: 0,
         current_block: None,
         visiting_extends: HashSet::new(),
         include_stack: Vec::new(),
@@ -91,8 +91,11 @@ struct Renderer<'a> {
     loader: Option<&'a mut dyn TemplateLoader>,
     strict_undefined: bool,
     current_id: String,
-    blocks: HashMap<String, Vec<IrNode>>,
-    parent_blocks: HashMap<String, Vec<IrNode>>,
+    /// Block definitions per inheritance level. Index 0 is the most derived
+    /// template, each further index is one `extends` hop closer to the root.
+    block_levels: Vec<HashMap<String, Vec<IrNode>>>,
+    /// Which level's block body is being rendered (`super` looks one level up).
+    block_level: usize,
     current_block: Option<String>,
     /// extends 访问过的 canonical id（防止继承环）
     visiting_extends: HashSet<String>,
@@ -105,7 +108,7 @@ impl<'a> Renderer<'a> {
         // 特殊处理 Template body：先收集 block 定义，处理 extends，再渲染。
         if let IrNode::Template { children, .. } = &doc.body {
             let mut extends_path: Option<String> = None;
-            let mut child_blocks: Vec<(String, Vec<IrNode>)> = Vec::new();
+            let mut own_blocks: HashMap<String, Vec<IrNode>> = HashMap::new();
 
             for c in children {
                 match c {
@@ -113,11 +116,14 @@ impl<'a> Renderer<'a> {
                         extends_path = Some(value_to_string(&self.eval(parent)?));
                     }
                     IrNode::StmtBlock { name, body, .. } => {
-                        child_blocks.push((name.clone(), body.clone()));
+                        own_blocks.entry(name.clone()).or_insert_with(|| body.clone());
                     }
                     _ => {}
                 }
             }
+
+            // 每个模板都贡献一个继承层级：index 0 是最派生的模板，越往后越靠近根。
+            self.block_levels.push(own_blocks);
 
             if let Some(parent_str) = extends_path {
                 let loader = self
@@ -132,25 +138,12 @@ impl<'a> Renderer<'a> {
                 }
                 self.visiting_extends.insert(parent.id.clone());
 
-                // 提取 parent 原始 blocks，供 super 使用
-                let parent_body_blocks = extract_blocks(&parent.document.body);
-
-                // 保存会被覆盖的状态（self.blocks 不再 take —— 整条 extends 链累积合并）
-                let saved_parent_blocks = std::mem::take(&mut self.parent_blocks);
                 let saved_id = std::mem::take(&mut self.current_id);
-
-                // child blocks 合并到 self.blocks：底层优先，上层 block 不覆盖下层已定义的 key
-                for (name, body) in &child_blocks {
-                    self.blocks.entry(name.clone()).or_insert_with(|| body.clone());
-                }
-                self.parent_blocks = parent_body_blocks;
                 self.current_id = parent.id.clone();
 
                 let out = self.render_doc(&parent.document)?;
 
-                // 恢复（self.blocks 保留累积结果 —— 整条链的最具体 override）
                 self.visiting_extends.remove(&parent.id);
-                self.parent_blocks = saved_parent_blocks;
                 self.current_id = saved_id;
 
                 return Ok(out);
@@ -202,8 +195,8 @@ impl<'a> Renderer<'a> {
         self.include_stack.push(child.id.clone());
         // 保存当前模板的上下文，让被 include 模板的继承链独立解析
         let saved_id = std::mem::take(&mut self.current_id);
-        let saved_blocks = std::mem::take(&mut self.blocks);
-        let saved_parent_blocks = std::mem::take(&mut self.parent_blocks);
+        let saved_blocks = std::mem::take(&mut self.block_levels);
+        let saved_block_level = self.block_level;
         let saved_visiting_extends = std::mem::take(&mut self.visiting_extends);
         self.current_id = child.id.clone();
 
@@ -233,8 +226,8 @@ impl<'a> Renderer<'a> {
         // 恢复当前模板上下文
         self.include_stack.pop();
         self.current_id = saved_id;
-        self.blocks = saved_blocks;
-        self.parent_blocks = saved_parent_blocks;
+        self.block_levels = saved_blocks;
+        self.block_level = saved_block_level;
         self.visiting_extends = saved_visiting_extends;
         self.scope = saved_scope;
         out
@@ -292,27 +285,49 @@ impl<'a> Renderer<'a> {
             // 就是渲染其 body。
             IrNode::StmtPartial { body, .. } => self.render_list(body),
 
-            // block：如果有覆盖内容就渲染覆盖，否则渲染自身 body。
+            // block：最派生的层级定义优先，没有覆盖时渲染自身 body。
             IrNode::StmtBlock { name, body, .. } => {
                 // 记录当前 block 名字，super 会用到
-                let saved = self.current_block.take();
+                let saved_block = self.current_block.take();
                 self.current_block = Some(name.clone());
+                let saved_level = self.block_level;
 
-                let result = match self.blocks.get(name).cloned() {
-                    Some(override_nodes) => self.render_list(&override_nodes),
-                    None => self.render_list(body),
+                let result = match self.block_levels.iter().position(|level| level.contains_key(name)) {
+                    Some(idx) => {
+                        self.block_level = idx;
+                        let nodes = self.block_levels[idx][name].clone();
+                        self.render_list(&nodes)
+                    }
+                    None => {
+                        self.block_level = self.block_levels.len().saturating_sub(1);
+                        self.render_list(body)
+                    }
                 };
 
-                self.current_block = saved;
+                self.block_level = saved_level;
+                self.current_block = saved_block;
                 result
             }
 
-            // super：渲染 parent 同名 block 的原始内容。
+            // super：渲染上一层继承级别中同名 block 的原始内容。
             IrNode::StmtSuper { .. } => {
                 let block_name = self.current_block.clone().ok_or_else(|| diag_render(codes::SUPER_OUTSIDE_BLOCK))?;
-                match self.parent_blocks.get(&block_name).cloned() {
-                    Some(parent_body) => self.render_list(&parent_body),
-                    None => Ok(String::new()), // parent 没有定义这个 block，输出空
+                let target = self.block_level + 1;
+                let parent_body = self
+                    .block_levels
+                    .get(target)
+                    .and_then(|level| level.get(&block_name))
+                    .cloned();
+                match parent_body {
+                    Some(body) => {
+                        let saved_level = self.block_level;
+                        self.block_level = target;
+                        let rendered = self.render_list(&body);
+                        self.block_level = saved_level;
+                        rendered
+                    }
+                    // 根模板没有定义这个 block，输出空
+                    None => Ok(String::new()),
                 }
             }
 
@@ -521,19 +536,6 @@ fn bind_partial(
         }
     }
     Ok(scope)
-}
-
-/// 从文档 body 中提取所有顶层 `block` 定义。
-fn extract_blocks(body: &IrNode) -> HashMap<String, Vec<IrNode>> {
-    let mut out = HashMap::new();
-    if let IrNode::Template { children, .. } = body {
-        for c in children {
-            if let IrNode::StmtBlock { name, body, .. } = c {
-                out.insert(name.clone(), body.clone());
-            }
-        }
-    }
-    out
 }
 
 fn eval_binary(op: &str, l: &Value, r: &Value) -> Result<Value, IrError> {

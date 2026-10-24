@@ -126,7 +126,7 @@ fn run_modules_in_node(modules: &[dejavu_codegen::GeneratedModule], ctx_js: &str
         let fn_name = format!("render_{base}");
         let tmpl_name = format!("__tmpl_{base}"); // matches js_import_name("root:path") after sanitize
         let mut lines: Vec<&str> = m.code.lines().collect();
-        lines.retain(|l| !l.trim().starts_with("import "));
+        lines.retain(|l| !l.trim().starts_with("import ") && !l.trim().starts_with("export const "));
         let body = lines.join("\n").replace("export function render", &format!("function {fn_name}"));
         stub.push_str(&format!(
             "// --- {} ---\n{body}\nconst {var} = {{ render: {fn_name} }};\nconst {tmpl_name} = {fn_name};\n\n",

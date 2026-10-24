@@ -227,27 +227,57 @@ fn collect_edges_from_doc(
         _ => return,
     };
     for n in body {
-        match n {
-            IrNode::StmtInclude { path, .. } => {
-                if let Some(p) = extract_path_literal(path) {
-                    if let Ok(hit) = catalog.resolve_ref(&p, Some(from_id)) {
-                        if let Some(canon) = catalog.canonical_id(&hit) {
-                            out.push(canon);
-                        }
+        collect_edges_nodes(catalog, n, from_id, out);
+    }
+}
+
+/// Walk nested bodies too: an `include` inside a partial or block body is a
+/// real module dependency and must enter the reachable set.
+fn collect_edges_nodes(
+    catalog: &TemplateCatalog,
+    node: &IrNode,
+    from_id: &str,
+    out: &mut Vec<String>,
+) {
+    match node {
+        IrNode::StmtInclude { path, .. } => {
+            if let Some(p) = extract_path_literal(path) {
+                if let Ok(hit) = catalog.resolve_ref(&p, Some(from_id)) {
+                    if let Some(canon) = catalog.canonical_id(&hit) {
+                        out.push(canon);
                     }
                 }
             }
-            IrNode::StmtExtends { parent, .. } => {
-                if let Some(p) = extract_path_literal(parent) {
-                    if let Ok(hit) = catalog.resolve_ref(&p, Some(from_id)) {
-                        if let Some(canon) = catalog.canonical_id(&hit) {
-                            out.push(canon);
-                        }
-                    }
-                }
-            }
-            _ => {}
         }
+        IrNode::StmtExtends { parent, .. } => {
+            if let Some(p) = extract_path_literal(parent) {
+                if let Ok(hit) = catalog.resolve_ref(&p, Some(from_id)) {
+                    if let Some(canon) = catalog.canonical_id(&hit) {
+                        out.push(canon);
+                    }
+                }
+            }
+        }
+        IrNode::Template { children, .. }
+        | IrNode::StmtFor { body: children, .. }
+        | IrNode::StmtPartial { body: children, .. }
+        | IrNode::StmtBlock { body: children, .. } => {
+            for child in children {
+                collect_edges_nodes(catalog, child, from_id, out);
+            }
+        }
+        IrNode::StmtIf { test, consequent, alternate, .. } => {
+            collect_edges_nodes(catalog, test, from_id, out);
+            for child in consequent {
+                collect_edges_nodes(catalog, child, from_id, out);
+            }
+            if let Some(alt) = alternate {
+                for child in alt {
+                    collect_edges_nodes(catalog, child, from_id, out);
+                }
+            }
+        }
+        _ => {}
     }
 }
 
@@ -255,84 +285,60 @@ fn collect_edges_from_doc(
 // Block collection (along extends chain)
 // ---------------------------------------------------------------------------
 
-/// Follow the extends chain starting at `entry_id`, collecting block bodies
-/// with child overriding parent. Also returns the canonical id of the
-/// **topmost** parent — that's where the render body should start from when
-/// flattening the entry template.
-///
-/// Returns `(merged_blocks, topmost_parent_id)` where `merged_blocks` is a
-/// map from block-name → *effective* body (child overrides parent, and
-/// nested `Stmt.Super` references the body that would have been inherited
-/// had the child not overridden).
-///
-/// If the entry template has no extends the topmost_parent_id is the entry
-/// itself, and merged_blocks just contains the entry's own block definitions.
+/// Follow the extends chain starting at `entry_id` and return the canonical id
+/// of the **topmost** parent — that's where the render body should start from
+/// when flattening the entry template. If the entry has no extends it returns
+/// the entry itself.
 pub fn collect_blocks(
     catalog: &TemplateCatalog,
     entry_id: &str,
-) -> Result<(HashMap<String, Vec<IrNode>>, String), Diagnostic> {
-    let mut chain: Vec<String> = vec![entry_id.to_string()];
+) -> Result<String, Diagnostic> {
     let mut cur = entry_id.to_string();
+    let mut topmost = entry_id.to_string();
     loop {
         let Some(parent_ref) = doc_extends_ref(catalog, &cur) else { break };
         let hit = catalog
             .resolve_ref(&parent_ref, Some(&cur))
             .map_err(|d| d.template_id(&cur))?;
         let Some(parent_id) = catalog.canonical_id(&hit) else { break };
-        chain.push(parent_id.clone());
+        topmost = parent_id.clone();
         cur = parent_id;
     }
+    Ok(topmost)
+}
 
-    // Walk chain entry→parent→topmost; the most specific (entry/child) writes
-    // first with or_insert_with, so less specific ancestors never overwrite.
-    let mut merged: HashMap<String, Vec<IrNode>> = HashMap::new();
+/// Collect every ancestor definition of each block, most-derived first.
+///
+/// `super` walks one entry further down the chain, so a three-level template
+/// chain (`child → mid → base`) can resolve `super` in the child to `mid`
+/// and `super` in `mid` to `base`.
+pub fn collect_block_chains(
+    catalog: &TemplateCatalog,
+    entry_id: &str,
+) -> Result<HashMap<String, Vec<Vec<IrNode>>>, Diagnostic> {
+    let mut chain: Vec<String> = vec![entry_id.to_string()];
+    let mut cur = entry_id.to_string();
+    loop {
+        let Some(r) = doc_extends_ref(catalog, &cur) else { break };
+        let hit = catalog.resolve_ref(&r, Some(&cur))
+            .map_err(|d| d.template_id(&cur))?;
+        let Some(id) = catalog.canonical_id(&hit) else { break };
+        chain.push(id.clone());
+        cur = id;
+    }
+    let mut chains: HashMap<String, Vec<Vec<IrNode>>> = HashMap::new();
     for id in &chain {
         let Some((root_name, path)) = split_canonical(id) else { continue };
         let Some(doc) = catalog_document(catalog, root_name, path) else { continue };
         if let IrNode::Template { children, .. } = &doc.body {
             for c in children {
                 if let IrNode::StmtBlock { name, body, .. } = c {
-                    merged.entry(name.clone()).or_insert_with(|| body.clone());
+                    chains.entry(name.clone()).or_default().push(body.clone());
                 }
             }
         }
     }
-
-    let topmost = chain.into_iter().last().unwrap_or_else(|| entry_id.to_string());
-    Ok((merged, topmost))
-}
-
-/// Collect *parent blocks only* (used to inline `Stmt.Super` bodies for a
-/// given template id — the super call inside a child block needs the
-/// *grandparent* version, not the already-overridden child version).
-pub fn collect_parent_blocks(
-    catalog: &TemplateCatalog,
-    child_id: &str,
-) -> Result<HashMap<String, Vec<IrNode>>, Diagnostic> {
-    // Collect blocks from all ancestors of child (excluding child itself).
-    let mut ancestors: Vec<String> = Vec::new();
-    let mut cur = child_id.to_string();
-    loop {
-        let Some(r) = doc_extends_ref(catalog, &cur) else { break };
-        let hit = catalog.resolve_ref(&r, Some(&cur))
-            .map_err(|d| d.template_id(&cur))?;
-        let Some(id) = catalog.canonical_id(&hit) else { break };
-        ancestors.push(id.clone());
-        cur = id;
-    }
-    let mut merged: HashMap<String, Vec<IrNode>> = HashMap::new();
-    for id in ancestors.iter().rev() {
-        let Some((root_name, path)) = split_canonical(id) else { continue };
-        let Some(doc) = catalog_document(catalog, root_name, path) else { continue };
-        if let IrNode::Template { children, .. } = &doc.body {
-            for c in children {
-                if let IrNode::StmtBlock { name, body, .. } = c {
-                    merged.entry(name.clone()).or_insert_with(|| body.clone());
-                }
-            }
-        }
-    }
-    Ok(merged)
+    Ok(chains)
 }
 
 // ---------------------------------------------------------------------------

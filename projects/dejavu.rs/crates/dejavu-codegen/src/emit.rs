@@ -97,11 +97,16 @@ pub struct CodegenCtx<'a> {
     pub origins: Vec<LineOrigin>,
     /// Monotonic counter for `__vN` temp variables.
     temp_counter: u32,
+    /// Ancestor bodies of the block currently being emitted (most-derived first).
+    /// `super` consumes `super_index` and advances one level up.
+    super_chain: Vec<Vec<IrNode>>,
+    /// Index inside `super_chain` that the next `super` should inline.
+    super_index: usize,
 }
 
 impl<'a> CodegenCtx<'a> {
     pub fn new(options: &'a CodegenOptions) -> Self {
-        Self { options, diagnostics: Vec::new(), origins: Vec::new(), temp_counter: 0 }
+        Self { options, diagnostics: Vec::new(), origins: Vec::new(), temp_counter: 0, super_chain: Vec::new(), super_index: 0 }
     }
 
     /// Return the next unique temp variable name (`__v`, `__v1`, `__v2`, ...).
@@ -465,11 +470,9 @@ pub fn emit_expr_list(items: &[IrNode], ctx: &mut CodegenCtx) -> String {
 ///
 /// Single-template mode passes `None`.
 pub struct CatalogEmitCtx<'a> {
-    /// Block body overrides collected from the extends chain
-    /// (child → parent, overrides).
-    pub merged_blocks: &'a HashMap<String, Vec<IrNode>>,
-    /// *Direct parent's* block bodies — used to inline `Stmt.Super`.
-    pub parent_blocks: &'a HashMap<String, Vec<IrNode>>,
+    /// Every ancestor definition of each block, most-derived first. Index 0 is
+    /// the effective body, each further index is one `super` hop up.
+    pub block_chains: &'a HashMap<String, Vec<Vec<IrNode>>>,
     /// Map from include literal path → canonical template id. Populated
     /// during precompile_catalog's edge resolution so emit time only does
     /// lookup, no catalog traversal.
@@ -611,12 +614,18 @@ fn emit_block(
     catalog: Option<&CatalogEmitCtx>,
 ) {
     if let Some(cat) = catalog {
-        let effective = cat
-            .merged_blocks
+        // Index 0 is the effective body; `super` then walks the chain upward.
+        let chain = cat
+            .block_chains
             .get(name)
             .cloned()
-            .unwrap_or_else(|| original_body.to_vec());
-        emit_body(&effective, ctx, out, Some(cat));
+            .unwrap_or_else(|| vec![original_body.to_vec()]);
+        let saved_chain = std::mem::replace(&mut ctx.super_chain, chain.clone());
+        let saved_index = ctx.super_index;
+        ctx.super_index = 1;
+        emit_body(&chain[0], ctx, out, Some(cat));
+        ctx.super_index = saved_index;
+        ctx.super_chain = saved_chain;
     } else {
         emit_not_supported("Stmt.Block", Some(name), ctx, out);
     }
@@ -728,28 +737,21 @@ fn emit_super(
     out: &mut String,
     catalog: Option<&CatalogEmitCtx>,
 ) {
-    // `super` inside a block = inline the *parent's default body* for that
-    // block. We only know which block we're in because precompile_catalog
-    // has already performed the merge; the body we receive is the *effective*
-    // body (possibly containing unresolved `super` references if the child
-    // used super). The caller (codegen.rs) has already replaced those with
-    // the parent's body during block merge — but wait, that's not quite
-    // true for nested super... Let me keep it simple here: super emit is
-    // "inline parent body". We track current block on CatalogEmitCtx.
-    let Some(_cat) = catalog else {
+    let Some(cat) = catalog else {
         emit_not_supported("Stmt.Super", None, ctx, out);
         return;
     };
-    // We need the *nearest enclosing block name*. Rather than a whole stack,
-    // we rely on callers to have already inlined the parent body during
-    // precompile. If we reach emit_stmt with a StmtSuper, that means the
-    // original source had a super that wasn't pre-resolved — emit an empty
-    // string (parent had no block of that name) and a diagnostic.
-    ctx.diagnostic(
-        Severity::Warning,
-        "dejavu.compile.unresolved-super",
-        "Stmt.Super was not resolved during block collection — emitting empty output",
-    );
+    // `super` inlines the next ancestor definition of the enclosing block; the
+    // index advances so a `super` inside that body resolves one level further.
+    let index = ctx.super_index;
+    let Some(body) = ctx.super_chain.get(index).cloned() else {
+        // The root template does not define this block — output nothing.
+        return;
+    };
+    let saved_index = ctx.super_index;
+    ctx.super_index = index + 1;
+    emit_body(&body, ctx, out, Some(cat));
+    ctx.super_index = saved_index;
 }
 
 // ---------------------------------------------------------------------------

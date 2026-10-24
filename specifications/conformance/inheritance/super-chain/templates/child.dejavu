@@ -1,0 +1,1 @@
+<% extends "mid.dejavu" %><% block body %>CHILD(<% super %>)<% end block %>
