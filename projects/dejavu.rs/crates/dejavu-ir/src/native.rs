@@ -68,6 +68,12 @@ pub enum NativeKind {
         names: Vec<NativeImportName>,
         trim: String,
     },
+    Call {
+        name: String,
+        arguments: Vec<NativeExpr>,
+        body: Vec<NativeNode>,
+        trim: String,
+    },
     Extends {
         parent: NativeExpr,
         trim: String,
@@ -200,6 +206,13 @@ fn encode_node(n: &NativeNode) -> IrNode {
                     default: p.default.as_ref().map(encode_expr),
                 })
                 .collect(),
+            body: body.iter().map(encode_node).collect(),
+            trim: trim.clone(),
+            span,
+        },
+        NativeKind::Call { name, arguments, body, trim } => IrNode::StmtCall {
+            name: name.clone(),
+            arguments: arguments.iter().map(encode_expr).collect(),
             body: body.iter().map(encode_node).collect(),
             trim: trim.clone(),
             span,
@@ -353,6 +366,15 @@ fn decode_node(n: &IrNode) -> NativeNode {
                     .iter()
                     .map(|p| NativeParam { name: p.name.clone(), default: p.default.as_ref().map(decode_expr) })
                     .collect(),
+                body: body.iter().map(decode_node).collect(),
+                trim: trim.clone(),
+            },
+            span.clone(),
+        ),
+        IrNode::StmtCall { name, arguments, body, trim, span } => NativeNode::new(
+            NativeKind::Call {
+                name: name.clone(),
+                arguments: arguments.iter().map(decode_expr).collect(),
                 body: body.iter().map(decode_node).collect(),
                 trim: trim.clone(),
             },

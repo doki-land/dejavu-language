@@ -115,6 +115,19 @@ pub enum IrNode {
         #[serde(skip_serializing_if = "Option::is_none")]
         span: Option<Span>,
     },
+    /// `call name(args)` … `end call` — invokes a macro with a caller block.
+    ///
+    /// The block is exposed to the macro body as `caller()` and renders in the
+    /// calling template's scope, not the macro's.
+    #[serde(rename = "Stmt.Call")]
+    StmtCall {
+        name: String,
+        arguments: Vec<IrNode>,
+        body: Vec<IrNode>,
+        trim: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        span: Option<Span>,
+    },
     #[serde(rename = "Stmt.ElseIf")]
     StmtElseIf {
         test: Box<IrNode>,

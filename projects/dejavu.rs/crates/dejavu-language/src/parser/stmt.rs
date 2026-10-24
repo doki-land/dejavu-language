@@ -201,6 +201,17 @@ impl Parser<'_> {
         } else {
             parse_params(self.source, self.file, params_src, params_base)?
         };
+        if params.iter().any(|p| p.name == "caller") {
+            return Err(ParseError::at(
+                self.source,
+                self.file,
+                params_base,
+                params_src.len().max(1),
+                "`caller` is reserved for the caller block and cannot be a macro parameter",
+                "reserved parameter",
+            )
+            .with_code(codes::PARSE_UNEXPECTED_TOKEN));
+        }
         let (body, i2) = self.parse_until(i, &["end macro"])?;
         i = i2;
         let (end_code, end_span, end_i) = self.peek_code(i)?;
@@ -222,6 +233,56 @@ impl Parser<'_> {
         }
 
         let mut kind = NativeKind::Macro { name, params, body, trim: trim.as_str().into() };
+        apply_open_trim(&mut kind, pending, trim_end);
+        Ok((NativeNode::new(kind, Some(Span { start: open, end: i })), i))
+    }
+
+    /// Parse `call name(args)` … `end call`.
+    ///
+    /// The argument list is parsed as a normal bare-identifier call so arity
+    /// and expression errors match inline macro calls.
+    pub(crate) fn parse_call(
+        &self,
+        open: usize,
+        mut i: usize,
+        src: &str,
+        base: usize,
+        trim: TrimMode,
+        trim_end: TrimMode,
+        pending: Option<&str>,
+    ) -> Result<(NativeNode, usize), ParseError> {
+        let call_err = |message: &str| {
+            ParseError::at(self.source, self.file, base, src.len().max(1), message, "expected macro call")
+                .with_code(codes::PARSE_UNEXPECTED_TOKEN)
+        };
+        let (name, arguments) = match parse_expr(self.source, self.file, base, src)? {
+            NativeExpr::Call { callee, arguments } => match *callee {
+                NativeExpr::Identifier(name) => (name, arguments),
+                _ => return Err(call_err("`call` requires a bare macro name")),
+            },
+            _ => return Err(call_err("`call` requires `name(args)`")),
+        };
+        let (body, i2) = self.parse_until(i, &["end call"])?;
+        i = i2;
+        let (end_code, end_span, end_i) = self.peek_code(i)?;
+        let end_trim = end_code.trim();
+        let end_base = end_span.start + (end_code.len() - end_code.trim_start().len());
+        match classify_code(self.source, self.file, end_trim, end_base)? {
+            CodeHead::EndCall => i = end_i,
+            _ => {
+                return Err(ParseError::at(
+                    self.source,
+                    self.file,
+                    end_span.start,
+                    end_span.len(),
+                    "expected `end call`",
+                    "expected end call",
+                )
+                .with_code(codes::PARSE_UNCLOSED_BLOCK));
+            }
+        }
+
+        let mut kind = NativeKind::Call { name, arguments, body, trim: trim.as_str().into() };
         apply_open_trim(&mut kind, pending, trim_end);
         Ok((NativeNode::new(kind, Some(Span { start: open, end: i })), i))
     }
@@ -288,7 +349,7 @@ fn first_text(kind: &mut NativeKind) -> Option<&mut String> {
         NativeKind::For { body, .. } => body,
         NativeKind::Block { body, .. } => body,
         NativeKind::Partial { body, .. } => body,
-        NativeKind::Macro { body, .. } => body,
+        NativeKind::Macro { body, .. } | NativeKind::Call { body, .. } => body,
         _ => return None,
     };
     nodes.iter_mut().find_map(|n| match &mut n.kind {

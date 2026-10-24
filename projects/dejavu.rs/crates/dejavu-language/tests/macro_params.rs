@@ -120,3 +120,41 @@ fn from_import_rejects_a_local_name_already_declared() {
     .expect_err("conflicting local name");
     assert!(err.message.contains("duplicate macro/import name"), "message: {}", err.message);
 }
+
+#[test]
+fn call_block_parses_name_arguments_and_body() {
+    let doc: IrDocument = parse(
+        r#"<% macro wrap(t) %><% caller() %><% end macro %><% call wrap("x") %>body<% end call %>"#,
+    )
+    .expect("parse");
+    let IrNode::Template { children, .. } = doc.body else {
+        panic!("expected Template body");
+    };
+    let IrNode::StmtCall { name, arguments, body, .. } = &children[1] else {
+        panic!("expected Stmt.Call, got {:?}", children[1]);
+    };
+    assert_eq!(name, "wrap");
+    assert_eq!(arguments.len(), 1);
+    assert!(matches!(
+        &body[0],
+        IrNode::Text { value, .. } if value == "body"
+    ));
+}
+
+#[test]
+fn call_block_requires_end_call() {
+    let err = parse(r#"<% call wrap() %>body"#).expect_err("unclosed call");
+    assert!(err.message.contains("end call") || err.message.contains("EndCall"), "message: {}", err.message);
+}
+
+#[test]
+fn caller_cannot_be_a_macro_parameter() {
+    let err = parse(r#"<% macro wrap(caller) %>x<% end macro %>"#).expect_err("reserved parameter");
+    assert!(err.message.contains("reserved"), "message: {}", err.message);
+}
+
+#[test]
+fn caller_cannot_be_a_macro_name() {
+    let err = parse(r#"<% macro caller() %>x<% end macro %>"#).expect_err("reserved name");
+    assert!(err.message.contains("control keyword"), "message: {}", err.message);
+}

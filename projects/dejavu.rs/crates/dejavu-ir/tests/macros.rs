@@ -278,3 +278,75 @@ fn importing_over_a_local_macro_name_is_an_error() {
         .expect_err("conflict");
     assert_eq!(error_code(err), "dejavu.template.macro-conflict");
 }
+
+// ---------------------------------------------------------------------------
+// `call` blocks
+// ---------------------------------------------------------------------------
+
+fn call_block(name: &str, arguments: Vec<Value>, body: Vec<Value>) -> Value {
+    serde_json::json!({
+        "type": "Stmt.Call",
+        "name": name,
+        "arguments": arguments,
+        "body": body,
+        "trim": "none",
+    })
+}
+
+#[test]
+fn caller_block_renders_inline_and_sees_the_calling_scope() {
+    let wrap = macro_node(
+        "wrap",
+        vec![],
+        vec![text("<div>"), interp(call("caller", vec![])), text("</div>")],
+    );
+    let doc = tpl(vec![
+        wrap,
+        call_block("wrap", vec![], vec![interp(ident("title"))]),
+    ]);
+    let out = render_ir(&doc, &serde_json::json!({ "title": "Hi" })).expect("render");
+    assert_eq!(out, "<div>Hi</div>");
+}
+
+#[test]
+fn caller_block_can_be_rendered_more_than_once() {
+    let wrap = macro_node(
+        "wrap",
+        vec![],
+        vec![interp(call("caller", vec![])), text("|"), interp(call("caller", vec![]))],
+    );
+    let doc = tpl(vec![wrap, call_block("wrap", vec![], vec![text("x")])]);
+    let out = render_ir(&doc, &serde_json::json!({})).expect("render");
+    assert_eq!(out, "x|x");
+}
+
+#[test]
+fn caller_block_output_is_not_auto_escaped() {
+    let wrap = macro_node("wrap", vec![], vec![interp(call("caller", vec![]))]);
+    let doc = tpl(vec![wrap, call_block("wrap", vec![], vec![text("<b>bold</b>")])]);
+    let out = render_ir(&doc, &serde_json::json!({})).expect("render");
+    assert_eq!(out, "<b>bold</b>");
+}
+
+#[test]
+fn caller_without_a_call_block_is_an_error() {
+    let wrap = macro_node("wrap", vec![], vec![interp(call("caller", vec![]))]);
+    let doc = tpl(vec![wrap, interp(call("wrap", vec![]))]);
+    let err = render_ir(&doc, &serde_json::json!({})).expect_err("caller unavailable");
+    assert_eq!(error_code(err), "dejavu.template.caller-unavailable");
+}
+
+#[test]
+fn caller_takes_no_arguments() {
+    let wrap = macro_node("wrap", vec![], vec![interp(call("caller", vec![literal(serde_json::json!("x"))]))]);
+    let doc = tpl(vec![wrap, call_block("wrap", vec![], vec![text("x")])]);
+    let err = render_ir(&doc, &serde_json::json!({})).expect_err("caller arity");
+    assert_eq!(error_code(err), "dejavu.template.caller-arity");
+}
+
+#[test]
+fn calling_an_unknown_macro_is_an_error() {
+    let doc = tpl(vec![call_block("missing", vec![], vec![text("x")])]);
+    let err = render_ir(&doc, &serde_json::json!({})).expect_err("unknown macro");
+    assert_eq!(error_code(err), "dejavu.template.unknown-function");
+}

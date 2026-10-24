@@ -19,6 +19,9 @@ pub(crate) enum CodeHead<'a> {
     EndPartial,
     Macro { name: String, params_src: &'a str, params_base: usize },
     EndMacro,
+    /// `call name(args)` … `end call`
+    Call { src: &'a str, base: usize },
+    EndCall,
     /// `from "<path>" import a, b as c`
     From { path: String, names: Vec<(String, Option<String>)> },
     Extends { parent_src: &'a str, parent_base: usize },
@@ -243,6 +246,21 @@ pub(crate) fn classify_code<'a>(
                 params_base: content_base + open.end,
             })
         }
+        CodeToken::Ident(name) if name == "call" => {
+            let (src, base) = slice(1);
+            if src.is_empty() {
+                return Err(ParseError::at(
+                    source,
+                    file,
+                    content_base + spans[0].start,
+                    (spans[0].end - spans[0].start).max(1),
+                    "call requires `macro(args)`",
+                    "expected `call name(...)`",
+                )
+                .with_code(codes::PARSE_UNEXPECTED_TOKEN));
+            }
+            Ok(CodeHead::Call { src, base })
+        }
         CodeToken::Ident(name) if name == "block" => {
             if spans.len() != 2 {
                 return Err(ParseError::at(
@@ -313,6 +331,9 @@ pub(crate) fn classify_code<'a>(
                     if n == "macro" {
                         return Ok(CodeHead::EndMacro);
                     }
+                    if n == "call" {
+                        return Ok(CodeHead::EndCall);
+                    }
                 }
             }
             Err(ParseError::at(
@@ -341,6 +362,7 @@ pub(crate) fn head_stop_kind(head: &CodeHead<'_>) -> &'static str {
         CodeHead::EndBlock => "end block",
         CodeHead::EndPartial => "end partial",
         CodeHead::EndMacro => "end macro",
+        CodeHead::EndCall => "end call",
         _ => "",
     }
 }

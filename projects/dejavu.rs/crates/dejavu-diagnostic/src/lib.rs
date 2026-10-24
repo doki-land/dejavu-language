@@ -358,6 +358,10 @@ pub mod codes {
     pub const IMPORT_PATH_NOT_LITERAL: &str = "dejavu.template.import-path-not-literal";
     /// The imported template does not declare the requested macro.
     pub const UNKNOWN_IMPORT: &str = "dejavu.template.unknown-import";
+    /// `caller()` was used outside a `call` block.
+    pub const CALLER_UNAVAILABLE: &str = "dejavu.template.caller-unavailable";
+    /// `caller()` takes no arguments.
+    pub const CALLER_ARITY: &str = "dejavu.template.caller-arity";
     pub const UNKNOWN_BINARY: &str = "dejavu.template.unknown-binary";
 
     // Config

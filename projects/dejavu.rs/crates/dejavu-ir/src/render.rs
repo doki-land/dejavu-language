@@ -81,6 +81,7 @@ pub fn render_ir_opts(
         current_block: None,
         macro_modules: HashMap::new(),
         macro_depth: 0,
+        caller_stack: Vec::new(),
         visiting_extends: HashSet::new(),
         include_stack: Vec::new(),
     };
@@ -106,6 +107,9 @@ struct Renderer<'a> {
     macro_modules: HashMap<String, HashMap<String, MacroDef>>,
     /// Current macro call nesting depth.
     macro_depth: usize,
+    /// Caller blocks supplied by `call`, innermost last. Each block renders in
+    /// the scope and module of the template that wrote it.
+    caller_stack: Vec<CallerBlock>,
     /// extends 访问过的 canonical id（防止继承环）
     visiting_extends: HashSet<String>,
     /// include 递归栈（防止 include 环）
@@ -122,6 +126,15 @@ struct MacroDef {
     name: String,
     params: Vec<PartialParam>,
     body: Vec<IrNode>,
+    module: String,
+}
+
+/// Caller block captured by `call`: the body plus the lexical scope and
+/// module it was written in. `caller()` renders it back in that scope.
+#[derive(Debug, Clone)]
+struct CallerBlock {
+    body: Vec<IrNode>,
+    scope: HashMap<String, Value>,
     module: String,
 }
 
@@ -210,15 +223,42 @@ impl<'a> Renderer<'a> {
     fn is_macro_call(&self, expr: &IrNode) -> bool {
         if let IrNode::ExprCall { callee, .. } = expr {
             if let IrNode::ExprIdentifier { name, .. } = callee.as_ref() {
+                if name == "caller" {
+                    return true;
+                }
                 return self.macro_modules.get(&self.current_id).is_some_and(|t| t.contains_key(name));
             }
         }
         false
     }
 
+    /// Render the innermost `caller()` block in the scope it was written in.
+    ///
+    /// The block is temporarily removed from the stack so a `caller()` inside
+    /// the block cannot recurse into itself, then restored so a macro may
+    /// invoke `caller()` more than once.
+    fn render_caller_block(&mut self) -> Result<Value, IrError> {
+        let Some(block) = self.caller_stack.pop() else {
+            return Err(diag_render(codes::CALLER_UNAVAILABLE));
+        };
+        let saved_scope = std::mem::take(&mut self.scope);
+        let saved_id = std::mem::replace(&mut self.current_id, block.module.clone());
+        self.scope = block.scope.clone();
+        let rendered = self.render_list(&block.body).map(Value::String);
+        self.scope = saved_scope;
+        self.current_id = saved_id;
+        self.caller_stack.push(block);
+        rendered
+    }
+
     /// Invoke a macro. The body sees its bound parameters only; the caller
     /// context is never inherited.
-    fn call_macro(&mut self, mac: &MacroDef, args: &[Value]) -> Result<Value, IrError> {
+    fn call_macro(
+        &mut self,
+        mac: &MacroDef,
+        args: &[Value],
+        caller: Option<CallerBlock>,
+    ) -> Result<Value, IrError> {
         if args.len() > mac.params.len() {
             return Err(diag_render(codes::MACRO_ARITY)
                 .arg("macro", mac.name.clone())
@@ -255,7 +295,14 @@ impl<'a> Renderer<'a> {
         let saved_id = std::mem::replace(&mut self.current_id, mac.module.clone());
         self.scope = scope;
         self.macro_depth += 1;
+        let has_caller = caller.is_some();
+        if let Some(block) = caller {
+            self.caller_stack.push(block);
+        }
         let rendered = self.render_list(&mac.body).map(Value::String);
+        if has_caller {
+            self.caller_stack.pop();
+        }
         self.macro_depth -= 1;
         self.scope = saved_scope;
         self.current_id = saved_id;
@@ -447,6 +494,21 @@ impl<'a> Renderer<'a> {
             // Macro declarations and static imports produce no output.
             IrNode::StmtMacro { .. } | IrNode::StmtImport { .. } => Ok(String::new()),
 
+            // `call name(args)` … `end call`: invoke the macro with a caller
+            // block captured in the current scope.
+            IrNode::StmtCall { name, arguments, body, .. } => {
+                let Some(mac) = self.lookup_macro(name) else {
+                    return Err(diag_render(codes::UNKNOWN_FUNCTION).arg("name", name.clone()));
+                };
+                let args: Result<Vec<_>, _> = arguments.iter().map(|a| self.eval(a)).collect();
+                let caller = CallerBlock {
+                    body: body.clone(),
+                    scope: self.scope.clone(),
+                    module: self.current_id.clone(),
+                };
+                self.call_macro(&mac, &args?, Some(caller)).map(|v| value_to_string(&v))
+            }
+
             // block：最派生的层级定义优先，没有覆盖时渲染自身 body。
             IrNode::StmtBlock { name, body, .. } => {
                 // 记录当前 block 名字，super 会用到
@@ -563,9 +625,15 @@ impl<'a> Renderer<'a> {
                 let IrNode::ExprIdentifier { name, .. } = callee.as_ref() else {
                     return Err(diag_render(codes::CALLS_NOT_SUPPORTED));
                 };
+                if name == "caller" {
+                    if !arguments.is_empty() {
+                        return Err(diag_render(codes::CALLER_ARITY).arg("got", arguments.len()));
+                    }
+                    return self.render_caller_block();
+                }
                 if let Some(mac) = self.lookup_macro(name) {
                     let args: Result<Vec<_>, _> = arguments.iter().map(|a| self.eval(a)).collect();
-                    return self.call_macro(&mac, &args?);
+                    return self.call_macro(&mac, &args?, None);
                 }
                 let args: Result<Vec<_>, _> = arguments.iter().map(|a| self.eval(a)).collect();
                 crate::builtins::call_function(name, &args?)

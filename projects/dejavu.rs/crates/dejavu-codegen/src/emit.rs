@@ -106,6 +106,8 @@ pub struct CodegenCtx<'a> {
     pub macros: HashMap<String, String>,
     /// JS expression for the next macro call's depth counter.
     macro_depth_expr: String,
+    /// True while emitting a macro body, where `caller()` may be emitted.
+    pub in_macro: bool,
 }
 
 impl<'a> CodegenCtx<'a> {
@@ -119,6 +121,7 @@ impl<'a> CodegenCtx<'a> {
             super_index: 0,
             macros: HashMap::new(),
             macro_depth_expr: "1".into(),
+            in_macro: false,
         }
     }
 
@@ -207,6 +210,7 @@ impl<'a> CodegenCtx<'a> {
             | IrNode::StmtPartial { span, .. }
             | IrNode::StmtMacro { span, .. }
             | IrNode::StmtImport { span, .. }
+            | IrNode::StmtCall { span, .. }
             | IrNode::StmtExtends { span, .. }
             | IrNode::StmtInclude { span, .. }
             | IrNode::StmtSuper { span, .. }
@@ -350,9 +354,31 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
                 let js_fn = js_fn.to_string();
                 let args_s = emit_expr_list(arguments, ctx);
                 return format!(
-                    "{js_fn}(ctx, [{args_s}], {}, __strict)",
+                    "{js_fn}(ctx, [{args_s}], {}, __strict, null)",
                     ctx.macro_depth_expr
                 );
+            }
+            // `caller()` renders the block supplied by the enclosing `call`.
+            if name == "caller" {
+                if !arguments.is_empty() {
+                    ctx.diagnostic_arg(
+                        Severity::Error,
+                        codes::CALLER_ARITY,
+                        "`caller()` takes no arguments",
+                        "got",
+                        arguments.len() as i64,
+                    );
+                    return "null".into();
+                }
+                if !ctx.in_macro {
+                    ctx.diagnostic(
+                        Severity::Error,
+                        codes::CALLER_UNAVAILABLE,
+                        "`caller()` is only available inside a macro invoked by `call`",
+                    );
+                    return "null".into();
+                }
+                return "__caller()".into();
             }
             let args_s = emit_expr_list(arguments, ctx);
             match validate_function(name, arguments.len()) {
@@ -614,6 +640,30 @@ pub fn emit_stmt(
         IrNode::StmtMacro { .. } => {}
         // Macro imports become ESM imports in `build_module`.
         IrNode::StmtImport { .. } => {}
+        // `call name(args)` … `end call`: pass the caller block as a closure
+        // so it renders in the calling scope, not the macro's.
+        IrNode::StmtCall { name, arguments, body, .. } => {
+            let Some(js_fn) = ctx.macro_ref(name).map(str::to_string) else {
+                ctx.diagnostic_arg(
+                    Severity::Error,
+                    codes::UNKNOWN_FUNCTION,
+                    format!("unknown macro `{name}` in `call`"),
+                    "function",
+                    name.clone(),
+                );
+                return;
+            };
+            let args_s = emit_expr_list(arguments, ctx);
+            let mut caller_body = String::new();
+            emit_body(body, ctx, &mut caller_body, catalog);
+            let depth = ctx.macro_depth_expr.clone();
+            out.push_str(&format!(
+                "__out.push({js_fn}(ctx, [{args_s}], {depth}, __strict, function () {{\n"
+            ));
+            out.push_str("const __out = [];\n");
+            out.push_str(&caller_body);
+            out.push_str("return __out.join(\"\");\n}));\n");
+        }
         IrNode::StmtExtends { .. } => {
             // In catalog mode the extends chain is flattened before we reach
             // emit — we should never land here. In single-template mode it's
@@ -996,7 +1046,7 @@ fn analyze_interpolation(
     // safe output (the interpreter applies the same rule).
     if let IrNode::ExprCall { callee, .. } = expression {
         if let IrNode::ExprIdentifier { name, .. } = callee.as_ref() {
-            if ctx.is_macro(name) {
+            if ctx.is_macro(name) || name == "caller" {
                 return (emit_expr(expression, ctx), false);
             }
         }
@@ -1062,7 +1112,14 @@ pub fn emit_macro_functions(
         };
         let required = params.iter().filter(|p| p.default.is_none()).count();
         let max = params.len();
-        out.push_str(&format!("function {}(__caller, args, __depth, __strict) {{\n", macro_fn_name(name)));
+        out.push_str(&format!(
+            "function {}(__invokeCtx, args, __depth, __strict, __caller) {{\n",
+            macro_fn_name(name)
+        ));
+        out.push_str(&format!(
+            "if (__caller == null) __caller = function () {{ throw runtimeError(\"dejavu.template.caller-unavailable\", {}); }};\n",
+            json_string(&format!("macro `{name}` was invoked without a caller block"))
+        ));
         if max > 0 {
             out.push_str(&format!(
                 "if (args.length > {max}) throw runtimeError(\"dejavu.template.macro-arity\", {}, {{ macro: {}, minArgs: {required}, maxArgs: {max}, got: args.length }});\n",
@@ -1101,6 +1158,7 @@ pub fn emit_macro_functions(
         let mut inner = CodegenCtx::new(ctx.options);
         inner.macros = ctx.macros.clone();
         inner.macro_depth_expr = "__depth + 1".into();
+        inner.in_macro = true;
         let mut body_str = String::new();
         emit_body(body, &mut inner, &mut body_str, catalog);
         ctx.diagnostics.extend(inner.diagnostics);

@@ -564,7 +564,10 @@ fn from_import_links_macro_modules() {
         ),
         "code: {entry_code}"
     );
-    assert!(entry_code.contains("__macro_import_hi(ctx, [\"Ann\"], 1, __strict)"), "code: {entry_code}");
+    assert!(
+        entry_code.contains("__macro_import_hi(ctx, [\"Ann\"], 1, __strict, null)"),
+        "code: {entry_code}"
+    );
 
     let lib_code = round(
         res.modules

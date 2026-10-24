@@ -261,6 +261,7 @@ fn collect_edges_nodes(
         | IrNode::StmtFor { body: children, .. }
         | IrNode::StmtPartial { body: children, .. }
         | IrNode::StmtMacro { body: children, .. }
+        | IrNode::StmtCall { body: children, .. }
         | IrNode::StmtBlock { body: children, .. } => {
             for child in children {
                 collect_edges_nodes(catalog, child, from_id, follow_imports, out);

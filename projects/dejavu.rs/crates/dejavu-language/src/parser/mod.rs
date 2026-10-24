@@ -134,7 +134,7 @@ impl<'a> Parser<'a> {
                     if matches!(
                         name.as_str(),
                         "if" | "else" | "for" | "loop" | "block" | "partial" | "macro" | "end" | "include"
-                            | "extends" | "super" | "raw"
+                            | "extends" | "super" | "raw" | "call" | "caller" | "from"
                     ) {
                         return Err(self.partial_layout_error(child, "macro name cannot be a control keyword"));
                     }
@@ -146,6 +146,12 @@ impl<'a> Parser<'a> {
                 NativeKind::Import { names, .. } => {
                     for imported in names {
                         let local = imported.alias.as_deref().unwrap_or(&imported.name);
+                        if local == "caller" {
+                            return Err(self.partial_layout_error(
+                                child,
+                                "`caller` is reserved for the caller block",
+                            ));
+                        }
                         if seen.contains(&local) {
                             return Err(self.partial_layout_error(
                                 child,
@@ -194,7 +200,8 @@ fn find_partial(nodes: &[NativeNode]) -> Option<&NativeNode> {
                     }
                 }
             }
-            NativeKind::For { body, .. } | NativeKind::Block { body, .. } | NativeKind::Macro { body, .. } => {
+            NativeKind::For { body, .. } | NativeKind::Block { body, .. } | NativeKind::Macro { body, .. }
+            | NativeKind::Call { body, .. } => {
                 if let Some(hit) = Self::find_partial(body) {
                     return Some(hit);
                 }
@@ -225,7 +232,8 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
                     }
                 }
             }
-            NativeKind::For { body, .. } | NativeKind::Block { body, .. } | NativeKind::Partial { body, .. } => {
+            NativeKind::For { body, .. } | NativeKind::Block { body, .. } | NativeKind::Partial { body, .. }
+            | NativeKind::Call { body, .. } => {
                 if let Some(hit) = Self::find_macro(body) {
                     return Some(hit);
                 }
@@ -453,6 +461,19 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
                         children.push(node);
                         i = new_i;
                     }
+                    CodeHead::Call { src, base } => {
+                        let (node, new_i) = self.parse_call(
+                            open,
+                            next_i,
+                            src,
+                            base,
+                            tag.trim_left,
+                            tag.trim_right,
+                            pending.take(),
+                        )?;
+                        children.push(node);
+                        i = new_i;
+                    }
                     CodeHead::Super => {
                         children.push(NativeNode::new(
                             NativeKind::Super { trim: tag.trim_left.as_str().into() },
@@ -466,6 +487,7 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
                     | CodeHead::EndBlock
                     | CodeHead::EndPartial
                     | CodeHead::EndMacro
+                    | CodeHead::EndCall
                     | CodeHead::Else
                     | CodeHead::ElseIf { .. } => {
                         reject_closer_trim(self.source, self.file, &tag, &head)?;
@@ -476,6 +498,7 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
                                 CodeHead::EndBlock => "end block",
                                 CodeHead::EndPartial => "end partial",
                                 CodeHead::EndMacro => "end macro",
+                                CodeHead::EndCall => "end call",
                                 CodeHead::Else => "else",
                                 CodeHead::ElseIf { .. } => "else if",
                                 _ => "control",

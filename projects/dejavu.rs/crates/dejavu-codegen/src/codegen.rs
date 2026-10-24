@@ -745,6 +745,7 @@ fn collect_includes_from_nodes(
             // module dependencies.
             IrNode::StmtPartial { body, .. }
             | IrNode::StmtMacro { body, .. }
+            | IrNode::StmtCall { body, .. }
             | IrNode::StmtBlock { body, .. } => {
                 collect_includes_from_nodes(catalog, body, from_id, out);
             }

@@ -1,0 +1,1 @@
+<% macro panel(title) %><section><h2><% title %></h2><% caller() %></section><% end macro %><% call panel("News") %><p><% msg %></p><% end call %>
