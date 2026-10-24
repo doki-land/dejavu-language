@@ -39,7 +39,7 @@ jobs:
   # CI 门控
   # ──────────────────────────────────────────────────────────
   ci:
-    uses: ./.github/workflows/ci.yml
+    uses: check-rust.yml
 
   # ──────────────────────────────────────────────────────────
   # 版本解析
@@ -121,20 +121,60 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/build/napi.mjs --release --target ${{ matrix.rust_target }}
-          ls -la "compilers/dejavu/npm/${{ matrix.host }}/"
+          ls -la "projects/dejavu.ts/platforms/dejavu-${{ matrix.host }}/"
 
       - name: Upload platform addon
         uses: actions/upload-artifact@v4
         with:
           name: dejavu-${{ matrix.host }}
-          path: compilers/dejavu/npm/${{ matrix.host }}/dejavu.*.node
+          path: projects/dejavu.ts/platforms/dejavu-${{ matrix.host }}/dejavu.*.node
+          if-no-files-found: error
+
+  # ──────────────────────────────────────────────────────────
+  # wasm32 语言桥构建（网页 JIT 产物）
+  # ──────────────────────────────────────────────────────────
+  build-wasm:
+    needs: resolve-version
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && 'dev' || github.ref }}
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+
+      - name: Install wasm-pack
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack
+
+      - name: Build wasm bridge
+        run: node scripts/build/wasm.mjs --release
+
+      - name: Upload wasm bundle
+        uses: actions/upload-artifact@v4
+        with:
+          # Not `dejavu-*`: the native staging step downloads that pattern only.
+          name: wasm32-bridge
+          path: projects/dejavu.ts/platforms/dejavu-unknown-wasm32/src/lib/
           if-no-files-found: error
 
   # ──────────────────────────────────────────────────────────
   # 发布（ubuntu-latest，bash 脚本 + OIDC 有权限）
   # ──────────────────────────────────────────────────────────
   publish:
-    needs: [resolve-version, build-native]
+    needs: [resolve-version, build-native, build-wasm]
     runs-on: ubuntu-latest
     environment: NPM_PUBLISH
     timeout-minutes: 45
@@ -159,16 +199,25 @@ jobs:
       - name: npm CLI for OIDC provenance
         run: npm install -g npm@^11.5.1
 
+      - name: Download wasm bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm32-bridge
+          path: projects/dejavu.ts/platforms/dejavu-unknown-wasm32/src/lib
+
       - name: Build TypeScript packages
         run: |
           set -euo pipefail
           pnpm install --no-frozen-lockfile
           pnpm --filter @doki-land/dejavu-engine build
           pnpm --filter @doki-land/dejavu build
-          test -f projects/packages/dejavu-engine/dist/index.js
-          test -f projects/packages/dejavu-engine/dist/runtime/index.js
-          test -f projects/packages/dejavu/dist/index.js
-          test -f projects/packages/dejavu/dist/cli.js
+          pnpm --filter @doki-land/dejavu-language build
+          test -f projects/dejavu.ts/packages/dejavu-engine/dist/index.js
+          test -f projects/dejavu.ts/packages/dejavu-engine/dist/runtime/index.js
+          test -f projects/dejavu.ts/packages/dejavu/dist/index.js
+          test -f projects/dejavu.ts/packages/dejavu/dist/cli.js
+          test -f projects/dejavu.ts/packages/dejavu-language/dist/index.js
+          test -f projects/dejavu.ts/platforms/dejavu-unknown-wasm32/src/lib/dejavu_wasm_bg.wasm
 
       - name: Download all 6 platform addons
         uses: actions/download-artifact@v4
@@ -194,7 +243,7 @@ jobs:
               import { findPlatformByHost, nodeFileName } from './scripts/dejavu-release-packages.mjs';
               const p = findPlatformByHost(process.argv[1]);
               if (!p) { console.error('unknown host', process.argv[1]); process.exit(2); }
-              console.log('compilers/dejavu/npm/' + p.npmDir + '/' + nodeFileName(p));
+              console.log('projects/dejavu.ts/platforms/' + p.npmDir + '/' + nodeFileName(p));
             " "$host")"
             test -d "$(dirname "$npm_dir")"
 
@@ -244,7 +293,7 @@ jobs:
 
           # 1) Platform packages first
           failed=0
-          for d in compilers/dejavu/npm/*/; do
+          for d in projects/dejavu.ts/platforms/*/; do
             pkg="${d%/}"
             name="$(node -p "require('./${pkg}/package.json').name")"
             if ls "$pkg"/dejavu*.node >/dev/null 2>&1; then
@@ -254,15 +303,21 @@ jobs:
             fi
           done
 
-          # 2) Runtime engine @doki-land/dejavu-engine (pure TS AOT runtime, no native addon)
-          publish_one projects/packages/dejavu-engine || failed=1
+          # 2) Web JIT wasm32 carrier @doki-land/dejavu-unknown-wasm32
+          publish_one projects/dejavu.ts/platforms/dejavu-unknown-wasm32 || failed=1
 
-          # 3) Meta-package @doki-land/dejavu (TypeScript CLI + N-API facade)
-          PKG=projects/packages/dejavu
+          # 3) Runtime engine @doki-land/dejavu-engine (pure TS AOT runtime, no native addon)
+          publish_one projects/dejavu.ts/packages/dejavu-engine || failed=1
+
+          # 4) Web JIT host wrapper @doki-land/dejavu-language
+          publish_one projects/dejavu.ts/packages/dejavu-language || failed=1
+
+          # 5) Meta-package @doki-land/dejavu (TypeScript CLI + N-API facade)
+          PKG=projects/dejavu.ts/packages/dejavu
           node <<'NODE'
           const fs = require("fs");
           const version = process.env.VERSION;
-          const file = "projects/packages/dejavu/package.json";
+          const file = "projects/dejavu.ts/packages/dejavu/package.json";
           const j = JSON.parse(fs.readFileSync(file, "utf8"));
           j.version = version;
           if (j.optionalDependencies) {
