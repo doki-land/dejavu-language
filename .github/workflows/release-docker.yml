@@ -26,7 +26,7 @@ env:
 
 jobs:
   ci:
-    uses: check-rust.yml
+    uses: ./.github/workflows/check-rust.yml
 
   docker:
     needs: ci
