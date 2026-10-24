@@ -1,0 +1,23 @@
+[package]
+name = "dejavu-wasm"
+publish = false
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Dejavu WASM bridge: orthogonal engine capabilities for browser and Worker hosts"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "=0.2.127"
+serde.workspace = true
+serde_json.workspace = true
+dejavu-diagnostic.workspace = true
+dejavu-engine.workspace = true
+dejavu-ir.workspace = true
+dejavu-language.workspace = true
+dejavu-codegen.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
