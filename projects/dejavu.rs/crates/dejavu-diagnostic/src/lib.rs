@@ -354,6 +354,10 @@ pub mod codes {
     pub const MACRO_RECURSION: &str = "dejavu.template.macro-recursion";
     /// A macro name collides with a registered function.
     pub const MACRO_CONFLICT: &str = "dejavu.template.macro-conflict";
+    /// `from ... import` requires a literal template path.
+    pub const IMPORT_PATH_NOT_LITERAL: &str = "dejavu.template.import-path-not-literal";
+    /// The imported template does not declare the requested macro.
+    pub const UNKNOWN_IMPORT: &str = "dejavu.template.unknown-import";
     pub const UNKNOWN_BINARY: &str = "dejavu.template.unknown-binary";
 
     // Config

@@ -194,7 +194,7 @@ fn detect_cycle_inner(
     }
     state.insert(id.to_string(), CycleState::Visiting);
 
-    let edges = collect_edges(catalog, id);
+    let edges = collect_edges(catalog, id, false);
     for next in edges {
         detect_cycle_inner(catalog, &next, state)?;
     }
@@ -203,16 +203,20 @@ fn detect_cycle_inner(
     Ok(())
 }
 
-/// Gather all canonical ids reachable from `id` via a single include or
-/// extends edge. Missing templates are skipped — we want to surface cycle
-/// errors only when both endpoints exist.
-fn collect_edges(catalog: &TemplateCatalog, id: &str) -> Vec<String> {
+/// Gather all canonical ids reachable from `id` via a single include, extends,
+/// or (when `follow_imports`) `from ... import` edge. Missing templates are
+/// skipped — we want to surface cycle errors only when both endpoints exist.
+///
+/// `from ... import` edges are followed for reachability but excluded from
+/// cycle detection: ESM function declarations are hoisted, so two templates
+/// may import each other's macros the way the interpreter allows.
+fn collect_edges(catalog: &TemplateCatalog, id: &str, follow_imports: bool) -> Vec<String> {
     let mut out = Vec::new();
     let Some((root_name, path)) = split_canonical(id) else { return out };
     // Find the right root + path in catalog.
     let doc = catalog_document(catalog, root_name, path);
     let Some(doc) = doc else { return out };
-    collect_edges_from_doc(catalog, doc, id, &mut out);
+    collect_edges_from_doc(catalog, doc, id, follow_imports, &mut out);
     out
 }
 
@@ -220,6 +224,7 @@ fn collect_edges_from_doc(
     catalog: &TemplateCatalog,
     doc: &IrDocument,
     from_id: &str,
+    follow_imports: bool,
     out: &mut Vec<String>,
 ) {
     let body = match &doc.body {
@@ -227,7 +232,7 @@ fn collect_edges_from_doc(
         _ => return,
     };
     for n in body {
-        collect_edges_nodes(catalog, n, from_id, out);
+        collect_edges_nodes(catalog, n, from_id, follow_imports, out);
     }
 }
 
@@ -237,26 +242,20 @@ fn collect_edges_nodes(
     catalog: &TemplateCatalog,
     node: &IrNode,
     from_id: &str,
+    follow_imports: bool,
     out: &mut Vec<String>,
 ) {
     match node {
         IrNode::StmtInclude { path, .. } => {
-            if let Some(p) = extract_path_literal(path) {
-                if let Ok(hit) = catalog.resolve_ref(&p, Some(from_id)) {
-                    if let Some(canon) = catalog.canonical_id(&hit) {
-                        out.push(canon);
-                    }
-                }
+            push_ref_edge(catalog, path, from_id, out);
+        }
+        IrNode::StmtImport { path, .. } => {
+            if follow_imports {
+                push_ref_edge(catalog, path, from_id, out);
             }
         }
         IrNode::StmtExtends { parent, .. } => {
-            if let Some(p) = extract_path_literal(parent) {
-                if let Ok(hit) = catalog.resolve_ref(&p, Some(from_id)) {
-                    if let Some(canon) = catalog.canonical_id(&hit) {
-                        out.push(canon);
-                    }
-                }
-            }
+            push_ref_edge(catalog, parent, from_id, out);
         }
         IrNode::Template { children, .. }
         | IrNode::StmtFor { body: children, .. }
@@ -264,21 +263,37 @@ fn collect_edges_nodes(
         | IrNode::StmtMacro { body: children, .. }
         | IrNode::StmtBlock { body: children, .. } => {
             for child in children {
-                collect_edges_nodes(catalog, child, from_id, out);
+                collect_edges_nodes(catalog, child, from_id, follow_imports, out);
             }
         }
         IrNode::StmtIf { test, consequent, alternate, .. } => {
-            collect_edges_nodes(catalog, test, from_id, out);
+            collect_edges_nodes(catalog, test, from_id, follow_imports, out);
             for child in consequent {
-                collect_edges_nodes(catalog, child, from_id, out);
+                collect_edges_nodes(catalog, child, from_id, follow_imports, out);
             }
             if let Some(alt) = alternate {
                 for child in alt {
-                    collect_edges_nodes(catalog, child, from_id, out);
+                    collect_edges_nodes(catalog, child, from_id, follow_imports, out);
                 }
             }
         }
         _ => {}
+    }
+}
+
+/// Resolve an include / extends / import path literal to a canonical id.
+fn push_ref_edge(
+    catalog: &TemplateCatalog,
+    path: &IrNode,
+    from_id: &str,
+    out: &mut Vec<String>,
+) {
+    if let Some(p) = extract_path_literal(path) {
+        if let Ok(hit) = catalog.resolve_ref(&p, Some(from_id)) {
+            if let Some(canon) = catalog.canonical_id(&hit) {
+                out.push(canon);
+            }
+        }
     }
 }
 
@@ -396,7 +411,7 @@ pub fn collect_all_reachable(
     let mut stack: Vec<String> = vec![entry_id.to_string()];
     while let Some(id) = stack.pop() {
         if !seen.insert(id.clone()) { continue; }
-        for next in collect_edges(catalog, &id) {
+        for next in collect_edges(catalog, &id, true) {
             if !seen.contains(&next) {
                 stack.push(next);
             }

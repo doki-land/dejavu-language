@@ -19,6 +19,8 @@ pub(crate) enum CodeHead<'a> {
     EndPartial,
     Macro { name: String, params_src: &'a str, params_base: usize },
     EndMacro,
+    /// `from "<path>" import a, b as c`
+    From { path: String, names: Vec<(String, Option<String>)> },
     Extends { parent_src: &'a str, parent_base: usize },
     Include { path_src: &'a str, path_base: usize, with_src: Option<&'a str>, with_base: usize, only: bool },
     Expr { src: &'a str, base: usize },
@@ -156,6 +158,59 @@ pub(crate) fn classify_code<'a>(
                 .with_code(codes::PARSE_UNEXPECTED_TOKEN));
             }
             Ok(CodeHead::Partial { params_src, params_base })
+        }
+        CodeToken::Ident(name) if name == "from" => {
+            let bad = |message: &str, label: &str, idx: usize| {
+                let span = spans.get(idx).map(|s| (s.start, (s.end - s.start).max(1))).unwrap_or((spans[0].start, 1));
+                ParseError::at(source, file, content_base + span.0, span.1, message, label)
+                    .with_code(codes::PARSE_UNEXPECTED_TOKEN)
+            };
+            let CodeToken::String(path) = &spans.get(1).map(|s| &s.tok).ok_or_else(|| {
+                bad("`from` requires a quoted template path", "expected string literal", 0)
+            })? else {
+                return Err(bad("`from` requires a quoted template path", "expected string literal", 1));
+            };
+            if !matches!(spans.get(2).map(|s| &s.tok), Some(CodeToken::Ident(k)) if k == "import") {
+                return Err(bad("expected `import` after the template path", "expected `import`", 2));
+            }
+            let mut names: Vec<(String, Option<String>)> = Vec::new();
+            let mut i = 3;
+            while i < spans.len() {
+                let CodeToken::Ident(local) = &spans[i].tok else {
+                    return Err(bad("expected an imported macro name", "expected ident", i));
+                };
+                let mut alias = None;
+                if let Some(CodeToken::Ident(k)) = spans.get(i + 1).map(|s| &s.tok) {
+                    if k == "as" {
+                        let CodeToken::Ident(target) = &spans.get(i + 2).map(|s| &s.tok).ok_or_else(|| {
+                            bad("`as` requires a local name", "expected ident", i + 1)
+                        })? else {
+                            return Err(bad("`as` requires a local name", "expected ident", i + 2));
+                        };
+                        alias = Some(target.clone());
+                        i += 3;
+                    } else {
+                        i += 1;
+                    }
+                } else {
+                    i += 1;
+                }
+                names.push((local.clone(), alias));
+                if i >= spans.len() {
+                    break;
+                }
+                if !matches!(spans[i].tok, CodeToken::Comma) {
+                    return Err(bad("imported names must be comma separated", "expected `,`", i));
+                }
+                i += 1;
+                if i >= spans.len() {
+                    return Err(bad("trailing comma in import list", "expected ident", i - 1));
+                }
+            }
+            if names.is_empty() {
+                return Err(bad("`from` requires at least one imported name", "expected ident", 2));
+            }
+            Ok(CodeHead::From { path: path.clone(), names })
         }
         CodeToken::Ident(name) if name == "macro" => {
             let macro_diag = |message: &str, label: &str, idx: usize| {

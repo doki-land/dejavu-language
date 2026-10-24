@@ -102,8 +102,8 @@ pub struct CodegenCtx<'a> {
     super_chain: Vec<Vec<IrNode>>,
     /// Index inside `super_chain` that the next `super` should inline.
     super_index: usize,
-    /// Names of the macros declared by the module being emitted.
-    pub macros: HashSet<String>,
+    /// Local macro name → JS function binding (declared or imported).
+    pub macros: HashMap<String, String>,
     /// JS expression for the next macro call's depth counter.
     macro_depth_expr: String,
 }
@@ -117,7 +117,7 @@ impl<'a> CodegenCtx<'a> {
             temp_counter: 0,
             super_chain: Vec::new(),
             super_index: 0,
-            macros: HashSet::new(),
+            macros: HashMap::new(),
             macro_depth_expr: "1".into(),
         }
     }
@@ -125,12 +125,22 @@ impl<'a> CodegenCtx<'a> {
     /// Register the module's macro names so calls emit macro functions instead
     /// of registry function calls.
     pub fn set_macros(&mut self, names: impl IntoIterator<Item = String>) {
-        self.macros = names.into_iter().collect();
+        self.macros = names.into_iter().map(|n| (n.clone(), macro_fn_name(&n))).collect();
+    }
+
+    /// Bind a local macro name to an imported JS function.
+    pub fn set_macro_ref(&mut self, local: &str, js: &str) {
+        self.macros.insert(local.to_string(), js.to_string());
+    }
+
+    /// JS binding for a macro call, if `name` is a macro in this module.
+    pub fn macro_ref(&self, name: &str) -> Option<&str> {
+        self.macros.get(name).map(String::as_str)
     }
 
     /// Does `name` resolve to a macro in the module being emitted?
     pub fn is_macro(&self, name: &str) -> bool {
-        self.macros.contains(name)
+        self.macros.contains_key(name)
     }
 
     /// Return the next unique temp variable name (`__v`, `__v1`, `__v2`, ...).
@@ -196,6 +206,7 @@ impl<'a> CodegenCtx<'a> {
             | IrNode::StmtBlock { span, .. }
             | IrNode::StmtPartial { span, .. }
             | IrNode::StmtMacro { span, .. }
+            | IrNode::StmtImport { span, .. }
             | IrNode::StmtExtends { span, .. }
             | IrNode::StmtInclude { span, .. }
             | IrNode::StmtSuper { span, .. }
@@ -335,11 +346,11 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
             // A macro in the same module wins over a registry function of the
             // same name (the parser/renderer reject such a conflict at compile
             // time, so this branch is unambiguous).
-            if ctx.is_macro(name) {
+            if let Some(js_fn) = ctx.macro_ref(name) {
+                let js_fn = js_fn.to_string();
                 let args_s = emit_expr_list(arguments, ctx);
                 return format!(
-                    "{}(ctx, [{args_s}], {}, __strict)",
-                    macro_fn_name(name),
+                    "{js_fn}(ctx, [{args_s}], {}, __strict)",
                     ctx.macro_depth_expr
                 );
             }
@@ -601,6 +612,8 @@ pub fn emit_stmt(
         // Macro definitions are hoisted into module-level functions by
         // `precompile`; the declaration itself emits no output.
         IrNode::StmtMacro { .. } => {}
+        // Macro imports become ESM imports in `build_module`.
+        IrNode::StmtImport { .. } => {}
         IrNode::StmtExtends { .. } => {
             // In catalog mode the extends chain is flattened before we reach
             // emit — we should never land here. In single-template mode it's
@@ -1006,8 +1019,8 @@ fn analyze_interpolation(
 // Macro functions
 // ---------------------------------------------------------------------------
 
-/// JS function name for a template macro.
-pub fn macro_fn_name(name: &str) -> String {
+/// Identifier-safe rendering of a macro name.
+fn macro_safe_name(name: &str) -> String {
     let mut safe: String = name
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' })
@@ -1018,7 +1031,17 @@ pub fn macro_fn_name(name: &str) -> String {
     if safe.chars().next().is_some_and(|c| c.is_ascii_digit()) {
         safe.insert(0, '_');
     }
-    format!("__macro_{safe}")
+    safe
+}
+
+/// JS function name for a macro declared in this module.
+pub fn macro_fn_name(name: &str) -> String {
+    format!("__macro_{}", macro_safe_name(name))
+}
+
+/// JS binding for a macro imported from another module.
+pub fn macro_import_binding(name: &str) -> String {
+    format!("__macro_import_{}", macro_safe_name(name))
 }
 
 /// Emit one JS function per top-level macro declaration.

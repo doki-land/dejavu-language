@@ -7,7 +7,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use dejavu_diagnostic::{Diagnostic, Severity, Stage};
+use dejavu_diagnostic::{codes, Diagnostic, Severity, Stage};
 use dejavu_ir::{IrDocument, IrNode, TemplateCatalog, canonical_id as ir_canonical_id};
 use serde::Serialize;
 use serde_json::Value;
@@ -119,7 +119,7 @@ pub fn precompile_single(
         ),
     }
 
-    let code = build_module(&body_str, &macro_fns, &[], None, opts.strict_undefined, None);
+    let code = build_module(&body_str, &macro_fns, &[], &[], None, opts.strict_undefined, None);
     let origins = shift_origins(&ctx.origins, module_header_lines(0, macro_lines(&macro_fns)));
 
     Ok(PrecompileResult {
@@ -280,6 +280,8 @@ pub fn precompile_catalog(
             _ => Vec::new(),
         };
 
+        let macro_imports = resolve_macro_imports(&catalog, &body_children, id, &mut diagnostics);
+
         let cat_ctx = CatalogEmitCtx {
             block_chains: &block_chains,
             include_imports: &include_imports,
@@ -288,6 +290,9 @@ pub fn precompile_catalog(
 
         let mut ctx = CodegenCtx::new(&opts);
         ctx.set_macros(macro_names(&body_children));
+        for imported in &macro_imports {
+            ctx.set_macro_ref(&imported.local, &emit::macro_import_binding(&imported.local));
+        }
         let mut body_str = String::new();
         emit::emit_body(&body_children, &mut ctx, &mut body_str, Some(&cat_ctx));
         let macro_fns = emit::emit_macro_functions(&body_children, &mut ctx, Some(&cat_ctx));
@@ -299,18 +304,23 @@ pub fn precompile_catalog(
         // have Stmt.Extends — only the child would. Good.
 
         let entry_imports = build_import_lines(&dependencies, id, &id_to_path);
+        let macro_import_lines = build_macro_import_lines(&macro_imports, id, &id_to_path);
+        let mut template_imports = entry_imports;
+        template_imports.extend(macro_import_lines);
+        let exports = macro_export_lines(&body_children, &macro_imports);
         let export_name = js_import_name(id);
         let code = build_module(
             &body_str,
             &macro_fns,
-            &entry_imports,
+            &template_imports,
+            &exports,
             Some(&id_to_deps),
             opts.strict_undefined,
             Some(&export_name),
         );
         let origins = shift_origins(
             &ctx.origins,
-            module_header_lines(entry_imports.len(), macro_lines(&macro_fns)),
+            module_header_lines(template_imports.len(), macro_lines(&macro_fns)),
         );
 
         diagnostics.extend(ctx.diagnostics);
@@ -358,6 +368,7 @@ pub(crate) fn build_module(
     body: &str,
     macro_fns: &str,
     template_imports: &[String],
+    macro_exports: &[String],
     _dep_map: Option<&HashMap<String, Vec<String>>>,
     strict_undefined: bool,
     export_name: Option<&str>,
@@ -398,6 +409,11 @@ pub(crate) fn build_module(
     if let Some(name) = export_name {
         s.push_str(&format!("\nexport const {name} = render;\n"));
     }
+    // Macro functions stay importable across modules (`from ... import`).
+    for line in macro_exports {
+        s.push_str(line);
+        s.push('\n');
+    }
     s
 }
 
@@ -427,6 +443,143 @@ fn macro_names(children: &[IrNode]) -> Vec<String> {
             _ => None,
         })
         .collect()
+}
+
+/// One `from <path> import <name> [as <local>]` binding resolved against the
+/// catalog.
+struct MacroImport {
+    /// Canonical id of the module that declares the macro.
+    dep_id: String,
+    /// Macro name as declared by the dependency.
+    imported: String,
+    /// Name the importing template calls it by.
+    local: String,
+}
+
+/// Resolve every top-level `from ... import` to a canonical module + macro.
+///
+/// Non-literal paths, unresolvable references, unknown macro names, and
+/// collisions with locally declared macros are compile diagnostics — the same
+/// failures the interpreter raises while loading the catalog.
+fn resolve_macro_imports(
+    catalog: &TemplateCatalog,
+    children: &[IrNode],
+    from_id: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Vec<MacroImport> {
+    let mut out = Vec::new();
+    let mut local_names: HashSet<String> = macro_names(children).into_iter().collect();
+    for node in children {
+        let IrNode::StmtImport { path, names, .. } = node else {
+            continue;
+        };
+        let Some(lit) = crate::catalog::extract_path_literal(path) else {
+            diagnostics.push(
+                Diagnostic::new(Severity::Error, codes::IMPORT_PATH_NOT_LITERAL, Stage::Compile)
+                    .template_id(from_id)
+                    .message("`from ... import` requires a literal template path"),
+            );
+            continue;
+        };
+        let hit = match catalog.resolve_ref(&lit, Some(from_id)) {
+            Ok(hit) => hit,
+            Err(diag) => {
+                diagnostics.push(diag.template_id(from_id));
+                continue;
+            }
+        };
+        let Some(dep_id) = catalog.canonical_id(&hit) else {
+            diagnostics.push(
+                Diagnostic::new(
+                    Severity::Error,
+                    "dejavu.compile.template-missing",
+                    Stage::Compile,
+                )
+                .template_id(from_id)
+                .message(format!("template {lit:?} imported but not found in the catalog")),
+            );
+            continue;
+        };
+        let available = declared_macro_names(catalog, &dep_id);
+        for spec in names {
+            if !available.contains(&spec.name) {
+                diagnostics.push(
+                    Diagnostic::new(Severity::Error, codes::UNKNOWN_IMPORT, Stage::Compile)
+                        .template_id(from_id)
+                        .message(format!(
+                            "template {dep_id:?} does not declare macro `{}`",
+                            spec.name
+                        ))
+                        .arg("path", lit.clone())
+                        .arg("name", spec.name.clone()),
+                );
+                continue;
+            }
+            let local = spec.local().to_string();
+            if !local_names.insert(local.clone()) {
+                diagnostics.push(
+                    Diagnostic::new(Severity::Error, codes::MACRO_CONFLICT, Stage::Compile)
+                        .template_id(from_id)
+                        .message(format!("macro name `{local}` is already bound in this template"))
+                        .arg("name", local.clone()),
+                );
+                continue;
+            }
+            out.push(MacroImport { dep_id: dep_id.clone(), imported: spec.name.clone(), local });
+        }
+    }
+    out
+}
+
+/// Top-level macro names declared by a catalog template (own declarations only).
+fn declared_macro_names(catalog: &TemplateCatalog, id: &str) -> HashSet<String> {
+    match catalog_document(catalog, id) {
+        Some(IrDocument { body: IrNode::Template { children, .. }, .. }) => {
+            macro_names(children).into_iter().collect()
+        }
+        _ => HashSet::new(),
+    }
+}
+
+/// ESM imports for `from ... import` bindings.
+fn build_macro_import_lines(
+    macro_imports: &[MacroImport],
+    current_id: &str,
+    id_to_path: &serde_json::Map<String, Value>,
+) -> Vec<String> {
+    let current_path = match id_to_path.get(current_id) {
+        Some(Value::String(p)) => p.as_str(),
+        _ => "",
+    };
+    let mut out = Vec::new();
+    for imported in macro_imports {
+        let Some(Value::String(target_path)) = id_to_path.get(&imported.dep_id) else {
+            continue;
+        };
+        let rel = relative_import_path(current_path, target_path);
+        out.push(format!(
+            "import {{ {} as {} }} from \"{rel}\";",
+            emit::macro_fn_name(&imported.imported),
+            emit::macro_import_binding(&imported.local),
+        ));
+    }
+    out
+}
+
+/// Exports that make this module's macros importable by other templates.
+fn macro_export_lines(children: &[IrNode], macro_imports: &[MacroImport]) -> Vec<String> {
+    let mut out = Vec::new();
+    for name in macro_names(children) {
+        out.push(format!("export {{ {} }};", emit::macro_fn_name(&name)));
+    }
+    for imported in macro_imports {
+        out.push(format!(
+            "export {{ {} as {} }};",
+            emit::macro_import_binding(&imported.local),
+            emit::macro_fn_name(&imported.local),
+        ));
+    }
+    out
 }
 
 /// Move body-line origins to module-line positions.

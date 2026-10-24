@@ -2,7 +2,7 @@
 
 use dejavu_diagnostic::codes;
 use dejavu_ir::types::Span;
-use dejavu_ir::{NativeExpr, NativeKind, NativeNode, NativeParam};
+use dejavu_ir::{NativeExpr, NativeImportName, NativeKind, NativeNode, NativeParam};
 
 use super::expr::parse_expr;
 use super::stmt_head::{CodeHead, classify_code};
@@ -160,6 +160,29 @@ impl Parser<'_> {
         let mut kind = NativeKind::Partial { params, body, trim: trim.as_str().into() };
         apply_open_trim(&mut kind, pending, trim_end);
         Ok((NativeNode::new(kind, Some(Span { start: open, end: i })), i))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn parse_import(
+        &self,
+        open: usize,
+        i: usize,
+        path: String,
+        names: Vec<(String, Option<String>)>,
+        trim: TrimMode,
+        trim_end: TrimMode,
+        pending: Option<&str>,
+    ) -> (NativeNode, usize) {
+        let mut kind = NativeKind::Import {
+            path,
+            names: names
+                .into_iter()
+                .map(|(name, alias)| NativeImportName { name, alias })
+                .collect(),
+            trim: trim.as_str().into(),
+        };
+        apply_open_trim(&mut kind, pending, trim_end);
+        (NativeNode::new(kind, Some(Span { start: open, end: i })), i)
     }
 
     pub(crate) fn parse_macro(

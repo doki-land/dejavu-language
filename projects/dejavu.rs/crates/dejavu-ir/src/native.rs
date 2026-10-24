@@ -63,6 +63,11 @@ pub enum NativeKind {
         body: Vec<NativeNode>,
         trim: String,
     },
+    Import {
+        path: String,
+        names: Vec<NativeImportName>,
+        trim: String,
+    },
     Extends {
         parent: NativeExpr,
         trim: String,
@@ -87,6 +92,13 @@ pub enum NativeKind {
 pub struct NativeParam {
     pub name: String,
     pub default: Option<NativeExpr>,
+}
+
+/// One `from ... import name as alias` binding.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NativeImportName {
+    pub name: String,
+    pub alias: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -164,6 +176,18 @@ fn encode_node(n: &NativeNode) -> IrNode {
                 })
                 .collect(),
             body: body.iter().map(encode_node).collect(),
+            trim: trim.clone(),
+            span,
+        },
+        NativeKind::Import { path, names, trim } => IrNode::StmtImport {
+            path: Box::new(IrNode::ExprLiteral {
+                value: serde_json::Value::String(path.clone()),
+                span: span.clone(),
+            }),
+            names: names
+                .iter()
+                .map(|n| crate::types::ImportName { name: n.name.clone(), alias: n.alias.clone() })
+                .collect(),
             trim: trim.clone(),
             span,
         },
@@ -297,6 +321,31 @@ fn decode_node(n: &IrNode) -> NativeNode {
             },
             span.clone(),
         ),
+        IrNode::StmtImport { path, names, trim, span } => {
+            let literal = match path.as_ref() {
+                IrNode::ExprLiteral { value: serde_json::Value::String(s), .. } => Some(s.clone()),
+                _ => None,
+            };
+            match literal {
+                Some(lit) => NativeNode::new(
+                    NativeKind::Import {
+                        path: lit,
+                        names: names
+                            .iter()
+                            .map(|n| NativeImportName { name: n.name.clone(), alias: n.alias.clone() })
+                            .collect(),
+                        trim: trim.clone(),
+                    },
+                    span.clone(),
+                ),
+                // Non-literal paths cannot be represented in the native AST;
+                // the renderer/codegen reject them with a structured error.
+                None => NativeNode::new(
+                    NativeKind::Text(format!("/* unsupported dynamic import {path:?} */")),
+                    span.clone(),
+                ),
+            }
+        }
         IrNode::StmtMacro { name, params, body, trim, span } => NativeNode::new(
             NativeKind::Macro {
                 name: name.clone(),

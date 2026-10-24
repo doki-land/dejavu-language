@@ -1,0 +1,1 @@
+<% from "widgets.dejavu" import greet as hi %><% hi("Ann") %>|<% hi("Bo", "?") %>

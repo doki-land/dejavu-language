@@ -103,6 +103,18 @@ pub enum IrNode {
         #[serde(skip_serializing_if = "Option::is_none")]
         span: Option<Span>,
     },
+    /// `from "<path>" import a, b as c` — static macro import.
+    ///
+    /// The path must be a string literal so the dependency graph is fully
+    /// static for both JIT loading and AOT catalog emission.
+    #[serde(rename = "Stmt.Import")]
+    StmtImport {
+        path: Box<IrNode>,
+        names: Vec<ImportName>,
+        trim: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        span: Option<Span>,
+    },
     #[serde(rename = "Stmt.ElseIf")]
     StmtElseIf {
         test: Box<IrNode>,
@@ -245,6 +257,22 @@ pub struct PartialParam {
     pub name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default: Option<IrNode>,
+}
+
+/// One imported name: the macro declared by the target template plus the
+/// local name it is bound to (`as` alias when present).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ImportName {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub alias: Option<String>,
+}
+
+impl ImportName {
+    /// Local name this import binds in the importing template.
+    pub fn local(&self) -> &str {
+        self.alias.as_deref().unwrap_or(&self.name)
+    }
 }
 
 /// One `key: value` entry of an object literal expression.

@@ -143,6 +143,18 @@ impl<'a> Parser<'a> {
                     }
                     seen.push(name.as_str());
                 }
+                NativeKind::Import { names, .. } => {
+                    for imported in names {
+                        let local = imported.alias.as_deref().unwrap_or(&imported.name);
+                        if seen.contains(&local) {
+                            return Err(self.partial_layout_error(
+                                child,
+                                "duplicate macro/import name in one template",
+                            ));
+                        }
+                        seen.push(local);
+                    }
+                }
                 _ => {
                     if let Some(node) = Self::find_macro(std::slice::from_ref(child)) {
                         return Err(self.partial_layout_error(node, "`macro` must be a top-level declaration"));
@@ -193,11 +205,11 @@ fn find_partial(nodes: &[NativeNode]) -> Option<&NativeNode> {
     None
 }
 
-/// Find the first `macro` declaration inside a control-flow body.
+/// Find the first `macro` declaration or `from ... import` inside a control-flow body.
 fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
     for node in nodes {
         match &node.kind {
-            NativeKind::Macro { .. } => return Some(node),
+            NativeKind::Macro { .. } | NativeKind::Import { .. } => return Some(node),
             NativeKind::If { consequent, else_ifs, alternate, .. } => {
                 if let Some(hit) = Self::find_macro(consequent) {
                     return Some(hit);
@@ -411,6 +423,19 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
                             tag.trim_right,
                             pending.take(),
                         )?;
+                        children.push(node);
+                        i = new_i;
+                    }
+                    CodeHead::From { path, names } => {
+                        let (node, new_i) = self.parse_import(
+                            open,
+                            next_i,
+                            path,
+                            names,
+                            tag.trim_left,
+                            tag.trim_right,
+                            pending.take(),
+                        );
                         children.push(node);
                         i = new_i;
                     }

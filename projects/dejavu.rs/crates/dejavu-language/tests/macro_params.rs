@@ -84,3 +84,39 @@ fn macro_ir_round_trips_through_serde() {
     assert_eq!(doc, back);
     assert!(json.contains("Stmt.Macro"), "json: {json}");
 }
+
+#[test]
+fn from_import_records_path_and_aliases() {
+    let doc: IrDocument = parse(r#"<% from "widgets.dejavu" import greet, icon as star %>"#).expect("parse");
+    let IrNode::Template { children, .. } = doc.body else {
+        panic!("expected Template body");
+    };
+    let IrNode::StmtImport { path, names, .. } = &children[0] else {
+        panic!("expected Stmt.Import, got {:?}", children[0]);
+    };
+    assert!(matches!(
+        path.as_ref(),
+        IrNode::ExprLiteral { value, .. } if *value == serde_json::json!("widgets.dejavu")
+    ));
+    assert_eq!(names.len(), 2);
+    assert_eq!(names[0].name, "greet");
+    assert_eq!(names[0].local(), "greet");
+    assert_eq!(names[1].name, "icon");
+    assert_eq!(names[1].local(), "star");
+}
+
+#[test]
+fn from_import_must_be_top_level() {
+    let err = parse(r#"<% if ok %><% from "widgets.dejavu" import greet %><% end if %>"#)
+        .expect_err("nested import");
+    assert!(err.message.contains("top-level declaration"), "message: {}", err.message);
+}
+
+#[test]
+fn from_import_rejects_a_local_name_already_declared() {
+    let err = parse(
+        r#"<% macro greet() %>x<% end macro %><% from "widgets.dejavu" import greet %>"#,
+    )
+    .expect_err("conflicting local name");
+    assert!(err.message.contains("duplicate macro/import name"), "message: {}", err.message);
+}

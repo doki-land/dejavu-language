@@ -1,6 +1,11 @@
 //! Macro declaration and invocation semantics in the shared renderer.
 
-use dejavu_ir::{IrDocument, IrError, default_language, render_ir};
+use std::collections::HashMap;
+
+use dejavu_ir::{
+    IrDocument, IrError, ResolvedTemplate, TemplateLoader, codes, default_language, diag_load,
+    render_ir, render_ir_with_loader,
+};
 use serde_json::Value;
 
 fn error_code(err: IrError) -> String {
@@ -138,5 +143,138 @@ fn recursive_macro_hits_the_depth_limit() {
 fn macro_name_colliding_with_a_registered_function_is_rejected() {
     let doc = tpl(vec![macro_node("range", vec![], vec![text("x")])]);
     let err = render_ir(&doc, &serde_json::json!({})).expect_err("conflict");
+    assert_eq!(error_code(err), "dejavu.template.macro-conflict");
+}
+
+// ---------------------------------------------------------------------------
+// `from ... import`
+// ---------------------------------------------------------------------------
+
+struct InMemoryLoader {
+    docs: HashMap<String, IrDocument>,
+}
+
+impl InMemoryLoader {
+    fn new() -> Self {
+        Self { docs: HashMap::new() }
+    }
+
+    fn insert(mut self, path: &str, doc: IrDocument) -> Self {
+        self.docs.insert(path.to_string(), doc);
+        self
+    }
+}
+
+impl TemplateLoader for InMemoryLoader {
+    fn resolve(&mut self, ref_: &str, _from: Option<&str>) -> Result<ResolvedTemplate, IrError> {
+        let doc = self
+            .docs
+            .get(ref_)
+            .cloned()
+            .ok_or_else(|| diag_load(codes::TEMPLATE_NOT_FOUND).arg("template", ref_))?;
+        Ok(ResolvedTemplate { id: ref_.to_string(), document: doc })
+    }
+}
+
+fn import_node(path: &str, names: Vec<(&str, Option<&str>)>) -> Value {
+    let names: Vec<Value> = names
+        .into_iter()
+        .map(|(name, alias)| {
+            let mut node = serde_json::json!({ "name": name });
+            if let Some(alias) = alias {
+                node["alias"] = serde_json::json!(alias);
+            }
+            node
+        })
+        .collect();
+    serde_json::json!({
+        "type": "Stmt.Import",
+        "path": literal(serde_json::json!(path)),
+        "names": names,
+        "trim": "none",
+    })
+}
+
+fn render_with_loader(entry: IrDocument, mut loader: InMemoryLoader) -> Result<String, IrError> {
+    render_ir_with_loader(&entry, &serde_json::json!({}), &mut loader)
+}
+
+#[test]
+fn imported_macro_binds_under_its_alias() {
+    let lib = tpl(vec![macro_node(
+        "greet",
+        vec![param("name", None), param("mark", Some(literal(serde_json::json!("!"))))],
+        vec![text("<em>"), interp(ident("name")), interp(ident("mark")), text("</em>")],
+    )]);
+    let main = tpl(vec![
+        import_node("lib.dejavu", vec![("greet", Some("hi"))]),
+        interp(call("hi", vec![literal(serde_json::json!("Ann"))])),
+        text("|"),
+        interp(call("hi", vec![literal(serde_json::json!("Bo")), literal(serde_json::json!("?"))])),
+    ]);
+    let out = render_with_loader(main, InMemoryLoader::new().insert("lib.dejavu", lib)).expect("render");
+    assert_eq!(out, "<em>Ann!</em>|<em>Bo?</em>");
+}
+
+#[test]
+fn imported_macro_body_resolves_against_its_own_module() {
+    // The library macro calls a sibling macro that the importing template
+    // never sees.
+    let lib = tpl(vec![
+        macro_node("inner", vec![param("v", None)], vec![text("["), interp(ident("v")), text("]")]),
+        macro_node("outer", vec![param("v", None)], vec![interp(call("inner", vec![ident("v")]))]),
+    ]);
+    let main = tpl(vec![
+        import_node("lib.dejavu", vec![("outer", None)]),
+        interp(call("outer", vec![literal(serde_json::json!("x"))])),
+    ]);
+    let out = render_with_loader(main, InMemoryLoader::new().insert("lib.dejavu", lib)).expect("render");
+    assert_eq!(out, "[x]");
+}
+
+#[test]
+fn a_sibling_macro_of_an_imported_one_is_not_visible() {
+    let lib = tpl(vec![
+        macro_node("inner", vec![param("v", None)], vec![text("["), interp(ident("v")), text("]")]),
+        macro_node("outer", vec![param("v", None)], vec![interp(call("inner", vec![ident("v")]))]),
+    ]);
+    let main = tpl(vec![
+        import_node("lib.dejavu", vec![("outer", None)]),
+        interp(call("inner", vec![literal(serde_json::json!("y"))])),
+    ]);
+    let err = render_with_loader(main, InMemoryLoader::new().insert("lib.dejavu", lib))
+        .expect_err("sibling macro is not imported");
+    assert_eq!(error_code(err), "dejavu.template.unknown-function");
+}
+
+#[test]
+fn imported_macro_cannot_read_the_importing_context() {
+    let lib = tpl(vec![macro_node("show", vec![], vec![interp(ident("outer"))])]);
+    let main = tpl(vec![
+        import_node("lib.dejavu", vec![("show", None)]),
+        interp(call("show", vec![])),
+    ]);
+    let out = render_with_loader(main, InMemoryLoader::new().insert("lib.dejavu", lib)).expect("render");
+    assert_eq!(out, "");
+}
+
+#[test]
+fn importing_a_macro_the_target_does_not_declare_is_an_error() {
+    let lib = tpl(vec![macro_node("greet", vec![], vec![text("x")])]);
+    let main = tpl(vec![import_node("lib.dejavu", vec![("sign", None)])]);
+    let err = render_with_loader(main, InMemoryLoader::new().insert("lib.dejavu", lib))
+        .expect_err("unknown import");
+    assert_eq!(error_code(err), "dejavu.template.unknown-import");
+}
+
+#[test]
+fn importing_over_a_local_macro_name_is_an_error() {
+    let lib = tpl(vec![macro_node("greet", vec![], vec![text("x")])]);
+    let main = tpl(vec![
+        macro_node("greet", vec![], vec![text("local")]),
+        import_node("lib.dejavu", vec![("greet", None)]),
+    ]);
+    let err = render_with_loader(main, InMemoryLoader::new().insert("lib.dejavu", lib))
+        .expect_err("conflict");
     assert_eq!(error_code(err), "dejavu.template.macro-conflict");
 }

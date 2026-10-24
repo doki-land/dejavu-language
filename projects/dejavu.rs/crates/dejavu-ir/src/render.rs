@@ -130,11 +130,23 @@ impl<'a> Renderer<'a> {
     ///
     /// A macro whose name matches a registered function is rejected: calls
     /// must have exactly one meaning across JIT and AOT.
-    fn register_module(&mut self, children: &[IrNode]) -> Result<(), IrError> {
+    fn register_module(&mut self, doc: &IrDocument) -> Result<(), IrError> {
         let id = self.current_id.clone();
-        if self.macro_modules.contains_key(&id) {
+        self.register_document(&id, doc)
+    }
+
+    /// Register one template's macros, then resolve its `from ... import`
+    /// declarations.
+    ///
+    /// The local table is inserted before imports are processed so mutual
+    /// imports resolve against already-declared macros instead of looping.
+    fn register_document(&mut self, id: &str, doc: &IrDocument) -> Result<(), IrError> {
+        if self.macro_modules.contains_key(id) {
             return Ok(());
         }
+        let IrNode::Template { children, .. } = &doc.body else {
+            return Ok(());
+        };
         let mut table: HashMap<String, MacroDef> = HashMap::new();
         for child in children {
             if let IrNode::StmtMacro { name, params, body, .. } = child {
@@ -143,11 +155,50 @@ impl<'a> Renderer<'a> {
                 }
                 table.insert(
                     name.clone(),
-                    MacroDef { name: name.clone(), params: params.clone(), body: body.clone(), module: id.clone() },
+                    MacroDef { name: name.clone(), params: params.clone(), body: body.clone(), module: id.to_string() },
                 );
             }
         }
-        self.macro_modules.insert(id, table);
+        self.macro_modules.insert(id.to_string(), table);
+
+        let mut imported: Vec<(String, MacroDef)> = Vec::new();
+        for child in children {
+            let IrNode::StmtImport { path, names, .. } = child else {
+                continue;
+            };
+            let path_str = match path.as_ref() {
+                IrNode::ExprLiteral { value: Value::String(s), .. } => s.clone(),
+                _ => return Err(diag_render(codes::IMPORT_PATH_NOT_LITERAL)),
+            };
+            let target = {
+                let loader = self
+                    .loader
+                    .as_deref_mut()
+                    .ok_or_else(|| diag_load(codes::MISSING_LOADER).arg("feature", "import"))?;
+                loader.resolve(&path_str, Some(id))?
+            };
+            self.register_document(&target.id, &target.document)?;
+            let target_table = self.macro_modules.get(&target.id).cloned().unwrap_or_default();
+            for spec in names {
+                let Some(def) = target_table.get(&spec.name) else {
+                    return Err(diag_load(codes::UNKNOWN_IMPORT)
+                        .arg("path", path_str.clone())
+                        .arg("name", spec.name.clone()));
+                };
+                let local = spec.local().to_string();
+                if self.macro_modules.get(id).is_some_and(|t| t.contains_key(&local)) {
+                    return Err(diag_render(codes::MACRO_CONFLICT).arg("name", local));
+                }
+                let mut def = def.clone();
+                def.name = local.clone();
+                imported.push((local, def));
+            }
+        }
+        if let Some(table) = self.macro_modules.get_mut(id) {
+            for (local, def) in imported {
+                table.insert(local, def);
+            }
+        }
         Ok(())
     }
 
@@ -214,7 +265,7 @@ impl<'a> Renderer<'a> {
     fn render_doc(&mut self, doc: &IrDocument) -> Result<String, IrError> {
         // 特殊处理 Template body：先收集 block 定义，处理 extends，再渲染。
         if let IrNode::Template { children, .. } = &doc.body {
-            self.register_module(children)?;
+            self.register_module(doc)?;
             let mut extends_path: Option<String> = None;
             let mut own_blocks: HashMap<String, Vec<IrNode>> = HashMap::new();
 
@@ -393,8 +444,8 @@ impl<'a> Renderer<'a> {
             // 就是渲染其 body。
             IrNode::StmtPartial { body, .. } => self.render_list(body),
 
-            // A macro declaration produces no output at its declaration site.
-            IrNode::StmtMacro { .. } => Ok(String::new()),
+            // Macro declarations and static imports produce no output.
+            IrNode::StmtMacro { .. } | IrNode::StmtImport { .. } => Ok(String::new()),
 
             // block：最派生的层级定义优先，没有覆盖时渲染自身 body。
             IrNode::StmtBlock { name, body, .. } => {

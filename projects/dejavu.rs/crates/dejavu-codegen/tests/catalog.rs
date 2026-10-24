@@ -125,12 +125,33 @@ fn run_modules_in_node(modules: &[dejavu_codegen::GeneratedModule], ctx_js: &str
         let var = format!("__m_{base}");
         let fn_name = format!("render_{base}");
         let tmpl_name = format!("__tmpl_{base}"); // matches js_import_name("root:path") after sanitize
-        let mut lines: Vec<&str> = m.code.lines().collect();
-        lines.retain(|l| !l.trim().starts_with("import ") && !l.trim().starts_with("export const "));
+        // The stub runs as one script: drop ESM syntax and inline macro
+        // imports as plain const bindings (`function` declarations hoist).
+        let mut macro_bindings: Vec<String> = Vec::new();
+        let mut lines: Vec<&str> = Vec::new();
+        for line in m.code.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("import ") {
+                if let Some(inner) = trimmed.split('{').nth(1).and_then(|s| s.split('}').next()) {
+                    let mut parts = inner.split(" as ");
+                    let orig = parts.next().unwrap_or("").trim();
+                    let alias = parts.next().unwrap_or(orig).trim();
+                    if orig.starts_with("__macro_") {
+                        macro_bindings.push(format!("const {alias} = {orig};"));
+                    }
+                }
+                continue;
+            }
+            if trimmed.starts_with("export {") || trimmed.starts_with("export const ") {
+                continue;
+            }
+            lines.push(line);
+        }
         let body = lines.join("\n").replace("export function render", &format!("function {fn_name}"));
         stub.push_str(&format!(
-            "// --- {} ---\n{body}\nconst {var} = {{ render: {fn_name} }};\nconst {tmpl_name} = {fn_name};\n\n",
-            m.path
+            "// --- {} ---\n{}\n{body}\nconst {var} = {{ render: {fn_name} }};\nconst {tmpl_name} = {fn_name};\n\n",
+            m.path,
+            macro_bindings.join("\n"),
         ));
     }
     let entry = modules.first()?;
@@ -488,4 +509,101 @@ fn include_only_isolates_context_at_aot() {
     if let Some(out) = run_modules_in_node(&res.modules, "({name: 'X'})") {
         assert_eq!(out, "card:|X");
     }
+}
+
+// ---------------------------------------------------------------------------
+// 9. `from ... import` macro bindings
+// ---------------------------------------------------------------------------
+
+fn stmt_macro(name: &str, params: Vec<Value>, body: Vec<Value>) -> Value {
+    json!({ "type": "Stmt.Macro", "name": name, "params": params, "body": body, "trim": "none" })
+}
+
+fn stmt_import(path: Value, names: Vec<(&str, Option<&str>)>) -> Value {
+    let names: Vec<Value> = names
+        .into_iter()
+        .map(|(name, alias)| {
+            let mut node = json!({ "name": name });
+            if let Some(alias) = alias {
+                node["alias"] = json!(alias);
+            }
+            node
+        })
+        .collect();
+    json!({ "type": "Stmt.Import", "path": path, "names": names, "trim": "none" })
+}
+
+fn call(name: &str, arguments: Vec<Value>) -> Value {
+    json!({ "type": "Expr.Call", "callee": ident(name), "arguments": arguments })
+}
+
+#[test]
+fn from_import_links_macro_modules() {
+    let lib = doc(vec![stmt_macro(
+        "greet",
+        vec![param("name", None), param("mark", Some(lit(json!("!"))))],
+        vec![text("<em>"), interp(ident("name"), false), interp(ident("mark"), false), text("</em>")],
+    )]);
+    let entry = doc(vec![
+        stmt_import(lit(json!("lib.dejavu")), vec![("greet", Some("hi"))]),
+        interp(call("hi", vec![lit(json!("Ann"))]), false),
+        text("|"),
+        interp(call("hi", vec![lit(json!("Bo")), lit(json!("?"))]), false),
+    ]);
+    let res = compile_catalog(
+        &[("index.dejavu", entry), ("lib.dejavu", lib)],
+        "index.dejavu",
+    );
+    assert!(errors(&res).is_empty(), "errors: {:?}", errors(&res));
+    assert_eq!(res.modules.len(), 2);
+
+    let entry_code = round(&res.modules[0].code);
+    assert!(
+        entry_code.contains(
+            "import { __macro_greet as __macro_import_hi } from \"./_internal/main_lib_dejavu.js\";"
+        ),
+        "code: {entry_code}"
+    );
+    assert!(entry_code.contains("__macro_import_hi(ctx, [\"Ann\"], 1, __strict)"), "code: {entry_code}");
+
+    let lib_code = round(
+        res.modules
+            .iter()
+            .find(|m| m.path.contains("lib"))
+            .map(|m| &m.code)
+            .expect("lib module"),
+    );
+    assert!(lib_code.contains("export { __macro_greet };"), "code: {lib_code}");
+
+    if let Some(out) = run_modules_in_node(&res.modules, "({})") {
+        assert_eq!(out, "<em>Ann!</em>|<em>Bo?</em>");
+    }
+}
+
+#[test]
+fn importing_an_undeclared_macro_is_a_compile_error() {
+    let lib = doc(vec![stmt_macro("greet", vec![], vec![text("x")])]);
+    let entry = doc(vec![stmt_import(lit(json!("lib.dejavu")), vec![("sign", None)])]);
+    let res = compile_catalog(
+        &[("index.dejavu", entry), ("lib.dejavu", lib)],
+        "index.dejavu",
+    );
+    assert!(
+        errors(&res).iter().any(|d| d.code == "dejavu.template.unknown-import"),
+        "errors: {:?}",
+        errors(&res)
+    );
+}
+
+#[test]
+fn from_import_requires_a_literal_path() {
+    let entry = doc(vec![stmt_import(ident("lib"), vec![("greet", None)])]);
+    let res = compile_catalog(&[("index.dejavu", entry)], "index.dejavu");
+    assert!(
+        errors(&res)
+            .iter()
+            .any(|d| d.code == "dejavu.template.import-path-not-literal"),
+        "errors: {:?}",
+        errors(&res)
+    );
 }

@@ -1,0 +1,1 @@
+<% macro greet(name, mark = "!") %><em><% name %><% mark %></em><% end macro %>
