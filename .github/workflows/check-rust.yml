@@ -1,8 +1,12 @@
-# Gate checks for dejavu-language.
+# Rust gate for dejavu-language.
 # - push / PR on any branch → regular CI only (no publish)
-# - release-npm / publish-docker / publish-artifacts call this via workflow_call on tag vX.Y.Z;
-#   publish jobs only run after it succeeds.
-# - On workflow_call, checkout is the caller's ref (the tagged commit).
+# - release-npm / publish-docker / publish-artifacts call this via workflow_call on tag vX.Y.Z
+# - On workflow_call, checkout is the caller's ref (the tagged commit)
+#
+# Scope: Rust workspace only. The TypeScript pipeline (N-API addon build, typecheck,
+# tests, AOT runtime build, IR conformance) lives in `check-typescript.yml`.
+# Both gates are required by the npm release; a green Rust gate does not prove
+# the JS surface builds or that conformance holds.
 
 name: ci
 
@@ -14,7 +18,7 @@ on:
   workflow_call:
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-rust-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -29,14 +33,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
@@ -44,27 +40,6 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: . -> target
-
-      - name: Install
-        run: pnpm install --no-frozen-lockfile
-
-      - name: Build N-API addon
-        run: node scripts/build/napi.mjs
-
-      - name: Typecheck (@doki-land/dejavu)
-        run: pnpm --filter @doki-land/dejavu typecheck
-
-      - name: TypeScript tests (@doki-land/dejavu)
-        run: pnpm --filter @doki-land/dejavu test
-
-      - name: Build facade (@doki-land/dejavu)
-        run: pnpm --filter @doki-land/dejavu build
-
-      - name: Build AOT runtime (@doki-land/dejavu-engine)
-        run: pnpm --filter @doki-land/dejavu-engine build
-
-      - name: IR conformance
-        run: pnpm conformance
 
       - name: Rust workspace tests
         run: cargo test --workspace
