@@ -386,6 +386,13 @@ impl<'a> Renderer<'a> {
                     _ => Err(diag_render(codes::UNKNOWN_UNARY).arg("operator", operator)),
                 }
             }
+            IrNode::ExprObject { entries, .. } => {
+                let mut map = serde_json::Map::new();
+                for entry in entries {
+                    map.insert(entry.key.clone(), self.eval(&entry.value)?);
+                }
+                Ok(Value::Object(map))
+            }
             IrNode::ExprPipe { expression, filter, arguments, .. } => {
                 let mut val = self.eval(expression)?;
                 let args: Result<Vec<_>, _> = arguments.iter().map(|a| self.eval(a)).collect();

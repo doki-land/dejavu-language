@@ -191,6 +191,12 @@ pub enum IrNode {
         #[serde(skip_serializing_if = "Option::is_none")]
         span: Option<Span>,
     },
+    #[serde(rename = "Expr.Object")]
+    ExprObject {
+        entries: Vec<ObjectEntry>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        span: Option<Span>,
+    },
     #[serde(rename = "Expr.Pipe")]
     ExprPipe {
         expression: Box<IrNode>,
@@ -199,6 +205,13 @@ pub enum IrNode {
         #[serde(skip_serializing_if = "Option::is_none")]
         span: Option<Span>,
     },
+}
+
+/// One `key: value` entry of an object literal expression.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ObjectEntry {
+    pub key: String,
+    pub value: IrNode,
 }
 
 /// Source span in UTF-8 byte offsets.

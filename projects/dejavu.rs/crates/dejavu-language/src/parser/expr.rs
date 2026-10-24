@@ -320,6 +320,77 @@ impl<'a> ExprParser<'a> {
                 Ok(NativeExpr::Literal(Value::Number(num)))
             }
             Some(CodeToken::Ident(name)) => Ok(NativeExpr::Identifier(name)),
+            Some(CodeToken::LBrace) => {
+                let mut entries: Vec<(String, NativeExpr)> = Vec::new();
+                if !matches!(self.peek(), Some(CodeToken::RBrace)) {
+                    loop {
+                        let key_index = self.pos;
+                        let key = match self.bump() {
+                            Some(CodeToken::Ident(name)) => name,
+                            Some(CodeToken::String(name)) => name,
+                            _ => {
+                                let span = self.peek_span();
+                                return Err(ParseError::at(
+                                    self.source,
+                                    self.file,
+                                    span.start,
+                                    span.len(),
+                                    "expected object key",
+                                    "expected key",
+                                )
+                                .with_code(codes::PARSE_UNEXPECTED_TOKEN));
+                            }
+                        };
+                        if !matches!(self.bump(), Some(CodeToken::Colon)) {
+                            let span = self.peek_span();
+                            return Err(ParseError::at(
+                                self.source,
+                                self.file,
+                                span.start,
+                                span.len(),
+                                "expected `:` after object key",
+                                "expected :",
+                            )
+                            .with_code(codes::PARSE_UNEXPECTED_TOKEN));
+                        }
+                        if entries.iter().any(|(existing, _)| existing == &key) {
+                            let key_span = &self.tokens[key_index].1;
+                            return Err(ParseError::at(
+                                self.source,
+                                self.file,
+                                self.base + key_span.start,
+                                key_span.len().max(1),
+                                format!("duplicate object key `{key}`"),
+                                "duplicate key",
+                            )
+                            .with_code(codes::PARSE_UNEXPECTED_TOKEN));
+                        }
+                        let value = self.parse_pipe()?;
+                        entries.push((key, value));
+                        if matches!(self.peek(), Some(CodeToken::Comma)) {
+                            self.bump();
+                            if matches!(self.peek(), Some(CodeToken::RBrace)) {
+                                break;
+                            }
+                            continue;
+                        }
+                        break;
+                    }
+                }
+                if !matches!(self.bump(), Some(CodeToken::RBrace)) {
+                    let span = self.peek_span();
+                    return Err(ParseError::at(
+                        self.source,
+                        self.file,
+                        span.start,
+                        span.len(),
+                        "expected `}`",
+                        "expected }",
+                    )
+                    .with_code(codes::PARSE_UNCLOSED_EXPRESSION));
+                }
+                Ok(NativeExpr::Object { entries })
+            }
             Some(CodeToken::LParen) => {
                 let e = self.parse_pipe()?;
                 if !matches!(self.bump(), Some(CodeToken::RParen)) {

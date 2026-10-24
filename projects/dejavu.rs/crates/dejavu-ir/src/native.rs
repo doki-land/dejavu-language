@@ -81,6 +81,7 @@ pub enum NativeExpr {
     Binary { operator: String, left: Box<NativeExpr>, right: Box<NativeExpr> },
     Unary { operator: String, argument: Box<NativeExpr> },
     Pipe { expression: Box<NativeExpr>, filter: String, arguments: Vec<NativeExpr> },
+    Object { entries: Vec<(String, NativeExpr)> },
 }
 
 pub fn encode_template(t: &NativeTemplate) -> IrNode {
@@ -174,6 +175,13 @@ fn encode_expr(e: &NativeExpr) -> IrNode {
         NativeExpr::Unary { operator, argument } => {
             IrNode::ExprUnary { operator: operator.clone(), argument: Box::new(encode_expr(argument)), span: None }
         }
+        NativeExpr::Object { entries } => IrNode::ExprObject {
+            entries: entries
+                .iter()
+                .map(|(key, value)| crate::types::ObjectEntry { key: key.clone(), value: encode_expr(value) })
+                .collect(),
+            span: None,
+        },
         NativeExpr::Pipe { expression, filter, arguments } => IrNode::ExprPipe {
             expression: Box::new(encode_expr(expression)),
             filter: filter.clone(),
@@ -269,6 +277,9 @@ fn decode_expr(n: &IrNode) -> NativeExpr {
         IrNode::ExprUnary { operator, argument, .. } => {
             NativeExpr::Unary { operator: operator.clone(), argument: Box::new(decode_expr(argument)) }
         }
+        IrNode::ExprObject { entries, .. } => NativeExpr::Object {
+            entries: entries.iter().map(|e| (e.key.clone(), decode_expr(&e.value))).collect(),
+        },
         IrNode::ExprPipe { expression, filter, arguments, .. } => NativeExpr::Pipe {
             expression: Box::new(decode_expr(expression)),
             filter: filter.clone(),

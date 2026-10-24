@@ -157,6 +157,7 @@ impl<'a> CodegenCtx<'a> {
             | IrNode::ExprCall { span, .. }
             | IrNode::ExprBinary { span, .. }
             | IrNode::ExprUnary { span, .. }
+            | IrNode::ExprObject { span, .. }
             | IrNode::ExprPipe { span, .. } => span.as_ref().map(|s| Span::new(s.start, s.end)),
         }
     }
@@ -191,6 +192,13 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
         IrNode::ExprUnary { operator, argument, .. } => {
             let a = emit_expr(argument, ctx);
             format!("unary({}, {a})", json_string(operator))
+        }
+        IrNode::ExprObject { entries, .. } => {
+            let parts: Vec<String> = entries
+                .iter()
+                .map(|entry| format!("{}: {}", json_string(&entry.key), emit_expr(&entry.value, ctx)))
+                .collect();
+            format!("{{ {} }}", parts.join(", "))
         }
         IrNode::ExprPipe { expression, filter, arguments, .. } => {
             // Pipes are emitted as a temp var chain so multi-filter pipes stay readable:

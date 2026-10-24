@@ -1,0 +1,61 @@
+{
+    "irVersion": "1.0",
+    "language": {
+        "syntaxMode": "template",
+        "template": {
+            "codeStart": "<%",
+            "codeEnd": "%>",
+            "commentStart": "<#",
+            "commentEnd": "#>",
+            "supportFilterPipe": true,
+            "legacyFor": false
+        }
+    },
+    "body": {
+        "type": "Template",
+        "children": [
+            { "type": "Text", "value": "obj=" },
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Object",
+                    "entries": [
+                        { "key": "a", "value": { "type": "Expr.Literal", "value": 1 } },
+                        { "key": "b", "value": { "type": "Expr.Literal", "value": "x" } }
+                    ]
+                },
+                "trim": "none"
+            },
+            { "type": "Text", "value": " member=" },
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Member",
+                    "object": {
+                        "type": "Expr.Object",
+                        "entries": [
+                            { "key": "a", "value": { "type": "Expr.Literal", "value": 2 } }
+                        ]
+                    },
+                    "property": "a"
+                },
+                "trim": "none"
+            },
+            { "type": "Text", "value": " missing=" },
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Member",
+                    "object": {
+                        "type": "Expr.Object",
+                        "entries": [
+                            { "key": "a", "value": { "type": "Expr.Literal", "value": 2 } }
+                        ]
+                    },
+                    "property": "nope"
+                },
+                "trim": "none"
+            }
+        ]
+    }
+}
