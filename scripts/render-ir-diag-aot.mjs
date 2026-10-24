@@ -40,7 +40,7 @@ const irJson = readFileSync(process.argv[2], "utf8");
 const ctx = JSON.parse(readFileSync(process.argv[3], "utf8"));
 const options = process.argv[4] ? JSON.parse(readFileSync(process.argv[4], "utf8")) : {};
 
-const result = precompileIrSingle(irJson);
+const result = precompileIrSingle(irJson, options);
 if (result.diagnostics.some((d) => d.severity === "error")) {
     process.stdout.write(
         JSON.stringify({

@@ -335,6 +335,10 @@ pub mod codes {
     pub const FUNCTION_ARITY: &str = "dejavu.template.function-arity";
     pub const UNKNOWN_TEST: &str = "dejavu.template.unknown-test";
     pub const TEST_ARITY: &str = "dejavu.template.test-arity";
+    /// A registry entry needs a capability the host did not grant.
+    pub const CAPABILITY_NOT_ALLOWED: &str = "dejavu.template.capability-not-allowed";
+    /// A capability name passed by the host is not in the contract.
+    pub const UNKNOWN_CAPABILITY: &str = "dejavu.template.unknown-capability";
     pub const INVALID_ITERABLE: &str = "dejavu.template.invalid-iterable";
     pub const UNDEFINED_VARIABLE: &str = "dejavu.template.undefined-variable";
     pub const SUPER_OUTSIDE_BLOCK: &str = "dejavu.template.super-outside-block";

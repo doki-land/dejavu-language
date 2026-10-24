@@ -335,6 +335,7 @@ export function precompileIrSingle(
         options: JSON.stringify({
             strictUndefined: options.strictUndefined ?? false,
             entryId: options.entryId,
+            capabilities: options.capabilities,
         }),
     });
     return {
@@ -357,6 +358,7 @@ export function precompileCatalog(
         options: JSON.stringify({
             strictUndefined: options.strictUndefined ?? false,
             entryId: options.entryId,
+            capabilities: options.capabilities,
         }),
     });
     return {
@@ -376,9 +378,14 @@ export function bindingContractVersion(): string {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function toWireRenderOptions(opts: RenderOptions): { strict: boolean; name?: string } {
+function toWireRenderOptions(opts: RenderOptions): {
+    strict: boolean;
+    name?: string;
+    capabilities?: string[];
+} {
     return {
         strict: opts.strictUndefined === true,
         ...(opts.name ? { name: opts.name } : {}),
+        ...(opts.capabilities ? { capabilities: opts.capabilities } : {}),
     };
 }

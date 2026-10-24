@@ -2,9 +2,11 @@
 
 use std::collections::HashSet;
 
-use dejavu_ir::registry::{FilterLookupError, filter_spec, validate_filter};
+use dejavu_ir::registry::{
+    Capability, CapabilitySet, FilterLookupError, filter_spec, validate_filter,
+};
 use dejavu_ir::{
-    IrDocument, IrError, codes, default_language, render_ir,
+    IrDocument, IrError, RenderOptions, codes, default_language, render_ir, render_ir_opts,
 };
 
 #[test]
@@ -28,16 +30,45 @@ fn aliases_resolve_to_the_canonical_spec() {
 
 #[test]
 fn arity_is_enforced_per_filter() {
-    assert!(validate_filter("replace", 2).is_ok());
+    assert!(validate_filter("replace", 2, CapabilitySet::all()).is_ok());
     assert!(matches!(
-        validate_filter("replace", 1),
+        validate_filter("replace", 1, CapabilitySet::all()),
         Err(FilterLookupError::Arity { spec }) if spec.name == "replace"
     ));
     assert!(matches!(
-        validate_filter("default", 0),
+        validate_filter("default", 0, CapabilitySet::all()),
         Err(FilterLookupError::Arity { .. })
     ));
-    assert!(matches!(validate_filter("missing", 0), Err(FilterLookupError::Unknown)));
+    assert!(matches!(
+        validate_filter("missing", 0, CapabilitySet::all()),
+        Err(FilterLookupError::Unknown)
+    ));
+}
+
+#[test]
+fn capability_allowlist_gates_output_owning_filters() {
+    let pure_only = CapabilitySet::from_names(&["pure".to_string()]).expect("known capability");
+    assert!(validate_filter("uppercase", 0, pure_only).is_ok());
+    assert!(matches!(
+        validate_filter("safe", 0, pure_only),
+        Err(FilterLookupError::NotAllowed { spec }) if spec.capability == Capability::SafeOutput
+    ));
+    assert!(matches!(
+        validate_filter("escape", 0, pure_only),
+        Err(FilterLookupError::NotAllowed { .. })
+    ));
+    assert!(matches!(
+        CapabilitySet::from_names(&["nope".to_string()]),
+        Err(name) if name == "nope"
+    ));
+}
+
+#[test]
+fn render_options_capabilities_reject_safe_filters() {
+    let doc = pipe_doc("safe", vec![]);
+    let opts = RenderOptions { capabilities: CapabilitySet::from_names(&["pure".to_string()]).unwrap(), ..Default::default() };
+    let err = render_ir_opts(&doc, &serde_json::json!({"x": "<b>"}), opts, None).expect_err("denied");
+    assert_eq!(code(err), codes::CAPABILITY_NOT_ALLOWED);
 }
 
 #[test]

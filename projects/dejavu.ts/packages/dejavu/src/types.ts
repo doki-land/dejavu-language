@@ -54,6 +54,11 @@ export type RenderOptions = {
     strictUndefined?: boolean;
     /** Canonical id used for diagnostics and relative references. */
     name?: string;
+    /**
+     * Registry capabilities granted to this render (`pure` / `safe-output`).
+     * Omit to grant everything; an entry outside the list is rejected.
+     */
+    capabilities?: string[];
     /** Optional onDiagnostic callback for observing warnings. */
     onDiagnostic?: (d: Diagnostic) => void;
     /** Optional onDependency callback for observing resolved include/extends. */
@@ -76,6 +81,8 @@ export type PrecompileOptions = {
     strictUndefined?: boolean;
     /** Entry template id used for dependency tracking. */
     entryId?: string;
+    /** Registry capabilities the compiled modules may use. Omit to grant all. */
+    capabilities?: string[];
 };
 
 /** Options accepted by `compile` (JIT preparation). */

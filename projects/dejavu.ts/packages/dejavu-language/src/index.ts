@@ -53,6 +53,8 @@ export interface Language {
 export interface RenderOptions {
     strictUndefined?: boolean;
     name?: string;
+    /** Registry capabilities granted to this render (`pure` / `safe-output`). */
+    capabilities?: string[];
 }
 
 /** In-memory template catalog for inheritance and includes. */
@@ -162,14 +164,14 @@ export interface RenderSourceRequest {
 /** Single-template precompile request. */
 export interface PrecompileRequest {
     ir: string;
-    options?: { strictUndefined?: boolean; entryId?: string };
+    options?: { strictUndefined?: boolean; entryId?: string; capabilities?: string[] };
 }
 
 /** Catalog precompile request. */
 export interface PrecompileCatalogRequest {
     entryIr: string;
     catalog: CatalogSpec;
-    options?: { strictUndefined?: boolean; entryId?: string };
+    options?: { strictUndefined?: boolean; entryId?: string; capabilities?: string[] };
 }
 
 /** Input accepted by {@link initWasm}. */
@@ -315,5 +317,9 @@ function jsonOrUndefined(value: unknown): string | undefined {
  */
 function encodeRenderOptions(options: RenderOptions | undefined): string | undefined {
     if (options === undefined) return undefined;
-    return JSON.stringify({ strict: options.strictUndefined, name: options.name });
+    return JSON.stringify({
+        strict: options.strictUndefined,
+        name: options.name,
+        capabilities: options.capabilities,
+    });
 }

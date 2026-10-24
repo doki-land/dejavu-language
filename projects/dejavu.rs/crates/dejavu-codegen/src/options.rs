@@ -3,6 +3,7 @@
 //! Keep JSON shape permissive (unknown fields ignored) so future dejavu-engine
 //! versions can pass extra knobs without breaking older crates.
 
+use dejavu_ir::registry::CapabilitySet;
 use serde::{Deserialize, Serialize};
 
 /// Single-template codegen options.
@@ -18,6 +19,11 @@ pub struct CodegenOptions {
     /// to `"__entry__"` (single template has no catalog).
     #[serde(default)]
     pub entry_id: Option<String>,
+
+    /// Registry capabilities the compiled artifact may use. `None` grants every
+    /// capability; a list closes the rest at compile time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<Vec<String>>,
 }
 
 impl CodegenOptions {
@@ -34,5 +40,13 @@ impl CodegenOptions {
 
     pub fn entry_id(&self) -> &str {
         self.entry_id.as_deref().unwrap_or("__entry__")
+    }
+
+    /// Resolve the capability allowlist, returning the first unknown name.
+    pub fn capability_set(&self) -> Result<CapabilitySet, String> {
+        match &self.capabilities {
+            Some(names) => CapabilitySet::from_names(names),
+            None => Ok(CapabilitySet::all()),
+        }
     }
 }

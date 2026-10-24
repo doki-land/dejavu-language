@@ -27,8 +27,8 @@ use std::collections::{HashMap, HashSet};
 
 use dejavu_diagnostic::{ArgValue, Diagnostic, Severity, Span, Stage, codes};
 use dejavu_ir::registry::{
-    FilterCapability, FilterLookupError, FunctionLookupError, TestLookupError, validate_filter, validate_function,
-    validate_test,
+    Capability, CapabilitySet, FilterLookupError, FunctionLookupError, TestLookupError, validate_filter,
+    validate_function, validate_test,
 };
 use dejavu_ir::IrNode;
 
@@ -108,13 +108,30 @@ pub struct CodegenCtx<'a> {
     macro_depth_expr: String,
     /// True while emitting a macro body, where `caller()` may be emitted.
     pub in_macro: bool,
+    /// Registry capabilities granted to the compiled artifact.
+    capabilities: CapabilitySet,
 }
 
 impl<'a> CodegenCtx<'a> {
     pub fn new(options: &'a CodegenOptions) -> Self {
+        let mut diagnostics = Vec::new();
+        let capabilities = match options.capability_set() {
+            Ok(set) => set,
+            Err(name) => {
+                // Keep emitting with the unrestricted set so the configuration
+                // error stays the only diagnostic instead of cascading denials.
+                diagnostics.push(
+                    Diagnostic::new(Severity::Error, codes::UNKNOWN_CAPABILITY, Stage::Compile)
+                        .message(format!("unknown capability `{name}`"))
+                        .arg("capability", name),
+                );
+                CapabilitySet::all()
+            }
+        };
         Self {
             options,
-            diagnostics: Vec::new(),
+            diagnostics,
+            capabilities,
             origins: Vec::new(),
             temp_counter: 0,
             super_chain: Vec::new(),
@@ -178,6 +195,16 @@ impl<'a> CodegenCtx<'a> {
             Diagnostic::new(severity, code, Stage::Compile)
                 .message(message)
                 .arg(key, value),
+        );
+    }
+
+    /// Emit `capability-not-allowed` for a registry entry the host denied.
+    fn capability_denied(&mut self, name: &str, capability: Capability) {
+        self.diagnostic_args(
+            Severity::Error,
+            codes::CAPABILITY_NOT_ALLOWED,
+            format!("`{name}` requires the `{}` capability", capability.as_str()),
+            [("name", ArgValue::from(name)), ("capability", ArgValue::from(capability.as_str()))],
         );
     }
 
@@ -298,8 +325,11 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
             let args_str = emit_expr_list(arguments, ctx);
             // Validate against the language-neutral registry at compile time so
             // AOT output never contains an unknown or mis-arity filter.
-            match validate_filter(filter, arguments.len()) {
+            match validate_filter(filter, arguments.len(), ctx.capabilities) {
                 Ok(_) => {}
+                Err(FilterLookupError::NotAllowed { spec }) => {
+                    ctx.capability_denied(spec.name, spec.capability);
+                }
                 Err(FilterLookupError::Unknown) => ctx.diagnostic_arg(
                     Severity::Error,
                     codes::UNKNOWN_FILTER,
@@ -381,11 +411,15 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
                 return "__caller()".into();
             }
             let args_s = emit_expr_list(arguments, ctx);
-            match validate_function(name, arguments.len()) {
+            match validate_function(name, arguments.len(), ctx.capabilities) {
                 Ok(spec) => format!(
                     "callFunction({}, [{args_s}])",
                     json_string(spec.name)
                 ),
+                Err(FunctionLookupError::NotAllowed { spec }) => {
+                    ctx.capability_denied(spec.name, spec.capability);
+                    "null".into()
+                }
                 Err(FunctionLookupError::Unknown) => {
                     ctx.diagnostic_arg(
                         Severity::Error,
@@ -421,11 +455,15 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
         IrNode::ExprTest { expression, test, arguments, negated, .. } => {
             let inner = emit_expr(expression, ctx);
             let args_s = emit_expr_list(arguments, ctx);
-            match validate_test(test, arguments.len()) {
+            match validate_test(test, arguments.len(), ctx.capabilities) {
                 Ok(spec) => format!(
                     "applyTest({}, {inner}, [{args_s}], {negated})",
                     json_string(spec.name)
                 ),
+                Err(TestLookupError::NotAllowed { spec }) => {
+                    ctx.capability_denied(spec.name, spec.capability);
+                    "null".into()
+                }
                 Err(TestLookupError::Unknown) => {
                     ctx.diagnostic_arg(
                         Severity::Error,
@@ -1057,7 +1095,7 @@ fn analyze_interpolation(
             // registry capability shared with the JIT renderer.
             let no_escape = matches!(
                 dejavu_ir::registry::filter_spec(filter).map(|spec| spec.capability),
-                Some(FilterCapability::SafeOutput)
+                Some(Capability::SafeOutput)
             );
             (emit_expr(expression, ctx), !no_escape)
         }
@@ -1200,7 +1238,7 @@ fn emit_not_supported(
 
 #[cfg(test)]
 pub fn emit_expr_test(node: &IrNode, strict: bool) -> (String, Vec<Diagnostic>) {
-    let opts = CodegenOptions { strict_undefined: strict, entry_id: None };
+    let opts = CodegenOptions { strict_undefined: strict, ..Default::default() };
     let mut ctx = CodegenCtx::new(&opts);
     let out = emit_expr(node, &mut ctx);
     (out, ctx.diagnostics)
@@ -1208,7 +1246,7 @@ pub fn emit_expr_test(node: &IrNode, strict: bool) -> (String, Vec<Diagnostic>) 
 
 #[cfg(test)]
 pub fn emit_body_test(nodes: &[IrNode], strict: bool) -> (String, Vec<Diagnostic>) {
-    let opts = CodegenOptions { strict_undefined: strict, entry_id: None };
+    let opts = CodegenOptions { strict_undefined: strict, ..Default::default() };
     let mut ctx = CodegenCtx::new(&opts);
     let mut out = String::new();
     emit_body(nodes, &mut ctx, &mut out, None);

@@ -12,13 +12,14 @@ export interface FunctionSpec {
     aliases: string[];
     minArgs: number;
     maxArgs: number;
+    capability: string;
 }
 
 /** 与 Rust `dejavu_ir::registry::FUNCTIONS` 同序同构的静态描述。 */
 export const FUNCTIONS: readonly FunctionSpec[] = [
-    { name: "range", aliases: [], minArgs: 2, maxArgs: 3 },
-    { name: "min", aliases: [], minArgs: 2, maxArgs: 2 },
-    { name: "max", aliases: [], minArgs: 2, maxArgs: 2 },
+    { name: "range", aliases: [], minArgs: 2, maxArgs: 3, capability: "pure" },
+    { name: "min", aliases: [], minArgs: 2, maxArgs: 2, capability: "pure" },
+    { name: "max", aliases: [], minArgs: 2, maxArgs: 2, capability: "pure" },
 ];
 
 /** `range` 允许产出的最大元素数，与 Rust `RANGE_LIMIT` 一致。 */

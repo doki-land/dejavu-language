@@ -1,5 +1,5 @@
 use crate::{IrError, codes, diag_load, diag_render};
-use crate::registry::{FilterCapability, FilterLookupError, validate_filter};
+use crate::registry::{Capability, CapabilitySet, FilterLookupError, validate_filter};
 use crate::types::{IrDocument, IrNode, PartialParam};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -13,13 +13,16 @@ pub const MACRO_RECURSION_LIMIT: usize = 32;
 
 /// 渲染选项 —— 匹配 TS `RenderOptions`。
 ///
-/// 默认 `strict_undefined = false`（缺失变量 → null → 空串）。
+/// 默认 `strict_undefined = false`（缺失变量 → null → 空串），
+/// `capabilities` 默认放开全部注册表能力。
 #[derive(Debug, Clone, Default)]
 pub struct RenderOptions {
     /// 开启后，引用未定义变量抛 `UNDEFINED_VARIABLE` 错误。
     pub strict_undefined: bool,
     /// 模板 canonical id（用于 include 循环检测和依赖追踪）。
     pub name: Option<String>,
+    /// 宿主授予的注册表能力；超出集合的 filter/function/test 直接拒绝。
+    pub capabilities: CapabilitySet,
 }
 
 // ---------------------------------------------------------------------------
@@ -75,6 +78,7 @@ pub fn render_ir_opts(
         scope,
         loader,
         strict_undefined: opts.strict_undefined,
+        capabilities: opts.capabilities,
         current_id: default_id,
         block_levels: Vec::new(),
         block_level: 0,
@@ -96,6 +100,8 @@ struct Renderer<'a> {
     scope: HashMap<String, Value>,
     loader: Option<&'a mut dyn TemplateLoader>,
     strict_undefined: bool,
+    /// Host-granted registry capabilities; checked on every filter/function/test.
+    capabilities: CapabilitySet,
     current_id: String,
     /// Block definitions per inheritance level. Index 0 is the most derived
     /// template, each further index is one `extends` hop closer to the root.
@@ -636,12 +642,12 @@ impl<'a> Renderer<'a> {
                     return self.call_macro(&mac, &args?, None);
                 }
                 let args: Result<Vec<_>, _> = arguments.iter().map(|a| self.eval(a)).collect();
-                crate::builtins::call_function(name, &args?)
+                crate::builtins::call_function(name, &args?, self.capabilities)
             }
             IrNode::ExprTest { expression, test, arguments, negated, .. } => {
                 let value = self.eval(expression)?;
                 let args: Result<Vec<_>, _> = arguments.iter().map(|a| self.eval(a)).collect();
-                Ok(Value::Bool(crate::builtins::call_test(test, &value, &args?, *negated)?))
+                Ok(Value::Bool(crate::builtins::call_test(test, &value, &args?, *negated, self.capabilities)?))
             }
             IrNode::ExprBinary { operator, left, right, .. } => {
                 let l = self.eval(left)?;
@@ -678,7 +684,7 @@ impl<'a> Renderer<'a> {
             IrNode::ExprPipe { expression, filter, arguments, .. } => {
                 let mut val = self.eval(expression)?;
                 let args: Result<Vec<_>, _> = arguments.iter().map(|a| self.eval(a)).collect();
-                val = apply_filter(filter, val, &args?)?;
+                val = apply_filter(filter, val, &args?, self.capabilities)?;
                 Ok(val)
             }
             _ => Err(diag_render(codes::INVALID_EXPRESSION_NODE)),
@@ -832,8 +838,13 @@ fn as_f64(v: &Value) -> Option<f64> {
     }
 }
 
-fn apply_filter(name: &str, value: Value, args: &[Value]) -> Result<Value, IrError> {
-    let spec = match validate_filter(name, args.len()) {
+fn apply_filter(
+    name: &str,
+    value: Value,
+    args: &[Value],
+    capabilities: CapabilitySet,
+) -> Result<Value, IrError> {
+    let spec = match validate_filter(name, args.len(), capabilities) {
         Ok(spec) => spec,
         Err(FilterLookupError::Unknown) => {
             return Err(diag_render(codes::UNKNOWN_FILTER).arg("filter", name));
@@ -844,6 +855,9 @@ fn apply_filter(name: &str, value: Value, args: &[Value]) -> Result<Value, IrErr
                 .arg("minArgs", spec.min_args as i64)
                 .arg("maxArgs", spec.max_args as i64)
                 .arg("got", args.len() as i64));
+        }
+        Err(FilterLookupError::NotAllowed { spec }) => {
+            return Err(capability_denied(spec.name, spec.capability));
         }
     };
     match spec.name {
@@ -901,10 +915,17 @@ fn is_raw_filter(expr: &IrNode) -> bool {
         // skips escaping, while `x |> safe |> uppercase` escapes the result.
         IrNode::ExprPipe { filter, .. } => matches!(
             crate::registry::filter_spec(filter).map(|spec| spec.capability),
-            Some(FilterCapability::SafeOutput)
+            Some(Capability::SafeOutput)
         ),
         _ => false,
     }
+}
+
+/// `dejavu.template.capability-not-allowed` for an entry the host did not grant.
+pub(crate) fn capability_denied(name: &str, capability: Capability) -> IrError {
+    diag_render(codes::CAPABILITY_NOT_ALLOWED)
+        .arg("name", name)
+        .arg("capability", capability.as_str())
 }
 
 /// 最小 strftime — 支持 `%Y %m %d %H %M %S %%`。

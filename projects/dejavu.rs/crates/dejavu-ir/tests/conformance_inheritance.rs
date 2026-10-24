@@ -350,6 +350,7 @@ fn strict_undefined_throws_on_missing_var() {
     let opts = RenderOptions {
         strict_undefined: true,
         name: Some("t".into()),
+        ..Default::default()
     };
     let result = render_ir_opts(&doc, &ctx, opts, None);
     assert!(result.is_err());
@@ -372,6 +373,7 @@ fn strict_undefined_disabled_returns_null_as_empty() {
     let opts = RenderOptions {
         strict_undefined: false,
         name: Some("t".into()),
+        ..Default::default()
     };
     let out = render_ir_opts(&doc, &ctx, opts, None).unwrap();
     assert_eq!(out, "");

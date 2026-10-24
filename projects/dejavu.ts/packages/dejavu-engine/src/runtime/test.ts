@@ -14,20 +14,21 @@ export interface TestSpec {
     aliases: string[];
     minArgs: number;
     maxArgs: number;
+    capability: string;
 }
 
 /** 与 Rust `dejavu_ir::registry::TESTS` 同序同构的静态描述。 */
 export const TESTS: readonly TestSpec[] = [
-    { name: "null", aliases: ["none"], minArgs: 0, maxArgs: 0 },
-    { name: "truthy", aliases: [], minArgs: 0, maxArgs: 0 },
-    { name: "empty", aliases: [], minArgs: 0, maxArgs: 0 },
-    { name: "array", aliases: [], minArgs: 0, maxArgs: 0 },
-    { name: "object", aliases: [], minArgs: 0, maxArgs: 0 },
-    { name: "string", aliases: [], minArgs: 0, maxArgs: 0 },
-    { name: "number", aliases: [], minArgs: 0, maxArgs: 0 },
-    { name: "boolean", aliases: [], minArgs: 0, maxArgs: 0 },
-    { name: "even", aliases: [], minArgs: 0, maxArgs: 0 },
-    { name: "odd", aliases: [], minArgs: 0, maxArgs: 0 },
+    { name: "null", aliases: ["none"], minArgs: 0, maxArgs: 0, capability: "pure" },
+    { name: "truthy", aliases: [], minArgs: 0, maxArgs: 0, capability: "pure" },
+    { name: "empty", aliases: [], minArgs: 0, maxArgs: 0, capability: "pure" },
+    { name: "array", aliases: [], minArgs: 0, maxArgs: 0, capability: "pure" },
+    { name: "object", aliases: [], minArgs: 0, maxArgs: 0, capability: "pure" },
+    { name: "string", aliases: [], minArgs: 0, maxArgs: 0, capability: "pure" },
+    { name: "number", aliases: [], minArgs: 0, maxArgs: 0, capability: "pure" },
+    { name: "boolean", aliases: [], minArgs: 0, maxArgs: 0, capability: "pure" },
+    { name: "even", aliases: [], minArgs: 0, maxArgs: 0, capability: "pure" },
+    { name: "odd", aliases: [], minArgs: 0, maxArgs: 0, capability: "pure" },
 ];
 
 export function testSpec(name: string): TestSpec | undefined {

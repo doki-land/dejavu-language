@@ -9,15 +9,92 @@
 //! This is intentionally a static table, not a runtime registry: no host may
 //! add entries that the other hosts do not implement, and arbitrary
 //! `Expr.Call` / host methods stay closed — only names listed here execute.
+//!
+//! Every entry declares the [`Capability`] it needs. A host may grant a subset
+//! through [`CapabilitySet`] (render / codegen options); an entry outside that
+//! subset is rejected with `dejavu.template.capability-not-allowed` instead of
+//! executing. Without an explicit grant the default is [`CapabilitySet::all`].
 
-/// Whether a filter's result must skip automatic HTML escaping.
+/// A capability a registry entry needs from its host.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FilterCapability {
+pub enum Capability {
     /// Ordinary value transformation. The interpolation pipeline still escapes.
     Pure,
-    /// The filter owns the output escaping (`escape`/`e`) or explicitly opts out
+    /// The entry owns the output escaping (`escape`/`e`) or explicitly opts out
     /// of escaping (`safe`/`raw`). The pipeline must not escape again.
     SafeOutput,
+}
+
+impl Capability {
+    /// Stable wire name used by options and cross-host registry dumps.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Capability::Pure => "pure",
+            Capability::SafeOutput => "safe-output",
+        }
+    }
+
+    /// Parse a wire name; returns `None` for anything not in the contract.
+    pub fn parse(name: &str) -> Option<Self> {
+        match name {
+            "pure" => Some(Capability::Pure),
+            "safe-output" => Some(Capability::SafeOutput),
+            _ => None,
+        }
+    }
+}
+
+/// The capabilities a host grants to registry entries.
+///
+/// `Default` grants everything, which is the behaviour hosts had before the
+/// allowlist existed. Passing an explicit list (for example `["pure"]`) closes
+/// the `safe-output` entries for that render / compile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CapabilitySet {
+    pure: bool,
+    safe_output: bool,
+}
+
+impl Default for CapabilitySet {
+    fn default() -> Self {
+        Self::all()
+    }
+}
+
+impl CapabilitySet {
+    /// Grant every capability in the contract.
+    pub const fn all() -> Self {
+        Self { pure: true, safe_output: true }
+    }
+
+    /// Grant no capability; every registry entry is rejected.
+    pub const fn none() -> Self {
+        Self { pure: false, safe_output: false }
+    }
+
+    /// Build from wire names, granting exactly the listed capabilities.
+    ///
+    /// Returns the first unknown name so hosts can report it as a configuration
+    /// error instead of silently narrowing or widening the set.
+    pub fn from_names(names: &[String]) -> Result<Self, String> {
+        let mut set = Self::none();
+        for name in names {
+            match Capability::parse(name) {
+                Some(Capability::Pure) => set.pure = true,
+                Some(Capability::SafeOutput) => set.safe_output = true,
+                None => return Err(name.clone()),
+            }
+        }
+        Ok(set)
+    }
+
+    /// Whether `capability` is granted.
+    pub const fn allows(self, capability: Capability) -> bool {
+        match capability {
+            Capability::Pure => self.pure,
+            Capability::SafeOutput => self.safe_output,
+        }
+    }
 }
 
 /// One built-in filter contract.
@@ -31,8 +108,8 @@ pub struct FilterSpec {
     pub min_args: usize,
     /// Maximum number of explicit arguments.
     pub max_args: usize,
-    /// Output escaping capability.
-    pub capability: FilterCapability,
+    /// Capability the host must grant for this filter to run.
+    pub capability: Capability,
 }
 
 const fn spec(
@@ -40,24 +117,24 @@ const fn spec(
     aliases: &'static [&'static str],
     min_args: usize,
     max_args: usize,
-    capability: FilterCapability,
+    capability: Capability,
 ) -> FilterSpec {
     FilterSpec { name, aliases, min_args, max_args, capability }
 }
 
 /// The complete built-in filter set, in contract order.
 pub const FILTERS: &[FilterSpec] = &[
-    spec("uppercase", &["upper"], 0, 0, FilterCapability::Pure),
-    spec("lowercase", &["lower"], 0, 0, FilterCapability::Pure),
-    spec("trim", &[], 0, 0, FilterCapability::Pure),
-    spec("default", &[], 1, 1, FilterCapability::Pure),
-    spec("length", &[], 0, 0, FilterCapability::Pure),
-    spec("join", &[], 0, 1, FilterCapability::Pure),
-    spec("replace", &[], 2, 2, FilterCapability::Pure),
-    spec("escape", &["e"], 0, 0, FilterCapability::SafeOutput),
-    spec("safe", &["raw"], 0, 0, FilterCapability::SafeOutput),
-    spec("date", &[], 0, 1, FilterCapability::Pure),
-    spec("slug", &[], 0, 0, FilterCapability::Pure),
+    spec("uppercase", &["upper"], 0, 0, Capability::Pure),
+    spec("lowercase", &["lower"], 0, 0, Capability::Pure),
+    spec("trim", &[], 0, 0, Capability::Pure),
+    spec("default", &[], 1, 1, Capability::Pure),
+    spec("length", &[], 0, 0, Capability::Pure),
+    spec("join", &[], 0, 1, Capability::Pure),
+    spec("replace", &[], 2, 2, Capability::Pure),
+    spec("escape", &["e"], 0, 0, Capability::SafeOutput),
+    spec("safe", &["raw"], 0, 0, Capability::SafeOutput),
+    spec("date", &[], 0, 1, Capability::Pure),
+    spec("slug", &[], 0, 0, Capability::Pure),
 ];
 
 /// Look up a filter by canonical name or alias.
@@ -67,15 +144,24 @@ pub fn filter_spec(name: &str) -> Option<&'static FilterSpec> {
         .find(|spec| spec.name == name || spec.aliases.contains(&name))
 }
 
-/// Validate a filter name and argument count.
+/// Validate a filter name, argument count and host-granted capabilities.
 ///
-/// Returns the canonical spec on success, or the index of the violated rule:
-/// `FilterLookupError::Unknown` for an unknown name and
-/// `FilterLookupError::Arity` for an out-of-contract argument count.
-pub fn validate_filter(name: &str, arg_count: usize) -> Result<&'static FilterSpec, FilterLookupError> {
+/// Returns the canonical spec on success, or the violated rule:
+/// `FilterLookupError::Unknown` for an unknown name,
+/// `FilterLookupError::Arity` for an out-of-contract argument count and
+/// `FilterLookupError::NotAllowed` when the host did not grant the filter's
+/// capability.
+pub fn validate_filter(
+    name: &str,
+    arg_count: usize,
+    capabilities: CapabilitySet,
+) -> Result<&'static FilterSpec, FilterLookupError> {
     let spec = filter_spec(name).ok_or(FilterLookupError::Unknown)?;
     if arg_count < spec.min_args || arg_count > spec.max_args {
         return Err(FilterLookupError::Arity { spec });
+    }
+    if !capabilities.allows(spec.capability) {
+        return Err(FilterLookupError::NotAllowed { spec });
     }
     Ok(spec)
 }
@@ -87,6 +173,8 @@ pub enum FilterLookupError {
     Unknown,
     /// The filter exists but the argument count is outside its contract.
     Arity { spec: &'static FilterSpec },
+    /// The host did not grant the filter's [`Capability`].
+    NotAllowed { spec: &'static FilterSpec },
 }
 
 // ---------------------------------------------------------------------------
@@ -108,6 +196,8 @@ pub struct FunctionSpec {
     pub min_args: usize,
     /// Maximum number of arguments.
     pub max_args: usize,
+    /// Capability the host must grant for this function to run.
+    pub capability: Capability,
 }
 
 const fn function_entry(
@@ -115,15 +205,16 @@ const fn function_entry(
     aliases: &'static [&'static str],
     min_args: usize,
     max_args: usize,
+    capability: Capability,
 ) -> FunctionSpec {
-    FunctionSpec { name, aliases, min_args, max_args }
+    FunctionSpec { name, aliases, min_args, max_args, capability }
 }
 
 /// The complete built-in function set, in contract order.
 pub const FUNCTIONS: &[FunctionSpec] = &[
-    function_entry("range", &[], 2, 3),
-    function_entry("min", &[], 2, 2),
-    function_entry("max", &[], 2, 2),
+    function_entry("range", &[], 2, 3, Capability::Pure),
+    function_entry("min", &[], 2, 2, Capability::Pure),
+    function_entry("max", &[], 2, 2, Capability::Pure),
 ];
 
 /// Look up a function by canonical name or alias.
@@ -131,11 +222,18 @@ pub fn function_spec(name: &str) -> Option<&'static FunctionSpec> {
     FUNCTIONS.iter().find(|spec| spec.name == name || spec.aliases.contains(&name))
 }
 
-/// Validate a function name and argument count.
-pub fn validate_function(name: &str, arg_count: usize) -> Result<&'static FunctionSpec, FunctionLookupError> {
+/// Validate a function name, argument count and host-granted capabilities.
+pub fn validate_function(
+    name: &str,
+    arg_count: usize,
+    capabilities: CapabilitySet,
+) -> Result<&'static FunctionSpec, FunctionLookupError> {
     let spec = function_spec(name).ok_or(FunctionLookupError::Unknown)?;
     if arg_count < spec.min_args || arg_count > spec.max_args {
         return Err(FunctionLookupError::Arity { spec });
+    }
+    if !capabilities.allows(spec.capability) {
+        return Err(FunctionLookupError::NotAllowed { spec });
     }
     Ok(spec)
 }
@@ -147,6 +245,8 @@ pub enum FunctionLookupError {
     Unknown,
     /// The function exists but the argument count is outside its contract.
     Arity { spec: &'static FunctionSpec },
+    /// The host did not grant the function's [`Capability`].
+    NotAllowed { spec: &'static FunctionSpec },
 }
 
 // ---------------------------------------------------------------------------
@@ -167,10 +267,12 @@ pub struct TestSpec {
     pub min_args: usize,
     /// Maximum number of arguments.
     pub max_args: usize,
+    /// Capability the host must grant for this test to run.
+    pub capability: Capability,
 }
 
 const fn test_entry(name: &'static str, aliases: &'static [&'static str]) -> TestSpec {
-    TestSpec { name, aliases, min_args: 0, max_args: 0 }
+    TestSpec { name, aliases, min_args: 0, max_args: 0, capability: Capability::Pure }
 }
 
 /// The complete built-in test set, in contract order.
@@ -192,11 +294,18 @@ pub fn test_spec(name: &str) -> Option<&'static TestSpec> {
     TESTS.iter().find(|spec| spec.name == name || spec.aliases.contains(&name))
 }
 
-/// Validate a test name and argument count.
-pub fn validate_test(name: &str, arg_count: usize) -> Result<&'static TestSpec, TestLookupError> {
+/// Validate a test name, argument count and host-granted capabilities.
+pub fn validate_test(
+    name: &str,
+    arg_count: usize,
+    capabilities: CapabilitySet,
+) -> Result<&'static TestSpec, TestLookupError> {
     let spec = test_spec(name).ok_or(TestLookupError::Unknown)?;
     if arg_count < spec.min_args || arg_count > spec.max_args {
         return Err(TestLookupError::Arity { spec });
+    }
+    if !capabilities.allows(spec.capability) {
+        return Err(TestLookupError::NotAllowed { spec });
     }
     Ok(spec)
 }
@@ -208,6 +317,8 @@ pub enum TestLookupError {
     Unknown,
     /// The test exists but the argument count is outside its contract.
     Arity { spec: &'static TestSpec },
+    /// The host did not grant the test's [`Capability`].
+    NotAllowed { spec: &'static TestSpec },
 }
 
 // ---------------------------------------------------------------------------
@@ -231,17 +342,13 @@ pub fn to_json() -> String {
     let filters: Vec<String> = FILTERS
         .iter()
         .map(|spec| {
-            let capability = match spec.capability {
-                FilterCapability::Pure => "pure",
-                FilterCapability::SafeOutput => "safe-output",
-            };
             format!(
                 "{{\"name\":{},\"aliases\":{},\"minArgs\":{},\"maxArgs\":{},\"capability\":{}}}",
                 json_string(spec.name),
                 json_aliases(spec.aliases),
                 spec.min_args,
                 spec.max_args,
-                json_string(capability)
+                json_string(spec.capability.as_str())
             )
         })
         .collect();
@@ -249,11 +356,12 @@ pub fn to_json() -> String {
         .iter()
         .map(|spec| {
             format!(
-                "{{\"name\":{},\"aliases\":{},\"minArgs\":{},\"maxArgs\":{}}}",
+                "{{\"name\":{},\"aliases\":{},\"minArgs\":{},\"maxArgs\":{},\"capability\":{}}}",
                 json_string(spec.name),
                 json_aliases(spec.aliases),
                 spec.min_args,
-                spec.max_args
+                spec.max_args,
+                json_string(spec.capability.as_str())
             )
         })
         .collect();
@@ -261,11 +369,12 @@ pub fn to_json() -> String {
         .iter()
         .map(|spec| {
             format!(
-                "{{\"name\":{},\"aliases\":{},\"minArgs\":{},\"maxArgs\":{}}}",
+                "{{\"name\":{},\"aliases\":{},\"minArgs\":{},\"maxArgs\":{},\"capability\":{}}}",
                 json_string(spec.name),
                 json_aliases(spec.aliases),
                 spec.min_args,
-                spec.max_args
+                spec.max_args,
+                json_string(spec.capability.as_str())
             )
         })
         .collect();

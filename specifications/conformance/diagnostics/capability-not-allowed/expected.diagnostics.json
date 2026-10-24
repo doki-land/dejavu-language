@@ -1,0 +1,7 @@
+[
+    {
+        "code": "dejavu.template.capability-not-allowed",
+        "stages": ["compile", "render"],
+        "args": { "name": "safe", "capability": "safe-output" }
+    }
+]

@@ -4,6 +4,7 @@
 //! Writes `{"diagnostics":[...]}` and exits 0 even when rendering fails, so
 //! the conformance runner can compare structured diagnostics across hosts.
 
+use dejavu_ir::registry::CapabilitySet;
 use dejavu_ir::{IrError, RenderOptions, render_ir_opts};
 use serde_json::{Value, json};
 use std::env;
@@ -25,6 +26,14 @@ fn main() {
         let parsed: Value = serde_json::from_str(&raw).expect("options json");
         options.strict_undefined = parsed["strictUndefined"].as_bool().unwrap_or(false);
         options.name = parsed["name"].as_str().map(str::to_string);
+        options.capabilities = match parsed["capabilities"].as_array() {
+            Some(names) => {
+                let names: Vec<String> =
+                    names.iter().map(|name| name.as_str().unwrap_or_default().to_string()).collect();
+                CapabilitySet::from_names(&names).expect("known capability")
+            }
+            None => CapabilitySet::all(),
+        };
     }
 
     let doc: dejavu_ir::IrDocument = serde_json::from_str(&ir).expect("ir json");

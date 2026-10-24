@@ -15,7 +15,7 @@ use serde_json::Value;
 use crate::IrError;
 use crate::codes;
 use crate::diag_render;
-use crate::registry::{FunctionLookupError, TestLookupError, validate_function, validate_test};
+use crate::registry::{CapabilitySet, FunctionLookupError, TestLookupError, validate_function, validate_test};
 
 /// Maximum number of elements `range` may produce.
 ///
@@ -24,8 +24,8 @@ use crate::registry::{FunctionLookupError, TestLookupError, validate_function, v
 const RANGE_LIMIT: usize = 10_000;
 
 /// Evaluate a built-in function call.
-pub fn call_function(name: &str, args: &[Value]) -> Result<Value, IrError> {
-    let spec = validate_function(name, args.len()).map_err(|err| match err {
+pub fn call_function(name: &str, args: &[Value], capabilities: CapabilitySet) -> Result<Value, IrError> {
+    let spec = validate_function(name, args.len(), capabilities).map_err(|err| match err {
         FunctionLookupError::Unknown => {
             diag_render(codes::UNKNOWN_FUNCTION).arg("function", name)
         }
@@ -34,6 +34,9 @@ pub fn call_function(name: &str, args: &[Value]) -> Result<Value, IrError> {
             .arg("minArgs", spec.min_args)
             .arg("maxArgs", spec.max_args)
             .arg("got", args.len()),
+        FunctionLookupError::NotAllowed { spec } => {
+            crate::render::capability_denied(spec.name, spec.capability)
+        }
     })?;
     Ok(match spec.name {
         "range" => range(args),
@@ -47,14 +50,21 @@ pub fn call_function(name: &str, args: &[Value]) -> Result<Value, IrError> {
 ///
 /// `negated` is the `is not` form. Callers must pass `negated=false` when the
 /// source had no `not` marker.
-pub fn call_test(name: &str, value: &Value, args: &[Value], negated: bool) -> Result<bool, IrError> {
-    let spec = validate_test(name, args.len()).map_err(|err| match err {
+pub fn call_test(
+    name: &str,
+    value: &Value,
+    args: &[Value],
+    negated: bool,
+    capabilities: CapabilitySet,
+) -> Result<bool, IrError> {
+    let spec = validate_test(name, args.len(), capabilities).map_err(|err| match err {
         TestLookupError::Unknown => diag_render(codes::UNKNOWN_TEST).arg("test", name),
         TestLookupError::Arity { spec } => diag_render(codes::TEST_ARITY)
             .arg("test", spec.name)
             .arg("minArgs", spec.min_args)
             .arg("maxArgs", spec.max_args)
             .arg("got", args.len()),
+        TestLookupError::NotAllowed { spec } => crate::render::capability_denied(spec.name, spec.capability),
     })?;
     let result = match spec.name {
         "null" => value.is_null(),

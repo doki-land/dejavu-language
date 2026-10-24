@@ -11,6 +11,7 @@
 use std::collections::BTreeMap;
 
 use dejavu_diagnostic::{Diagnostic, Severity, Stage, codes};
+use dejavu_ir::registry::CapabilitySet;
 use dejavu_ir::{
     CatalogRoot, IrDocument, IrError, RenderOptions, ResolveRoot, TemplateCatalog, TemplateLoader, render_ir_opts, resolve_ref,
 };
@@ -439,6 +440,8 @@ struct RenderOptionsWire {
     strict: bool,
     #[serde(default)]
     name: Option<String>,
+    #[serde(default)]
+    capabilities: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -492,7 +495,16 @@ fn render_document(document: &IrDocument, context: &str, options: Option<&str>, 
         }
     }
 
-    let options = RenderOptions { strict_undefined: wire.strict, name: wire.name };
+    let capabilities = match wire.capabilities {
+        Some(names) => match CapabilitySet::from_names(&names) {
+            Ok(set) => set,
+            Err(name) => {
+                return respond(&RenderResponse { output: None, diagnostics: vec![to_wire(&capability_diag(&name))] });
+            }
+        },
+        None => CapabilitySet::all(),
+    };
+    let options = RenderOptions { strict_undefined: wire.strict, name: wire.name, capabilities };
     let mut loader_state = catalog_state.as_ref().map(dejavu_ir::CatalogLoader::new);
     let loader: Option<&mut dyn TemplateLoader> = match loader_state.as_mut() {
         Some(loader) => Some(loader),
@@ -538,6 +550,12 @@ fn failure_ir(diagnostic: Diagnostic) -> String {
 
 fn json_diag(message: String) -> Diagnostic {
     Diagnostic::new(Severity::Error, codes::IR_INVALID_JSON, Stage::Host).message(message)
+}
+
+fn capability_diag(name: &str) -> Diagnostic {
+    Diagnostic::new(Severity::Error, codes::UNKNOWN_CAPABILITY, Stage::Host)
+        .message(format!("unknown capability `{name}`"))
+        .arg("capability", name)
 }
 
 fn ir_error_diagnostic(error: IrError) -> Diagnostic {
