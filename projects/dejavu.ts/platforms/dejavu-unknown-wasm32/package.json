@@ -1,6 +1,6 @@
 {
     "name": "@doki-land/dejavu-unknown-wasm32",
-    "version": "0.0.12",
+    "version": "0.0.13",
     "description": "Dejavu WASM language bridge (wasm32-unknown-unknown)",
     "license": "MPL-2.0",
     "author": "Doki Land",
