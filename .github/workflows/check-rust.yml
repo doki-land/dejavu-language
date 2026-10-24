@@ -60,6 +60,9 @@ jobs:
       - name: Build facade (@doki-land/dejavu)
         run: pnpm --filter @doki-land/dejavu build
 
+      - name: Build AOT runtime (@doki-land/dejavu-engine)
+        run: pnpm --filter @doki-land/dejavu-engine build
+
       - name: IR conformance
         run: pnpm conformance
 
