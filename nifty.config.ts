@@ -12,6 +12,9 @@ export default defineConfig({
             '@doki-land/dejavu-darwin-arm64',
             '@doki-land/dejavu-win32-x64',
             '@doki-land/dejavu-win32-arm64',
+            // Web JIT: wasm32 artifact carrier and its host wrapper
+            '@doki-land/dejavu-unknown-wasm32',
+            '@doki-land/dejavu-language',
         ],
     },
     trust: {
