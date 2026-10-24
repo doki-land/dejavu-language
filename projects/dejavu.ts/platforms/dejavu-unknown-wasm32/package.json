@@ -1,0 +1,20 @@
+{
+    "name": "@doki-land/dejavu-unknown-wasm32",
+    "version": "0.0.0",
+    "description": "Dejavu WASM language bridge (wasm32-unknown-unknown)",
+    "license": "MPL-2.0",
+    "author": "Doki Land",
+    "type": "module",
+    "main": "./src/lib/dejavu_wasm.js",
+    "types": "./src/lib/dejavu_wasm.d.ts",
+    "files": [
+        "src/lib"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/doki-land/dejavu-language.git"
+    },
+    "publishConfig": {
+        "access": "public"
+    }
+}

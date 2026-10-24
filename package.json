@@ -30,20 +30,20 @@
         "fmt:check": "node scripts/format.mjs --check",
         "napi:build": "node scripts/build/napi.mjs",
         "napi:build:release": "node scripts/build/napi.mjs --release",
+        "wasm:build": "node scripts/build/wasm.mjs",
+        "wasm:build:release": "node scripts/build/wasm.mjs --release",
         "conformance": "node scripts/conformance-runner.mjs",
         "conformance:ir": "node scripts/conformance-runner.mjs",
         "test": "node scripts/test.mjs",
         "placeholder:trust": "nifty trust"
     },
     "devDependencies": {
-        "@biomejs/biome": "^2.4.8",
-        "@doki-land/nifty": "^0.1.8"
+        "@doki-land/nifty": "^0.1.9"
     },
     "pnpm": {
-    "frozen-lockfile": false,
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "@biomejs/biome"
-    ]
-  }
+        "frozen-lockfile": false,
+        "onlyBuiltDependencies": [
+            "esbuild"
+        ]
+    }
 }
