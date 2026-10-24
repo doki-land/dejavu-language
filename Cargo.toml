@@ -12,6 +12,7 @@ default-members = [
     "projects/dejavu.rs/crates/dejavu-macros",
     "projects/dejavu.rs/crates/dejavu-napi",
     "projects/dejavu.rs/crates/dejavu-types",
+    "projects/dejavu.rs/crates/dejavu-wasm",
     "projects/dejavu.rs/examples/axum-dejavu",
 ]
 
@@ -68,6 +69,7 @@ dejavu-language = { path = "projects/dejavu.rs/crates/dejavu-language", version 
 dejavu-diagnostic = { path = "projects/dejavu.rs/crates/dejavu-diagnostic", version = "0.0.2" }
 axum-dejavu = { path = "projects/dejavu.rs/examples/axum-dejavu", version = "0.0.2" }
 dejavu-codegen = { path = "projects/dejavu.rs/crates/dejavu-codegen", version = "0.0.2" }
+dejavu-wasm = { path = "projects/dejavu.rs/crates/dejavu-wasm", version = "0.0.2" }
 
 [profile.release]
 lto = true
