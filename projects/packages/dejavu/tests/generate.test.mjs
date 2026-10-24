@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -51,6 +51,28 @@ function firstMappingPerLine(mappings) {
     return positions;
 }
 
+/** Write a project config whose `entries` map goes to `./out`. */
+function writeConfig(dir, entries) {
+    const lines = Object.entries(entries).map(
+        ([name, reference]) => `      ${JSON.stringify(name)}: ${JSON.stringify(reference)},`,
+    );
+    writeFileSync(
+        join(dir, "dejavu.config.ts"),
+        [
+            "export default {",
+            '  roots: [{ name: "app", dir: "./templates" }],',
+            "  generate: {",
+            '    outDir: "./out",',
+            "    entries: {",
+            ...lines,
+            "    },",
+            "  },",
+            "};",
+            "",
+        ].join("\n"),
+    );
+}
+
 /** Write a throwaway project with the given templates and a matching config. */
 function scaffold(templates) {
     const dir = mkdtempSync(join(tmpdir(), "dejavu-generate-test-"));
@@ -62,17 +84,48 @@ function scaffold(templates) {
     for (const [name, text] of Object.entries(templates)) {
         writeFileSync(join(dir, "templates", name), text);
     }
-    writeFileSync(
-        join(dir, "dejavu.config.ts"),
-        [
-            "export default {",
-            '  roots: [{ name: "app", dir: "./templates" }],',
-            '  generate: { outDir: "./out", entries: { home: "app:home.dejavu" } },',
-            "};",
-            "",
-        ].join("\n"),
-    );
+    writeConfig(dir, { home: "app:home.dejavu" });
     return dir;
+}
+
+/** Capture every file's exact bytes plus every directory path under `root`. */
+function snapshotTree(root) {
+    const files = new Map();
+    const directories = [];
+    visit(root, "");
+    return { files, directories };
+
+    function visit(current, prefix) {
+        for (const entry of readdirSync(current, { withFileTypes: true }).sort((a, b) =>
+            a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
+        )) {
+            const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+            if (entry.isDirectory()) {
+                directories.push(rel);
+                visit(join(current, entry.name), rel);
+            } else {
+                files.set(rel, readFileSync(join(current, entry.name)));
+            }
+        }
+    }
+}
+
+/** Relative staging/backup paths that a finished publish must have removed. */
+function transactionResidue(root) {
+    const residue = [];
+    visit(root, "");
+    return residue.sort();
+
+    function visit(current, prefix) {
+        for (const entry of readdirSync(current, { withFileTypes: true })) {
+            const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+            if (entry.name.startsWith(".dejavu-tx-") || entry.name.endsWith(".dejavu-tmp")) {
+                residue.push(rel);
+                continue;
+            }
+            if (entry.isDirectory()) visit(join(current, entry.name), rel);
+        }
+    }
 }
 
 test("source maps point generated lines at their template spans", async (t) => {
@@ -123,4 +176,61 @@ test("source maps stay byte-stable across regenerations", async (t) => {
 
     assert.equal(readFileSync(join(dir, "out", "home.js.map"), "utf8"), map);
     assert.notEqual(JSON.parse(map).mappings, "");
+});
+
+test("first generate publishes the planned directory and leaves no transaction residue", async (t) => {
+    const dir = scaffold({ "home.dejavu": "<p><% value %></p>\n" });
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+
+    const plan = await buildGeneratePlan({ cwd: dir });
+    writeOutput(plan);
+
+    const out = join(dir, "out");
+    for (const file of plan.files) {
+        assert.equal(
+            readFileSync(join(out, ...file.path.split("/")), "utf8"),
+            file.content,
+            `${file.path} does not match the plan`,
+        );
+    }
+
+    const manifest = JSON.parse(readFileSync(join(out, "manifest.json"), "utf8"));
+    assert.equal(manifest.contract, "dejavu.generate/v0");
+    assert.equal(manifest.files.length, plan.files.length);
+
+    const snapshot = snapshotTree(out);
+    assert.deepEqual(
+        [...snapshot.files.keys()].sort(),
+        [...plan.files.map((file) => file.path), "manifest.json"].sort(),
+    );
+    assert.deepEqual(transactionResidue(out), []);
+});
+
+test("a failed second generate restores the previous output byte for byte", async (t) => {
+    const dir = scaffold({ "home.dejavu": "<p>home</p>\n" });
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+
+    const first = await buildGeneratePlan({ cwd: dir });
+    writeOutput(first);
+
+    const out = join(dir, "out");
+    const manifestBefore = readFileSync(join(out, "manifest.json"));
+
+    // Replace the entry set and block the new module path with a directory.
+    // The commit therefore fails after stale files were moved aside and some
+    // replacements were already in place, which is exactly the rollback case.
+    writeFileSync(join(dir, "templates", "zebra.dejavu"), "<p>zebra</p>\n");
+    writeConfig(dir, { zebra: "app:zebra.dejavu" });
+    mkdirSync(join(out, "zebra.js"), { recursive: true });
+
+    const before = snapshotTree(out);
+    const second = await buildGeneratePlan({ cwd: dir });
+
+    assert.throws(() => writeOutput(second), /is not a regular file/);
+
+    const after = snapshotTree(out);
+    assert.deepEqual(after.files, before.files);
+    assert.deepEqual(after.directories, before.directories);
+    assert.deepEqual(readFileSync(join(out, "manifest.json")), manifestBefore);
+    assert.deepEqual(transactionResidue(out), []);
 });
