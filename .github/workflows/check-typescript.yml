@@ -1,6 +1,6 @@
 # TypeScript gate for dejavu-language.
 # - push / PR on any branch → regular CI only (no publish)
-# - release-npm / publish-docker / publish-artifacts call this via workflow_call on tag vX.Y.Z
+# - release-npm calls this via workflow_call on tag vX.Y.Z
 # - On workflow_call, checkout is the caller's ref (the tagged commit)
 #
 # Scope: the publishable JS surface. It builds the N-API addon from the Rust
