@@ -1,89 +1,106 @@
 import { htmlEscape } from "./escape.js";
-import { isTruthy, valueToString } from "./value.js";
+import { isTruthy, valueToString, valuesEqual } from "./value.js";
 
 /**
  * Dejavu 1.0 支持的二元运算符。
- * 与 Rust `dejavu-ir::IrExprBinaryOp` 枚举一一对应。
+ * 与 Rust `dejavu-ir` 的 `eval_binary` 一一对应，**不借用 JS 隐式转换**：
  *
- * 行为：
- * - `+` 特殊：任何一侧为字符串时做字符串拼接，否则数值加法。
- * - `&&` / `||` 返回原值（短路），不是布尔。
- * - `in`：R 是 object / array 时检查 key 存在。
- * - 比较与相等用 JS 原生语义。
+ * - `+`：两侧都是 number 时相加，否则按 `valueToString` 做字符串拼接。
+ * - `-` `*` `/` `%`：只接受 number，非 number 或结果非有限数 → null。
+ * - `==` / `!=`：结构相等（见 `valuesEqual`），不做类型转换。
+ * - `<` `<=` `>` `>=`：两侧都是 number 才比较，否则 false。
+ * - `&&` / `||`：返回 **boolean**（Dejavu truthiness），不是原值。
+ * - `in`：数组按成员、字符串按子串、对象按 key 判断。
  */
 export function binary(op: string, l: unknown, r: unknown): unknown {
     switch (op) {
         case "+": {
-            if (typeof l === "string" || typeof r === "string") {
-                return String(l) + String(r);
+            if (typeof l === "number" && typeof r === "number") {
+                return finite(l + r);
             }
-            return (l as number) + (r as number);
+            return valueToString(l) + valueToString(r);
         }
         case "-":
-            return (l as number) - (r as number);
         case "*":
-            return (l as number) * (r as number);
         case "/":
-            return (l as number) / (r as number);
-        case "%":
-            return (l as number) % (r as number);
+        case "%": {
+            if (typeof l !== "number" || typeof r !== "number") return null;
+            const value =
+                op === "-"
+                    ? l - r
+                    : op === "*"
+                      ? l * r
+                      : op === "/"
+                        ? l / r
+                        : l % r;
+            return finite(value);
+        }
 
         case "==":
-            // Dejavu 1.0 只用 ==/!= —— JS 宽松相等
-            // eslint-disable-next-line eqeqeq
-            return l == r;
+            return valuesEqual(l, r);
         case "!=":
-            // eslint-disable-next-line eqeqeq
-            return l != r;
-        case "===":
-            return l === r;
-        case "!==":
-            return l !== r;
+            return !valuesEqual(l, r);
 
         case "<":
-            return (l as any) < (r as any);
         case "<=":
-            return (l as any) <= (r as any);
         case ">":
-            return (l as any) > (r as any);
-        case ">=":
-            return (l as any) >= (r as any);
+        case ">=": {
+            if (typeof l !== "number" || typeof r !== "number") return false;
+            if (!Number.isFinite(l) || !Number.isFinite(r)) return false;
+            switch (op) {
+                case "<":
+                    return l < r;
+                case "<=":
+                    return l <= r;
+                case ">":
+                    return l > r;
+                default:
+                    return l >= r;
+            }
+        }
 
         case "&&":
-            return l && r;
+            return isTruthy(l) && isTruthy(r);
         case "||":
-            return l || r;
+            return isTruthy(l) || isTruthy(r);
 
         case "in":
-            if (r === null || r === undefined) return false;
-            return String(l) in (r as Record<string, unknown>);
+            if (Array.isArray(r)) return r.some((item) => valuesEqual(item, l));
+            if (typeof r === "string") return r.includes(valueToString(l));
+            if (r !== null && typeof r === "object") {
+                return Object.prototype.hasOwnProperty.call(r, valueToString(l));
+            }
+            return false;
 
         default:
             return null;
     }
 }
 
+function finite(value: number): number | null {
+    return Number.isFinite(value) ? value : null;
+}
+
 /**
- * 一元运算符。
+ * 一元运算符 —— 与 Rust `eval_unary` 对齐。
  *
- * `!` 使用 **Dejavu truthiness**（不是 JS falsy）。
+ * `!` 使用 Dejavu truthiness；`-` 只接受 number；`+` 是恒等。
  */
 export function unary(op: string, a: unknown): unknown {
     switch (op) {
         case "!":
             return !isTruthy(a);
         case "-":
-            return -(Number(a) || 0);
+            return typeof a === "number" ? finite(-a) : null;
         case "+":
-            return +(Number(a) || 0);
+            return a;
         default:
             return null;
     }
 }
 
 /**
- * 成员访问 —— `obj?.[property] ?? null`。
- * 对不存在的键返回 null（不是 undefined）。
+ * 成员访问 —— 对不存在的键返回 null（不是 undefined）。
  */
 export function exprMember(obj: unknown, property: string): unknown {
     if (obj === null || obj === undefined) return null;

@@ -55,8 +55,8 @@ describe("valueToString", () => {
         expect(valueToString(d)).toBe("2024-01-02T03:04:05.000Z");
     });
 
-    it("Array → 递归 join", () => {
-        expect(valueToString([1, "a", true])).toBe("1,a,true");
+    it("Array → 紧凑 JSON", () => {
+        expect(valueToString([1, "a", true])).toBe('[1,"a",true]');
     });
 
     it("object → JSON.stringify", () => {
@@ -125,32 +125,46 @@ describe("applyFilter", () => {
         expect(applyFilter("trim", "  hi  ", [])).toBe("hi");
     });
 
-    it("default —— truthy 时返回原值，否则返回 args[0]", () => {
+    it("default —— 只有 null / 空串算缺失", () => {
         expect(applyFilter("default", "hi", ["fallback"])).toBe("hi");
         expect(applyFilter("default", "", ["fallback"])).toBe("fallback");
-        expect(applyFilter("default", 0, ["fallback"])).toBe("fallback");
-        expect(applyFilter("default", "", [])).toBe("");
+        expect(applyFilter("default", null, ["fallback"])).toBe("fallback");
+        // 0 / false / [] 保留原值（不是 JS falsy）
+        expect(applyFilter("default", 0, ["fallback"])).toBe(0);
+        expect(applyFilter("default", false, ["fallback"])).toBe(false);
+        expect(applyFilter("default", [], ["fallback"])).toEqual([]);
+        expect(applyFilter("default", "", [])).toBeNull();
     });
 
     it("length", () => {
         expect(applyFilter("length", "hello", [])).toBe(5);
         expect(applyFilter("length", [1, 2, 3], [])).toBe(3);
+        expect(applyFilter("length", { a: 1, b: 2 }, [])).toBe(2);
+        expect(applyFilter("length", 42, [])).toBe(0);
     });
 
-    it("join —— 数组用分隔符 join，非数组走 string", () => {
+    it("join —— 数组用分隔符 join，非数组走 valueToString", () => {
         expect(applyFilter("join", [1, 2, 3], ["-"])).toBe("1-2-3");
+        expect(applyFilter("join", ["a", null], [])).toBe("a,");
         expect(applyFilter("join", "abc", [])).toBe("abc");
+        expect(applyFilter("join", null, [])).toBe("");
     });
 
-    it("replace", () => {
+    it("replace —— 替换全部出现", () => {
         expect(applyFilter("replace", "hello world", ["world", "dejavu"])).toBe(
             "hello dejavu",
         );
+        expect(applyFilter("replace", "a-a-a", ["a", "b"])).toBe("b-b-b");
     });
 
-    it("date —— Date 对象 → ISO", () => {
+    it("date —— 默认 %Y-%m-%d，与 Rust 一致", () => {
         const d = new Date("2024-01-02T03:04:05.000Z");
-        expect(applyFilter("date", d, [])).toBe("2024-01-02T03:04:05.000Z");
+        expect(applyFilter("date", d, [])).toBe("2024-01-02");
+        expect(applyFilter("date", "2024-01-02T03:04:05.000Z", ["%Y/%m/%d %H:%M:%S"])).toBe(
+            "2024/01/02 03:04:05",
+        );
+        expect(applyFilter("date", "", [])).toBe("");
+        expect(applyFilter("date", "not-a-date", [])).toBe("");
     });
 
     it("slug", () => {
@@ -185,34 +199,36 @@ describe("binary", () => {
         expect(binary("%", 10, 3)).toBe(1);
     });
 
-    it("== / != JS 宽松相等", () => {
+    it("== / != 结构相等，不做类型转换", () => {
         expect(binary("==", 1, 1)).toBe(true);
-        expect(binary("==", 1, "1")).toBe(true);
+        expect(binary("==", 1, "1")).toBe(false);
+        expect(binary("==", [1, 2], [1, 2])).toBe(true);
+        expect(binary("==", { a: 1 }, { a: 1 })).toBe(true);
+        expect(binary("==", { a: 1 }, { a: 2 })).toBe(false);
         expect(binary("!=", 1, 2)).toBe(true);
     });
 
-    it("=== / !== JS 严格相等", () => {
-        expect(binary("===", 1, 1)).toBe(true);
-        expect(binary("===", 1, "1")).toBe(false);
-    });
-
-    it("< <= > >=", () => {
+    it("< <= > >= 只比较 number", () => {
         expect(binary("<", 1, 2)).toBe(true);
         expect(binary("<=", 2, 2)).toBe(true);
         expect(binary(">", 2, 1)).toBe(true);
         expect(binary(">=", 2, 2)).toBe(true);
+        // 非 number 不借用 JS 字符串比较
+        expect(binary("<", "10", "9")).toBe(false);
     });
 
-    it("&& / || 短路返回原值", () => {
-        expect(binary("&&", "left", "right")).toBe("right");
+    it("&& / || 返回 boolean", () => {
+        expect(binary("&&", "left", "right")).toBe(true);
         expect(binary("&&", false, "right")).toBe(false);
-        expect(binary("||", false, "right")).toBe("right");
-        expect(binary("||", "left", "right")).toBe("left");
+        expect(binary("||", false, "right")).toBe(true);
+        expect(binary("||", "", [])).toBe(false);
     });
 
-    it("in —— object 检查 key 存在", () => {
+    it("in —— 数组按成员、字符串按子串、对象按 key", () => {
         expect(binary("in", "a", { a: 1 })).toBe(true);
         expect(binary("in", "b", { a: 1 })).toBe(false);
+        expect(binary("in", 2, [1, 2, 3])).toBe(true);
+        expect(binary("in", "ell", "hello")).toBe(true);
         expect(binary("in", "a", null)).toBe(false);
     });
 
@@ -234,17 +250,16 @@ describe("unary", () => {
         expect(unary("!", { a: 1 })).toBe(false);
     });
 
-    it("- 数值负", () => {
+    it("- 只接受 number", () => {
         expect(unary("-", 5)).toBe(-5);
-        expect(unary("-", "3")).toBe(-3);
-        // -(0 || 0) === -0，JS 中与 0 数值相等但 Object.is 不同
-        expect(unary("-", null)).toBe(-0);
-        expect(Object.is(unary("-", null), -0)).toBe(true);
+        expect(unary("-", "3")).toBeNull();
+        expect(unary("-", null)).toBeNull();
     });
 
-    it("+ 数值正", () => {
+    it("+ 是恒等", () => {
         expect(unary("+", 5)).toBe(5);
-        expect(unary("+", "3")).toBe(3);
+        expect(unary("+", "3")).toBe("3");
+        expect(unary("+", null)).toBeNull();
     });
 
     it("未识别 op → null", () => {

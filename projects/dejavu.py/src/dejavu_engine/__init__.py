@@ -145,13 +145,16 @@ def _eval_binary(op: str, l: Any, r: Any) -> Any:
         return l == r
     if op == "!=":
         return l != r
-    if op in ("<", "<=", ">", ">=") and isinstance(l, (int, float)) and isinstance(r, (int, float)):
-        return {
-            "<": l < r,
-            "<=": l <= r,
-            ">": l > r,
-            ">=": l >= r,
-        }[op]
+    if op in ("<", "<=", ">", ">="):
+        # 比较只对 number 成立，其他类型不转型，直接 false（与 Rust/TS 一致）。
+        if isinstance(l, (int, float)) and isinstance(r, (int, float)):
+            return {
+                "<": l < r,
+                "<=": l <= r,
+                ">": l > r,
+                ">=": l >= r,
+            }[op]
+        return False
     if op == "&&":
         return truthy(l) and truthy(r)
     if op == "||":
@@ -160,6 +163,8 @@ def _eval_binary(op: str, l: Any, r: Any) -> Any:
         if isinstance(r, list):
             return l in r
         if isinstance(r, str):
+            return value_to_string(l) in r
+        if isinstance(r, dict):
             return value_to_string(l) in r
         return False
     return None

@@ -1,0 +1,128 @@
+{
+    "irVersion": "1.0",
+    "language": {
+        "syntaxMode": "template",
+        "template": {
+            "codeStart": "<%",
+            "codeEnd": "%>",
+            "commentStart": "<#",
+            "commentEnd": "#>",
+            "supportFilterPipe": true,
+            "legacyFor": false
+        }
+    },
+    "body": {
+        "type": "Template",
+        "children": [
+            { "type": "Text", "value": "eq-coerce=" },
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Binary",
+                    "operator": "==",
+                    "left": { "type": "Expr.Literal", "value": 1 },
+                    "right": { "type": "Expr.Literal", "value": "1" }
+                },
+                "trim": "none"
+            },
+            { "type": "Text", "value": " eq-same=" },
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Binary",
+                    "operator": "==",
+                    "left": { "type": "Expr.Literal", "value": 1 },
+                    "right": { "type": "Expr.Literal", "value": 1 }
+                },
+                "trim": "none"
+            },
+            { "type": "Text", "value": " and=" },
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Binary",
+                    "operator": "&&",
+                    "left": { "type": "Expr.Literal", "value": "a" },
+                    "right": { "type": "Expr.Literal", "value": "b" }
+                },
+                "trim": "none"
+            },
+            { "type": "Text", "value": " or=" },
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Binary",
+                    "operator": "||",
+                    "left": { "type": "Expr.Literal", "value": "" },
+                    "right": { "type": "Expr.Literal", "value": 0 }
+                },
+                "trim": "none"
+            },
+            { "type": "Text", "value": " in-array=" },
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Binary",
+                    "operator": "in",
+                    "left": { "type": "Expr.Literal", "value": 2 },
+                    "right": { "type": "Expr.Literal", "value": [1, 2, 3] }
+                },
+                "trim": "none"
+            },
+            { "type": "Text", "value": " in-obj=" },
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Binary",
+                    "operator": "in",
+                    "left": { "type": "Expr.Literal", "value": "a" },
+                    "right": { "type": "Expr.Identifier", "name": "obj" }
+                },
+                "trim": "none"
+            },
+            { "type": "Text", "value": " cmp-string=" },
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Binary",
+                    "operator": "<",
+                    "left": { "type": "Expr.Literal", "value": "10" },
+                    "right": { "type": "Expr.Literal", "value": "9" }
+                },
+                "trim": "none"
+            },
+            { "type": "Text", "value": " neg-string=[" },
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Unary",
+                    "operator": "-",
+                    "argument": { "type": "Expr.Literal", "value": "3" }
+                },
+                "trim": "none"
+            },
+            { "type": "Text", "value": "] add=" },
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Binary",
+                    "operator": "+",
+                    "left": { "type": "Expr.Literal", "value": 1 },
+                    "right": { "type": "Expr.Literal", "value": 2 }
+                },
+                "trim": "none"
+            },
+            { "type": "Text", "value": " concat=" },
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Binary",
+                    "operator": "+",
+                    "left": { "type": "Expr.Literal", "value": 1 },
+                    "right": { "type": "Expr.Literal", "value": "2" }
+                },
+                "trim": "none"
+            }
+        ]
+    }
+}

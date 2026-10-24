@@ -438,6 +438,7 @@ fn eval_binary(op: &str, l: &Value, r: &Value) -> Result<Value, IrError> {
         "in" => match r {
             Value::Array(a) => Ok(Value::Bool(a.contains(l))),
             Value::String(s) => Ok(Value::Bool(s.contains(&value_to_string(l)))),
+            Value::Object(map) => Ok(Value::Bool(map.contains_key(&value_to_string(l)))),
             _ => Ok(Value::Bool(false)),
         },
         _ => Err(diag_render(codes::UNKNOWN_BINARY).arg("operator", op)),
@@ -624,7 +625,12 @@ fn chrono_from_iso(s: &str) -> Option<(i32, u32, u32, u32, u32, u32)> {
         let tp: Vec<&str> = t_clean.split(':').collect();
         hour = tp.first().and_then(|v| v.parse().ok()).unwrap_or(0);
         min = tp.get(1).and_then(|v| v.parse().ok()).unwrap_or(0);
-        sec = tp.get(2).and_then(|v| v.parse().ok()).unwrap_or(0);
+        // `...:05.000Z` 的秒字段可能带小数部分，只取整数秒。
+        sec = tp
+            .get(2)
+            .and_then(|v| v.split(['.', ',']).next())
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0);
     }
 
     // 时间字段也要合法
@@ -709,7 +715,22 @@ fn value_to_string(v: &Value) -> String {
     match v {
         Value::Null => String::new(),
         Value::Bool(b) => b.to_string(),
-        Value::Number(n) => n.to_string(),
+        Value::Number(n) => {
+            // 与 JS `String(number)` 对齐：整数值不输出 `.0`。
+            if let Some(i) = n.as_i64() {
+                i.to_string()
+            } else if let Some(u) = n.as_u64() {
+                u.to_string()
+            } else if let Some(f) = n.as_f64() {
+                if f.is_finite() && f.fract() == 0.0 && f.abs() < 1e21 {
+                    format!("{f:.0}")
+                } else {
+                    n.to_string()
+                }
+            } else {
+                n.to_string()
+            }
+        }
         Value::String(s) => s.clone(),
         other => other.to_string(),
     }

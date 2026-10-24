@@ -1,0 +1,92 @@
+{
+    "irVersion": "1.0",
+    "language": {
+        "syntaxMode": "template",
+        "template": {
+            "codeStart": "<%",
+            "codeEnd": "%>",
+            "commentStart": "<#",
+            "commentEnd": "#>",
+            "supportFilterPipe": true,
+            "legacyFor": false
+        }
+    },
+    "body": {
+        "type": "Template",
+        "children": [
+            { "type": "Text", "value": "nullv=" },
+            {
+                "type": "Stmt.If",
+                "test": { "type": "Expr.Identifier", "name": "nullv" },
+                "consequent": [{ "type": "Text", "value": "T" }],
+                "elseIfs": [],
+                "alternate": [{ "type": "Text", "value": "F" }],
+                "trim": "none"
+            },
+            { "type": "Text", "value": "\nfalsev=" },
+            {
+                "type": "Stmt.If",
+                "test": { "type": "Expr.Identifier", "name": "falsev" },
+                "consequent": [{ "type": "Text", "value": "T" }],
+                "elseIfs": [],
+                "alternate": [{ "type": "Text", "value": "F" }],
+                "trim": "none"
+            },
+            { "type": "Text", "value": "\nzerov=" },
+            {
+                "type": "Stmt.If",
+                "test": { "type": "Expr.Identifier", "name": "zerov" },
+                "consequent": [{ "type": "Text", "value": "T" }],
+                "elseIfs": [],
+                "alternate": [{ "type": "Text", "value": "F" }],
+                "trim": "none"
+            },
+            { "type": "Text", "value": "\nemptystr=" },
+            {
+                "type": "Stmt.If",
+                "test": { "type": "Expr.Identifier", "name": "emptystr" },
+                "consequent": [{ "type": "Text", "value": "T" }],
+                "elseIfs": [],
+                "alternate": [{ "type": "Text", "value": "F" }],
+                "trim": "none"
+            },
+            { "type": "Text", "value": "\nemptyarr=" },
+            {
+                "type": "Stmt.If",
+                "test": { "type": "Expr.Identifier", "name": "emptyarr" },
+                "consequent": [{ "type": "Text", "value": "T" }],
+                "elseIfs": [],
+                "alternate": [{ "type": "Text", "value": "F" }],
+                "trim": "none"
+            },
+            { "type": "Text", "value": "\nemptyobj=" },
+            {
+                "type": "Stmt.If",
+                "test": { "type": "Expr.Identifier", "name": "emptyobj" },
+                "consequent": [{ "type": "Text", "value": "T" }],
+                "elseIfs": [],
+                "alternate": [{ "type": "Text", "value": "F" }],
+                "trim": "none"
+            },
+            { "type": "Text", "value": "\nstrzero=" },
+            {
+                "type": "Stmt.If",
+                "test": { "type": "Expr.Identifier", "name": "strzero" },
+                "consequent": [{ "type": "Text", "value": "T" }],
+                "elseIfs": [],
+                "alternate": [{ "type": "Text", "value": "F" }],
+                "trim": "none"
+            },
+            { "type": "Text", "value": "\nstrfalse=" },
+            {
+                "type": "Stmt.If",
+                "test": { "type": "Expr.Identifier", "name": "strfalse" },
+                "consequent": [{ "type": "Text", "value": "T" }],
+                "elseIfs": [],
+                "alternate": [{ "type": "Text", "value": "F" }],
+                "trim": "none"
+            },
+            { "type": "Text", "value": "\n" }
+        ]
+    }
+}

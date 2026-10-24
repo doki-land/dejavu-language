@@ -157,6 +157,8 @@ public static class IrRenderer
         "<=" when AsDouble(l, out var a) && AsDouble(r, out var b) => JsonValue.Create(a <= b),
         ">" when AsDouble(l, out var a) && AsDouble(r, out var b) => JsonValue.Create(a > b),
         ">=" when AsDouble(l, out var a) && AsDouble(r, out var b) => JsonValue.Create(a >= b),
+        // 比较只对 number 成立，其他类型不转型，直接 false（与 Rust/TS 一致）。
+        "<" or "<=" or ">" or ">=" => JsonValue.Create(false),
         "&&" => JsonValue.Create(Truthy(l) && Truthy(r)),
         "||" => JsonValue.Create(Truthy(l) || Truthy(r)),
         "in" => JsonValue.Create(InOp(l, r)),
@@ -168,6 +170,8 @@ public static class IrRenderer
         if (r is JsonArray a) return a.Any(x => JsonNode.DeepEquals(x, l));
         if (r is JsonValue sv && sv.TryGetValue<string>(out var s))
             return s.Contains(IrFilters.ToString(l));
+        if (r is JsonObject o)
+            return o.ContainsKey(IrFilters.ToString(l));
         return false;
     }
 

@@ -1,0 +1,110 @@
+{
+    "irVersion": "1.0",
+    "language": {
+        "syntaxMode": "template",
+        "template": {
+            "codeStart": "<%",
+            "codeEnd": "%>",
+            "commentStart": "<#",
+            "commentEnd": "#>",
+            "supportFilterPipe": true,
+            "legacyFor": false
+        }
+    },
+    "body": {
+        "type": "Template",
+        "children": [
+            { "type": "Text", "value": "default-zero=" },
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Pipe",
+                    "expression": { "type": "Expr.Literal", "value": 0 },
+                    "filter": "default",
+                    "arguments": [{ "type": "Expr.Literal", "value": "fb" }]
+                },
+                "trim": "none"
+            },
+            { "type": "Text", "value": " default-false=" },
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Pipe",
+                    "expression": { "type": "Expr.Literal", "value": false },
+                    "filter": "default",
+                    "arguments": [{ "type": "Expr.Literal", "value": "fb" }]
+                },
+                "trim": "none"
+            },
+            { "type": "Text", "value": " default-empty=" },
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Pipe",
+                    "expression": { "type": "Expr.Literal", "value": "" },
+                    "filter": "default",
+                    "arguments": [{ "type": "Expr.Literal", "value": "fb" }]
+                },
+                "trim": "none"
+            },
+            { "type": "Text", "value": " length-obj=" },
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Pipe",
+                    "expression": { "type": "Expr.Identifier", "name": "obj" },
+                    "filter": "length",
+                    "arguments": []
+                },
+                "trim": "none"
+            },
+            { "type": "Text", "value": " join-null=" },
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Pipe",
+                    "expression": { "type": "Expr.Identifier", "name": "arrWithNull" },
+                    "filter": "join",
+                    "arguments": [{ "type": "Expr.Literal", "value": "-" }]
+                },
+                "trim": "none"
+            },
+            { "type": "Text", "value": " replace-all=" },
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Pipe",
+                    "expression": { "type": "Expr.Literal", "value": "a-a" },
+                    "filter": "replace",
+                    "arguments": [
+                        { "type": "Expr.Literal", "value": "a" },
+                        { "type": "Expr.Literal", "value": "b" }
+                    ]
+                },
+                "trim": "none"
+            },
+            { "type": "Text", "value": " upper-null=[" },
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Pipe",
+                    "expression": { "type": "Expr.Identifier", "name": "missing" },
+                    "filter": "uppercase",
+                    "arguments": []
+                },
+                "trim": "none"
+            },
+            { "type": "Text", "value": "] date-iso=" },
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Pipe",
+                    "expression": { "type": "Expr.Literal", "value": "2024-01-02T03:04:05.000Z" },
+                    "filter": "date",
+                    "arguments": [{ "type": "Expr.Literal", "value": "%Y/%m/%d %H:%M:%S" }]
+                },
+                "trim": "none"
+            }
+        ]
+    }
+}

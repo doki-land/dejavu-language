@@ -1,11 +1,11 @@
 import { htmlEscape } from "./escape.js";
-import { isTruthy, valueToString } from "./value.js";
+import { valueToString } from "./value.js";
 
 /**
  * Dejavu 1.0 合同过滤器集。
  *
- * 与 Rust `dejavu-types` 过滤器系统（见 `projects/crates/dejavu-types/src/values/filter.rs`）
- * 以及 `dejavu-codegen` Node stub 对齐。
+ * 与 Rust `dejavu-ir` 的 `apply_filter` 逐项对齐，所有字符串强制转换都走
+ * `valueToString`（null → ""），不使用 JS 的 `String()`。
  *
  * 未识别的过滤器 **宽松返回原值**（与 Rust 渲染器一致，不抛错）。
  */
@@ -22,62 +22,90 @@ export function applyFilter(
         case "raw":
         case "safe":
         case "s":
-            return valueToString(value);
+            return value;
 
         case "uppercase":
         case "upper":
-            return String(value).toUpperCase();
+            return valueToString(value).toUpperCase();
 
         case "lowercase":
         case "lower":
-            return String(value).toLowerCase();
+            return valueToString(value).toLowerCase();
 
         case "trim":
-            return String(value).trim();
+            return valueToString(value).trim();
 
-        case "default":
-            return isTruthy(value) ? value : args[0] ?? "";
-
-        case "length": {
-            if (value === null || value === undefined) return 0;
-            if (Array.isArray(value)) return value.length;
-            if (typeof value === "string") return value.length;
-            const maybe = (value as Record<string, unknown>).length;
-            return typeof maybe === "number" ? maybe : String(value).length;
+        case "default": {
+            // 只有 null 与空串算缺失 —— 0 / false / [] 保留原值。
+            if (value === null || value === undefined || value === "") {
+                return args[0] ?? null;
+            }
+            return value;
         }
 
-        case "join":
-            return Array.isArray(value)
-                ? value.join(String(args[0] ?? ","))
-                : String(value);
+        case "length": {
+            if (typeof value === "string") return [...value].length;
+            if (Array.isArray(value)) return value.length;
+            if (value !== null && typeof value === "object") {
+                return Object.keys(value as object).length;
+            }
+            return 0;
+        }
 
-        case "replace":
-            return String(value).replace(
-                (args[0] as string | RegExp) ?? "",
-                String(args[1] ?? ""),
-            );
+        case "join": {
+            const sep = valueToString(args[0] ?? ",");
+            return Array.isArray(value)
+                ? value.map(valueToString).join(sep)
+                : valueToString(value);
+        }
+
+        case "replace": {
+            const from = valueToString(args[0] ?? "");
+            const to = valueToString(args[1] ?? "");
+            return valueToString(value).split(from).join(to);
+        }
 
         case "date": {
-            let d: Date | null = null;
-            if (value instanceof Date) {
-                d = value;
-            } else if (typeof value === "number") {
-                d = new Date(value);
-            } else if (typeof value === "string") {
-                const parsed = new Date(value);
-                if (!Number.isNaN(parsed.getTime())) d = parsed;
-            }
-            if (!d) return "";
-            // 第一期只支持 ISO 8601（args[0] 不使用 —— Rust 过滤器默认也是 ISO）。
-            return d.toISOString();
+            const pattern = valueToString(args[0] ?? "%Y-%m-%d");
+            return formatDate(valueToString(value), pattern);
         }
 
         case "slug":
-            return slugify(String(value));
+            return slugify(valueToString(value));
 
         default:
             return value;
     }
+}
+
+/**
+ * 与 Rust `format_date` 对齐的最小 strftime：`%Y %m %d %H %M %S %%`。
+ *
+ * 输入：空串 → ""；`now` → 当前时间；纯数字 → epoch 毫秒；其他 → ISO 解析。
+ */
+function formatDate(input: string, pattern: string): string {
+    if (input === "") return "";
+    let ms: number;
+    if (input === "now") {
+        ms = Date.now();
+    } else if (/^[0-9]+$/.test(input)) {
+        ms = Number(input);
+    } else {
+        ms = Date.parse(input);
+        if (Number.isNaN(ms)) return "";
+    }
+    if (Number.isNaN(ms)) return "";
+    const d = new Date(ms);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return pattern
+        .replaceAll("%%", "\u0000")
+        .replaceAll("%Y", String(d.getUTCFullYear()))
+        .replaceAll("%m", pad(d.getUTCMonth() + 1))
+        .replaceAll("%d", pad(d.getUTCDate()))
+        .replaceAll("%H", pad(d.getUTCHours()))
+        .replaceAll("%M", pad(d.getUTCMinutes()))
+        .replaceAll("%S", pad(d.getUTCSeconds()))
+        .replaceAll("\u0000", "%");
 }
 
 /**

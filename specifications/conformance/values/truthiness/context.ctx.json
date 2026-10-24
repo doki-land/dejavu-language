@@ -1,0 +1,10 @@
+{
+    "nullv": null,
+    "falsev": false,
+    "zerov": 0,
+    "emptystr": "",
+    "emptyarr": [],
+    "emptyobj": {},
+    "strzero": "0",
+    "strfalse": "false"
+}

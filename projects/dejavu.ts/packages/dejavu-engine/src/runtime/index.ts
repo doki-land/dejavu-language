@@ -6,6 +6,6 @@
  */
 
 export { htmlEscape } from "./escape.js";
-export { valueToString, isTruthy } from "./value.js";
+export { valueToString, isTruthy, valuesEqual } from "./value.js";
 export { applyFilter } from "./filter.js";
 export { binary, unary, exprMember, exprIndex } from "./expr.js";

@@ -1,0 +1,8 @@
+nullv=F
+falsev=F
+zerov=F
+emptystr=F
+emptyarr=F
+emptyobj=F
+strzero=T
+strfalse=T
