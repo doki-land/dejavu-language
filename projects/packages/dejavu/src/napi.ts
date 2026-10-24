@@ -16,6 +16,7 @@ import { createRequire } from "node:module";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { DejavuError } from "./errors.js";
 import type {
     Diagnostic,
     PrecompileCatalogResult,
@@ -222,6 +223,19 @@ function translateModule(native: NativeGeneratedModule): PrecompileModule {
     };
 }
 
+/**
+ * Observe non-error diagnostics, then raise the first error as a structured
+ * `DejavuError` carrying the entire translated diagnostic list.
+ */
+function throwRenderDiagnostics(nativeDiagnostics: NativeDiagnostic[], options: RenderOptions): void {
+    const diagnostics = nativeDiagnostics.map(translateDiagnostic);
+    for (const diagnostic of diagnostics) {
+        if (diagnostic.severity !== "error") options.onDiagnostic?.(diagnostic);
+    }
+    const error = DejavuError.fromDiagnostics(diagnostics);
+    if (error) throw error;
+}
+
 // ---------------------------------------------------------------------------
 // Low-level bridge functions (used by index.ts)
 // ---------------------------------------------------------------------------
@@ -266,15 +280,7 @@ export function renderIr(
         context: JSON.stringify(ctx),
         options: JSON.stringify(toWireRenderOptions(options)),
     });
-    for (const d of response.diagnostics) {
-        if (d.severity === "error") {
-            throw new Error(
-                `dejavu: renderIr error — ${d.code}: ${d.message}`,
-            );
-        }
-        const translated = translateDiagnostic(d);
-        options.onDiagnostic?.(translated);
-    }
+    throwRenderDiagnostics(response.diagnostics, options);
     return response.output ?? "";
 }
 
@@ -291,15 +297,7 @@ export function renderSource(
         options: JSON.stringify(toWireRenderOptions(options)),
         ...(options.delimiters ? { delimiters: options.delimiters } : {}),
     });
-    for (const d of response.diagnostics) {
-        if (d.severity === "error") {
-            throw new Error(
-                `dejavu: renderSource error — ${d.code}: ${d.message}`,
-            );
-        }
-        const translated = translateDiagnostic(d);
-        options.onDiagnostic?.(translated);
-    }
+    throwRenderDiagnostics(response.diagnostics, options);
     return response.output ?? "";
 }
 
