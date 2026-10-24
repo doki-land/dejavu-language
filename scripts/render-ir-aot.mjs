@@ -18,11 +18,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const facadeDist = join(root, "projects", "packages", "dejavu", "dist");
+const facadeDist = join(root, "projects", "dejavu.ts", "packages", "dejavu", "dist");
 const napiEntry = join(facadeDist, "napi.js");
 const runtimeEntry = join(
     root,
     "projects",
+    "dejavu.ts",
     "packages",
     "dejavu-engine",
     "dist",

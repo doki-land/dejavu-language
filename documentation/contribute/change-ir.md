@@ -27,7 +27,7 @@ cargo test --manifest-path projects/dejavu.rs/Cargo.toml -p dejavu-ir
 - JSON Schema：`specifications/ir/v1/schema.json`
 - 节点说明和规范化：`specifications/ir/v1/`
 - 金样：`specifications/conformance/*/expected.ir.json`
-- TypeScript 类型与 normalize：`projects/dejavu.ts/dejavu-types/src/`
+- TypeScript 公开类型与 N-API wire：`projects/dejavu.ts/packages/dejavu/src/types.ts`、`napi.ts`
 - 各宿主 IR decoder / renderer：`projects/dejavu.{rs,cs,kt,py}/`
 
 ## 必须增加的测试

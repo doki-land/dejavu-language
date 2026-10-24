@@ -24,8 +24,8 @@ Dejavu 的语言契约与宿主实现分离：每个宿主可以使用自己的 
 | Rust | `dejavu` crate（`use dejavu::Dejavu` / `use dejavu::*`） |
 | 其他 | 同名 `dejavu` / `Dejavu` 包 |
 
-`@dejavu/*` 与各语言内部 crate（`dejavu-engine`、`dejavu-ir` 等）是实现层。
-`@doki-land/dejavu-engine` 是 **Doki 产品**的宿主绑定，不是通用 TypeScript 应用入口。
+`@dejavu/*` 与各语言内部 crate（`dejavu-ir`、`dejavu-codegen` 等）是实现层。
+`@doki-land/dejavu-engine` 是 AOT 生成物的运行时依赖，不是 TypeScript 应用入口。
 
 ```text
 source.dejavu

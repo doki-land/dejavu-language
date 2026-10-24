@@ -9,6 +9,7 @@
 - [修改模板语法](./contribute/change-parser.md)：parser、契约、fixture 和回归。
 - [修改 IR](./contribute/change-ir.md)：schema、normalize、类型和跨宿主 fixture。
 - [修改渲染器或过滤器](./contribute/change-render-loader.md)：render、escaping、undefined 和 loader。
+- [修改 AOT 代码生成](./contribute/change-codegen.md)：codegen、origins、source map 与 `dejavu generate`。
 - [增加宿主绑定](./contribute/add-host.md)：公共 facade、IR 消费和 conformance。
 - [增加 conformance](./contribute/add-conformance.md)：夹具格式和验收命令。
 - [发布变更](./contribute/release.md)：包名、导出面、兼容性和文档。

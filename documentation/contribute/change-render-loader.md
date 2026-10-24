@@ -14,8 +14,8 @@
 从仓库根目录执行：
 
 ```bash
-pnpm --dir projects/packages/dejavu-engine typecheck
-pnpm --dir projects/packages/dejavu-engine test
+pnpm --filter @doki-land/dejavu-engine test
+cargo test -p dejavu-ir
 pnpm conformance
 ```
 
@@ -23,10 +23,8 @@ pnpm conformance
 
 ## 修改位置
 
-- 渲染：`projects/packages/dejavu-engine/src/render.ts`
-- loader：`projects/packages/dejavu-engine/src/loader.ts`
-- 路径解析：`projects/packages/dejavu-engine/src/resolve.ts`
-- 共享 loader 类型：`projects/packages/dejavu-types/src/`
+- JIT 渲染与 loader（N-API）：`projects/dejavu.rs/crates/dejavu-ir`、`dejavu-napi`
+- AOT 运行时 helpers：`projects/dejavu.ts/packages/dejavu-engine/src/runtime/`
 - 其他宿主 renderer：各宿主对应 engine 模块
 
 ## 必须增加的测试

@@ -17,9 +17,9 @@ pnpm conformance
 ## 定向命令
 
 ```bash
-pnpm --dir projects/packages/dejavu-engine typecheck
-pnpm --dir projects/packages/dejavu-engine test
-cargo test
+pnpm --filter @doki-land/dejavu test
+pnpm --filter @doki-land/dejavu-engine test
+cargo test --workspace
 ```
 
 路径形式不依赖 workspace 当前包名；包名和发布作用域仍由发布清单单独检查。

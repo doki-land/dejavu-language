@@ -99,8 +99,10 @@ Cross-host status matrix: [`documentation/compatibility.md`](./documentation/com
 
 | Path                                  | Role                                      |
 |---------------------------------------|-------------------------------------------|
-| `projects/crates/`                    | Rust crates (`dejavu`, `dejavu-language`, `dejavu-ir`, `dejavu-engine`, …) |
-| `projects/packages/`                  | TypeScript packages, homepage, user docs  |
+| `projects/dejavu.rs/crates/`          | Rust crates (`dejavu`, `dejavu-language`, `dejavu-ir`, `dejavu-codegen`, …) |
+| `projects/dejavu.ts/packages/`        | Published TS packages (`dejavu`, `dejavu-engine`, …) |
+| `projects/dejavu.ts/platforms/`       | Per-platform N-API native addons          |
+| `projects/dejavu.ts/homepage/`        | User docs site sources                    |
 | `projects/dejavu.cs` / `.kt` / `.py`  | Other host trees (frozen protocol consumers) |
 | `specifications/`                     | Contract, IR schema, conformance fixtures |
 | `documentation/`                      | Contributor / maintainer docs             |
@@ -110,8 +112,8 @@ Cross-host status matrix: [`documentation/compatibility.md`](./documentation/com
 
 | Kind                | Start here                                                                                                  |
 |---------------------|-------------------------------------------------------------------------------------------------------------|
-| User docs (en-us)   | [`projects/packages/homepage/documents/en-us`](./projects/packages/homepage/documents/en-us/index.md)     |
-| User docs (zh-hans) | [`projects/packages/homepage/documents/zh-hans`](./projects/packages/homepage/documents/zh-hans/index.md) |
+| User docs (en-us)   | [`projects/dejavu.ts`](projects/dejavu.ts/homepage/documents/en-us/index.md)     |
+| User docs (zh-hans) | [`projects/dejavu.ts`](projects/dejavu.ts/homepage/documents/zh-hans/index.md) |
 | Developer docs      | [`documentation/index.md`](./documentation/index.md)                                                        |
 | Doc map             | [`documentation/readme.md`](./documentation/readme.md)                                                      |
 | Specs               | [`specifications/`](./specifications/)                                                                      |
@@ -125,26 +127,23 @@ Requires Node.js 20+ and pnpm 10 (`packageManager` in root `package.json`), plus
 for the N-API engine addon.
 
 ```bash
-# Rust workspace
-cd projects && cargo test --workspace
-
-# TypeScript + N-API + conformance (repo root)
+# From repo root
 pnpm install
 pnpm napi:build:release      # builds + stages the native addon
 pnpm fmt:check
-pnpm test                    # facade + CLI tests
-pnpm conformance              # cross-host conformance runner (requires hosts)
+pnpm test                    # Rust workspace + @doki-land/dejavu tests
+pnpm conformance             # cross-host conformance runner (requires hosts)
 ```
 
 ## 📦 Package scope
 
 | Package / Crate                                          | Audience                          |
 |----------------------------------------------------------|-----------------------------------|
-| `@doki-land/dejavu`                                      | TypeScript applications           |
+| `@doki-land/dejavu`                                      | TypeScript applications (JIT + CLI + `dejavu generate`) |
+| `@doki-land/dejavu-engine`                               | Generated AOT modules (`/runtime` import only) |
 | `dejavu` (crates.io)                                     | Rust applications (`use dejavu::*`) |
-| `dejavu-language` / `dejavu-ir` / `dejavu-runtime`       | Binding / core maintainers only   |
+| `dejavu-language` / `dejavu-ir` / `dejavu-codegen`       | Binding / core maintainers only   |
 | `dejavu-napi`                                            | N-API binding only                |
-| `@doki-land/dejavu-engine` (legacy TS)                   | — frozen —                        |
 
 ## 📄 License
 

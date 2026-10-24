@@ -17,8 +17,8 @@
 从仓库根目录执行：
 
 ```bash
-pnpm --dir projects/dejavu.ts/dejavu-language typecheck
-pnpm --dir projects/dejavu.ts/dejavu-engine test
+cargo test -p dejavu-language
+pnpm --filter @doki-land/dejavu test
 pnpm conformance
 ```
 
@@ -26,8 +26,8 @@ pnpm conformance
 
 ## 修改位置
 
-- TypeScript parser：`projects/dejavu.ts/dejavu-language/src/`
-- Rust parser：`projects/dejavu.rs/dejavu-language/src/`
+- 正式 parser（N-API / JIT / codegen 上游）：`projects/dejavu.rs/crates/dejavu-language`
+- TypeScript 参考实现（不在 pnpm workspace，仅供对照）：`projects/dejavu.ts/packages/dejavu-language/src/`
 - IR 类型：对应宿主的 IR/types 模块
 - 规范：`specifications/template-contract/`、`specifications/ir/`
 

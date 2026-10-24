@@ -7,7 +7,7 @@
 | TypeScript | `@doki-land/dejavu` | 库：parse / render / loader |
 | Rust | `dejavu`（`use dejavu::*`） | 库：同左 |
 | Python / C# / Kotlin | `dejavu` / `Dejavu` | 库：同左 |
-| Doki 产品绑定 | `@doki-land/dejavu-engine` | Doki 定界符与 SSG 适配（仍是库） |
+| AOT 运行时 | `@doki-land/dejavu-engine` | 生成模块 import 的纯 TS runtime（`/runtime`） |
 
 `@dejavu/*`、各语言内部 crate（`dejavu-engine`、`dejavu-ir` …）不是应用入口。
 

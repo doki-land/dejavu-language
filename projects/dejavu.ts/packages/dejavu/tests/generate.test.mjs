@@ -166,16 +166,21 @@ test("source maps point generated lines at their template spans", async (t) => {
         assert.notEqual(index, -1, `generated code has no line containing ${needle}`);
         return index;
     };
+    const evalLine = (binding) => {
+        const index = lines.findIndex((line) => line.includes(`let ${binding} =`));
+        assert.notEqual(index, -1, `generated code has no binding line for ${binding}`);
+        return index;
+    };
     const escapes = lines
         .map((line, index) => (line.includes("__out.push(htmlEscape(valueToString(__v") ? index : -1))
         .filter((index) => index !== -1);
     assert.equal(escapes.length, 2, "one interpolated push per interpolation");
 
     assert.deepEqual(positions.get(lineOf('__out.push("<h1>")')), { source: 0, line: 0, column: 0 });
-    // An interpolation maps from the line that evaluates it, which is the line above its push.
-    assert.deepEqual(positions.get(escapes[0] - 1), { source: 0, line: 0, column: 4 });
+    // Interpolation origins attach to the evaluation line, before the strictUndefined guard.
+    assert.deepEqual(positions.get(evalLine("__v")), { source: 0, line: 0, column: 4 });
     assert.deepEqual(positions.get(lineOf("if (isTruthy(ctx.ok))")), { source: 0, line: 1, column: 0 });
-    assert.deepEqual(positions.get(escapes[1] - 1), { source: 0, line: 2, column: 3 });
+    assert.deepEqual(positions.get(evalLine("__v1")), { source: 0, line: 2, column: 3 });
 });
 
 test("source maps stay byte-stable across regenerations", async (t) => {

@@ -5,7 +5,7 @@
  *   node scripts/build/napi.mjs --release       # host release build
  *   node scripts/build/napi.mjs --release --target aarch64-apple-darwin
  *
- * Output: `compilers/dejavu/npm/<host>/dejavu.<nodeTriple>.node`
+ * Output: `projects/dejavu.ts/platforms/dejavu-<host>/dejavu.<nodeTriple>.node`
  * That directory is what the release workflow uploads and publishes.
  */
 import { spawnSync } from 'node:child_process'

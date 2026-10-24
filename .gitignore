@@ -11,8 +11,17 @@ time-travel.*
 .idea/
 *.iml
 
+# Rust / Conformance noise
+target/
+.conformance-tmp/
+Cargo.lock
+
 # Node
 node_modules/
+dist/
+pnpm-lock.yaml
+*.node
+*.wasm
 
 # Local env (secrets)
 .env
@@ -21,15 +30,8 @@ node_modules/
 !.env.*.example
 .env.placeholder.local
 
-# Rust / Conformance noise
-target/
-.conformance-tmp/
-
-# Native addons (built by `node scripts/build/napi.mjs`, shipped by CI)
-*.node
-
 # Built TypeScript output for Node packages (built by `pnpm build`)
-projects/packages/*/dist/
+projects/dejavu.ts/*/dist/
 
 # Local tooling state (npm placeholder + trust bookkeeping)
 .cache/

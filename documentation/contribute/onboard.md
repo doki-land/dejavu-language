@@ -12,7 +12,7 @@
 
 ## 工作目录与命令
 
-以下命令都从 `dejavu-engine` 仓库根目录执行：
+以下命令都从 `dejavu-language` 仓库根目录执行：
 
 ```bash
 pnpm install
@@ -25,13 +25,13 @@ pnpm conformance
 
 ## 代码地图
 
-| 任务                         | 位置                                                  |
-|------------------------------|-------------------------------------------------------|
-| TypeScript parser            | `projects/packages/dejavu-language`                  |
-| TypeScript renderer / loader | `projects/packages/dejavu-engine`                    |
-| 公共 TypeScript facade       | `projects/packages/dejavu`                           |
-| Rust parser / renderer       | `projects/crates/dejavu-language`、`dejavu-engine` |
-| IR schema 和金样             | `specifications/ir`、`specifications/conformance`     |
+| 任务                         | 位置 |
+|------------------------------|------|
+| TypeScript facade / CLI / `generate` | `projects/dejavu.ts/packages/dejavu` |
+| TypeScript AOT 运行时        | `projects/dejavu.ts/packages/dejavu-engine` |
+| N-API 平台包                 | `projects/dejavu.ts/platforms/dejavu-*` |
+| Rust parser / IR / codegen   | `projects/dejavu.rs/crates/` |
+| IR schema 和金样             | `specifications/ir`、`specifications/conformance` |
 
 ## Windows 已知问题
 

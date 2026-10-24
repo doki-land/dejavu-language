@@ -1,3 +1,5 @@
 packages:
-  - "compilers/dejavu/npm/*"
-  - "projects/packages/*"
+  - "projects/dejavu.ts/packages/dejavu"
+  - "projects/dejavu.ts/packages/dejavu-engine"
+  - "projects/dejavu.ts/packages/dejavu-skills"
+  - "projects/dejavu.ts/platforms/dejavu-*"

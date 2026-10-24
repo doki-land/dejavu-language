@@ -1,18 +1,18 @@
 [workspace]
 resolver = "3"
-members = ["projects/crates/*"]
+members = ["projects/dejavu.rs/crates/*", "projects/dejavu.rs/examples/*"]
 default-members = [
-    "projects/crates/dejavu",
-    "projects/crates/dejavu-runtime",
-    "projects/crates/dejavu-config",
-    "projects/crates/dejavu-diagnostic",
-    "projects/crates/dejavu-engine",
-    "projects/crates/dejavu-ir",
-    "projects/crates/dejavu-language",
-    "projects/crates/dejavu-macros",
-    "projects/crates/dejavu-napi",
-    "projects/crates/dejavu-types",
-    "projects/crates/axum-dejavu",
+    "projects/dejavu.rs/crates/dejavu",
+    "projects/dejavu.rs/crates/dejavu-runtime",
+    "projects/dejavu.rs/crates/dejavu-config",
+    "projects/dejavu.rs/crates/dejavu-diagnostic",
+    "projects/dejavu.rs/crates/dejavu-engine",
+    "projects/dejavu.rs/crates/dejavu-ir",
+    "projects/dejavu.rs/crates/dejavu-language",
+    "projects/dejavu.rs/crates/dejavu-macros",
+    "projects/dejavu.rs/crates/dejavu-napi",
+    "projects/dejavu.rs/crates/dejavu-types",
+    "projects/dejavu.rs/examples/axum-dejavu",
 ]
 
 [workspace.package]
@@ -57,17 +57,17 @@ miette = "7"
 napi = { version = "3.12.1", default-features = true, features = ["napi4"] }
 napi-derive = "3.6.3"
 
-dejavu = { path = "projects/crates/dejavu", version = "0.0.2" }
-dejavu-runtime = { path = "projects/crates/dejavu-runtime", version = "0.0.2" }
-dejavu-engine = { path = "projects/crates/dejavu-engine", version = "0.0.2" }
-dejavu-types = { path = "projects/crates/dejavu-types", version = "0.0.2" }
-dejavu-config = { path = "projects/crates/dejavu-config", version = "0.0.2" }
-dejavu-macros = { path = "projects/crates/dejavu-macros", version = "0.0.2" }
-dejavu-ir = { path = "projects/crates/dejavu-ir", version = "0.0.2" }
-dejavu-language = { path = "projects/crates/dejavu-language", version = "0.0.2" }
-dejavu-diagnostic = { path = "projects/crates/dejavu-diagnostic", version = "0.0.2" }
-axum-dejavu = { path = "projects/crates/axum-dejavu", version = "0.0.2" }
-dejavu-codegen = { path = "projects/crates/dejavu-codegen", version = "0.0.2" }
+dejavu = { path = "projects/dejavu.rs/crates/dejavu", version = "0.0.2" }
+dejavu-runtime = { path = "projects/dejavu.rs/crates/dejavu-runtime", version = "0.0.2" }
+dejavu-engine = { path = "projects/dejavu.rs/crates/dejavu-engine", version = "0.0.2" }
+dejavu-types = { path = "projects/dejavu.rs/crates/dejavu-types", version = "0.0.2" }
+dejavu-config = { path = "projects/dejavu.rs/crates/dejavu-config", version = "0.0.2" }
+dejavu-macros = { path = "projects/dejavu.rs/crates/dejavu-macros", version = "0.0.2" }
+dejavu-ir = { path = "projects/dejavu.rs/crates/dejavu-ir", version = "0.0.2" }
+dejavu-language = { path = "projects/dejavu.rs/crates/dejavu-language", version = "0.0.2" }
+dejavu-diagnostic = { path = "projects/dejavu.rs/crates/dejavu-diagnostic", version = "0.0.2" }
+axum-dejavu = { path = "projects/dejavu.rs/examples/axum-dejavu", version = "0.0.2" }
+dejavu-codegen = { path = "projects/dejavu.rs/crates/dejavu-codegen", version = "0.0.2" }
 
 [profile.release]
 lto = true

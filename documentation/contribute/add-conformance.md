@@ -26,9 +26,12 @@
 
 ```bash
 pnpm fmt:check
-pnpm --dir projects/dejavu.ts/dejavu-engine test
+pnpm --filter @doki-land/dejavu test
+cargo test -p dejavu-ir -p dejavu-language
 pnpm conformance
 ```
+
+Rust crate 内引用金样时，从 `projects/dejavu.rs/crates/<crate>/` 使用 `../../../../specifications/conformance/...`。
 
 ## 编写顺序
 

@@ -16,7 +16,7 @@ renderer：IR + Context → output
 
 宿主可以用自己的语言实现 parser、renderer 和绑定 API，但可观察语言行为由共享 Contract、IR schema 和 conformance fixture 定义。
 
-TypeScript 应用入口固定为 `@doki-land/dejavu`；Rust 为 `dejavu` crate（`use dejavu::*`）。`@doki-land/dejavu-engine` 仅服务 Doki 产品宿主。
+TypeScript 应用入口固定为 `@doki-land/dejavu`；Rust 为 `dejavu` crate（`use dejavu::*`）。`@doki-land/dejavu-engine` 只被 `dejavu generate` 产出的 ESM 模块 import，不是应用入口。
 
 ## 责任边界
 

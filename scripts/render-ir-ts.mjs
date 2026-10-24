@@ -11,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const { renderIr } = await import(
-    pathToFileURL(join(root, "projects", "packages", "dejavu", "dist", "index.js")).href
+    pathToFileURL(join(root, "projects", "dejavu.ts", "packages", "dejavu", "dist", "index.js")).href
 );
 
 // Read IR JSON as string directly — facade `renderIr` takes IR JSON string.

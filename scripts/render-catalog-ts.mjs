@@ -18,7 +18,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
 const { parseIr, renderSource } = await import(
-    pathToFileURL(join(root, "projects", "packages", "dejavu", "dist", "napi.js")).href
+    pathToFileURL(join(root, "projects", "dejavu.ts", "packages", "dejavu", "dist", "napi.js")).href
 );
 
 const fixtureDir = process.argv[2];

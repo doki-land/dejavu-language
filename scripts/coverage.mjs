@@ -31,7 +31,7 @@ try {
     );
 
     console.log("\n=== 覆盖率测试完成 ===");
-    console.log("TypeScript 覆盖率报告: projects/packages/*/coverage");
+    console.log("TypeScript 覆盖率报告: projects/dejavu.ts/packages/*/coverage");
     console.log("Rust 覆盖率报告: target/coverage/tarpaulin-report.html");
 } catch (error) {
     console.error("\n!!! 覆盖率测试失败 !!!");

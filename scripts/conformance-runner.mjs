@@ -186,7 +186,7 @@ sys.stdout.write(Dejavu.render(ir, ctx))
         required: true,
         /** Render a multi-template inheritance fixture via `render-catalog-ts.mjs`. */
         render(caseDir) {
-            const facadeDist = join(ROOT, "projects", "packages", "dejavu", "dist", "index.js");
+            const facadeDist = join(ROOT, "projects", "dejavu.ts", "packages", "dejavu", "dist", "index.js");
             if (!existsSync(facadeDist)) return null;
             const script = join(ROOT, "scripts", "render-catalog-ts.mjs");
             const r = run("node", [script, caseDir.dir]);

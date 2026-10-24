@@ -2,7 +2,7 @@
 
 ## 用户文档在哪里？
 
-外部用户文档位于 `projects/packages/homepage/documents/{en-us,zh-hans}/`，站点入口使用 `/d/*` 路径。本目录只写核心实现和贡献流程。
+外部用户文档位于 `../projects/dejavu.ts`，站点入口使用 `/d/*` 路径。本目录只写核心实现和贡献流程。
 
 ## 公共包和实现包怎么区分？
 
@@ -12,7 +12,7 @@
 | `dejavu` (Rust crate) / `use dejavu::*` | **Rust 应用唯一入口** |
 | `dejavu` (PyPI) / `Dejavu` (.NET) / `dejavu` (Kotlin) | 其他语言应用入口 |
 | `@dejavu/*` | 内部实现，仅绑定/核心维护者 |
-| `@doki-land/dejavu-engine` | **Doki 产品**宿主**库**绑定（无 LSP） |
+| `@doki-land/dejavu-engine` | **AOT 生成模块运行时**（`runtime` 子路径；应用通常不直接依赖） |
 | Rust `dejavu` binary | **唯一** LSP / 完整 IDE 体验（`dejavu lsp`） |
 
 ## 规范和实现状态在哪里？
