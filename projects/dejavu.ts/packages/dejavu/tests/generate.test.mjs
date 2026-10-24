@@ -183,6 +183,26 @@ test("source maps point generated lines at their template spans", async (t) => {
     assert.deepEqual(positions.get(evalLine("__v1")), { source: 0, line: 2, column: 3 });
 });
 
+test("source map columns are UTF-16 units after non-ASCII prefixes", async (t) => {
+    // `😀` is 4 UTF-8 bytes / 2 UTF-16 units, `中` is 3 bytes / 1 unit. A column
+    // that counted bytes would report 7 instead of 3.
+    const template = "😀中<% value %>\n";
+    const dir = scaffold({ "home.dejavu": template });
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+
+    const plan = await buildGeneratePlan({ cwd: dir });
+    writeOutput(plan);
+
+    const code = readFileSync(join(dir, "out", "home.js"), "utf8");
+    const map = JSON.parse(readFileSync(join(dir, "out", "home.js.map"), "utf8"));
+    const positions = firstMappingPerLine(map.mappings);
+    const lines = code.split("\n");
+    const evalLine = lines.findIndex((line) => line.includes("let __v ="));
+
+    assert.notEqual(evalLine, -1, "generated code has no interpolation binding");
+    assert.deepEqual(positions.get(evalLine), { source: 0, line: 0, column: 3 });
+});
+
 test("source maps stay byte-stable across regenerations", async (t) => {
     const dir = scaffold({ "home.dejavu": "<p><% value %></p>\n" });
     t.after(() => rmSync(dir, { recursive: true, force: true }));
