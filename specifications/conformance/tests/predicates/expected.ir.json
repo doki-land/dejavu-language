@@ -1,0 +1,164 @@
+{
+    "irVersion": "1.0",
+    "language": {
+        "syntaxMode": "template",
+        "template": {
+            "codeStart": "<%",
+            "codeEnd": "%>",
+            "commentStart": "<#",
+            "commentEnd": "#>",
+            "supportFilterPipe": true,
+            "legacyFor": false
+        }
+    },
+    "body": {
+        "type": "Template",
+        "children": [
+            { "type": "Text", "value": "even=" },
+            {
+                "type": "Interpolation",
+                "trim": "none",
+                "expression": {
+                    "type": "Expr.Test",
+                    "expression": { "type": "Expr.Identifier", "name": "n" },
+                    "test": "even",
+                    "arguments": [],
+                    "negated": false
+                }
+            },
+            { "type": "Text", "value": "\nnoteven=" },
+            {
+                "type": "Interpolation",
+                "trim": "none",
+                "expression": {
+                    "type": "Expr.Test",
+                    "expression": { "type": "Expr.Identifier", "name": "n" },
+                    "test": "even",
+                    "arguments": [],
+                    "negated": true
+                }
+            },
+            { "type": "Text", "value": "\nodd=" },
+            {
+                "type": "Interpolation",
+                "trim": "none",
+                "expression": {
+                    "type": "Expr.Test",
+                    "expression": { "type": "Expr.Identifier", "name": "oddv" },
+                    "test": "odd",
+                    "arguments": [],
+                    "negated": false
+                }
+            },
+            { "type": "Text", "value": "\nnull=" },
+            {
+                "type": "Interpolation",
+                "trim": "none",
+                "expression": {
+                    "type": "Expr.Test",
+                    "expression": { "type": "Expr.Identifier", "name": "nul" },
+                    "test": "null",
+                    "arguments": [],
+                    "negated": false
+                }
+            },
+            { "type": "Text", "value": "\nnone=" },
+            {
+                "type": "Interpolation",
+                "trim": "none",
+                "expression": {
+                    "type": "Expr.Test",
+                    "expression": { "type": "Expr.Identifier", "name": "nul" },
+                    "test": "none",
+                    "arguments": [],
+                    "negated": false
+                }
+            },
+            { "type": "Text", "value": "\nemptyarr=" },
+            {
+                "type": "Interpolation",
+                "trim": "none",
+                "expression": {
+                    "type": "Expr.Test",
+                    "expression": { "type": "Expr.Identifier", "name": "arr" },
+                    "test": "empty",
+                    "arguments": [],
+                    "negated": false
+                }
+            },
+            { "type": "Text", "value": "\nemptyobj=" },
+            {
+                "type": "Interpolation",
+                "trim": "none",
+                "expression": {
+                    "type": "Expr.Test",
+                    "expression": { "type": "Expr.Identifier", "name": "obj" },
+                    "test": "empty",
+                    "arguments": [],
+                    "negated": false
+                }
+            },
+            { "type": "Text", "value": "\nstring=" },
+            {
+                "type": "Interpolation",
+                "trim": "none",
+                "expression": {
+                    "type": "Expr.Test",
+                    "expression": { "type": "Expr.Identifier", "name": "text" },
+                    "test": "string",
+                    "arguments": [],
+                    "negated": false
+                }
+            },
+            { "type": "Text", "value": "\nnumber=" },
+            {
+                "type": "Interpolation",
+                "trim": "none",
+                "expression": {
+                    "type": "Expr.Test",
+                    "expression": { "type": "Expr.Identifier", "name": "n" },
+                    "test": "number",
+                    "arguments": [],
+                    "negated": false
+                }
+            },
+            { "type": "Text", "value": "\narray=" },
+            {
+                "type": "Interpolation",
+                "trim": "none",
+                "expression": {
+                    "type": "Expr.Test",
+                    "expression": { "type": "Expr.Identifier", "name": "arr" },
+                    "test": "array",
+                    "arguments": [],
+                    "negated": false
+                }
+            },
+            { "type": "Text", "value": "\nobject=" },
+            {
+                "type": "Interpolation",
+                "trim": "none",
+                "expression": {
+                    "type": "Expr.Test",
+                    "expression": { "type": "Expr.Identifier", "name": "obj" },
+                    "test": "object",
+                    "arguments": [],
+                    "negated": false
+                }
+            },
+            { "type": "Text", "value": "\nboolean=" },
+            {
+                "type": "Interpolation",
+                "trim": "none",
+                "expression": {
+                    "type": "Expr.Test",
+                    "expression": { "type": "Expr.Literal", "value": true },
+                    "test": "boolean",
+                    "arguments": [],
+                    "negated": false
+                }
+            },
+            { "type": "Text", "value": "\n" }
+        ]
+    }
+}

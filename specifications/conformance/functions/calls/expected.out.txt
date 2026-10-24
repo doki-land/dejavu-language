@@ -1,0 +1,6 @@
+range=[0,1,2]
+step=[3,2,1]
+zerostep=
+min=2.5
+max=10
+bad=

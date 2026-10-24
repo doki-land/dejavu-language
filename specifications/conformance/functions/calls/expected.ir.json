@@ -1,0 +1,100 @@
+{
+    "irVersion": "1.0",
+    "language": {
+        "syntaxMode": "template",
+        "template": {
+            "codeStart": "<%",
+            "codeEnd": "%>",
+            "commentStart": "<#",
+            "commentEnd": "#>",
+            "supportFilterPipe": true,
+            "legacyFor": false
+        }
+    },
+    "body": {
+        "type": "Template",
+        "children": [
+            { "type": "Text", "value": "range=" },
+            {
+                "type": "Interpolation",
+                "trim": "none",
+                "expression": {
+                    "type": "Expr.Call",
+                    "callee": { "type": "Expr.Identifier", "name": "range" },
+                    "arguments": [
+                        { "type": "Expr.Literal", "value": 0 },
+                        { "type": "Expr.Literal", "value": 3 }
+                    ]
+                }
+            },
+            { "type": "Text", "value": "\nstep=" },
+            {
+                "type": "Interpolation",
+                "trim": "none",
+                "expression": {
+                    "type": "Expr.Call",
+                    "callee": { "type": "Expr.Identifier", "name": "range" },
+                    "arguments": [
+                        { "type": "Expr.Literal", "value": 3 },
+                        { "type": "Expr.Literal", "value": 0 },
+                        { "type": "Expr.Literal", "value": -1 }
+                    ]
+                }
+            },
+            { "type": "Text", "value": "\nzerostep=" },
+            {
+                "type": "Interpolation",
+                "trim": "none",
+                "expression": {
+                    "type": "Expr.Call",
+                    "callee": { "type": "Expr.Identifier", "name": "range" },
+                    "arguments": [
+                        { "type": "Expr.Literal", "value": 0 },
+                        { "type": "Expr.Literal", "value": 3 },
+                        { "type": "Expr.Literal", "value": 0 }
+                    ]
+                }
+            },
+            { "type": "Text", "value": "\nmin=" },
+            {
+                "type": "Interpolation",
+                "trim": "none",
+                "expression": {
+                    "type": "Expr.Call",
+                    "callee": { "type": "Expr.Identifier", "name": "min" },
+                    "arguments": [
+                        { "type": "Expr.Literal", "value": 4 },
+                        { "type": "Expr.Literal", "value": 2.5 }
+                    ]
+                }
+            },
+            { "type": "Text", "value": "\nmax=" },
+            {
+                "type": "Interpolation",
+                "trim": "none",
+                "expression": {
+                    "type": "Expr.Call",
+                    "callee": { "type": "Expr.Identifier", "name": "max" },
+                    "arguments": [
+                        { "type": "Expr.Literal", "value": 4 },
+                        { "type": "Expr.Literal", "value": 10 }
+                    ]
+                }
+            },
+            { "type": "Text", "value": "\nbad=" },
+            {
+                "type": "Interpolation",
+                "trim": "none",
+                "expression": {
+                    "type": "Expr.Call",
+                    "callee": { "type": "Expr.Identifier", "name": "min" },
+                    "arguments": [
+                        { "type": "Expr.Identifier", "name": "text" },
+                        { "type": "Expr.Literal", "value": 0 }
+                    ]
+                }
+            },
+            { "type": "Text", "value": "\n" }
+        ]
+    }
+}

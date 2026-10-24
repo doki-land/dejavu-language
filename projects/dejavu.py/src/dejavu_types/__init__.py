@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 DEFAULT_LANGUAGE = {
@@ -39,7 +40,8 @@ def value_to_string(v: Any) -> str:
         return "true" if v else "false"
     if isinstance(v, (int, float, str)):
         return str(v)
-    return str(v)
+    # 列表/对象按紧凑 JSON 输出，与 Rust `serde_json` 和 TS `JSON.stringify` 对齐。
+    return json.dumps(v, separators=(",", ":"), ensure_ascii=False)
 
 
 def apply_filter(name: str, value: Any, args: list[Any]) -> Any:

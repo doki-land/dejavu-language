@@ -1,0 +1,4 @@
+range: [0,1,2]
+even: true
+noteven: false
+empty: true

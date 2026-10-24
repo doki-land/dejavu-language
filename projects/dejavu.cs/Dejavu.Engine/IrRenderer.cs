@@ -105,7 +105,8 @@ public static class IrRenderer
             "Expr.Binary" => EvalBinary(expr["operator"]!.GetValue<string>(), Eval(expr["left"]!, scope), Eval(expr["right"]!, scope)),
             "Expr.Unary" => EvalUnary(expr["operator"]!.GetValue<string>(), Eval(expr["argument"]!, scope)),
             "Expr.Pipe" => EvalPipe(expr, scope),
-            "Expr.Call" => throw new InvalidOperationException("calls not supported in T1 eval"),
+            "Expr.Call" => EvalCall(expr, scope),
+            "Expr.Test" => EvalTest(expr, scope),
             _ => throw new InvalidOperationException($"invalid expression: {type}"),
         };
     }
@@ -133,6 +134,99 @@ public static class IrRenderer
         var val = Eval(expr["expression"]!, scope);
         var args = expr["arguments"]!.AsArray().Select(a => Eval(a!, scope)).ToList();
         return IrFilters.Apply(expr["filter"]!.GetValue<string>(), val, args);
+    }
+
+    const int RangeLimit = 10_000;
+
+    static JsonNode? EvalCall(JsonNode expr, Dictionary<string, JsonNode?> scope)
+    {
+        var callee = expr["callee"]!;
+        if (callee["type"]?.GetValue<string>() != "Expr.Identifier")
+            throw new InvalidOperationException("only built-in function calls are supported");
+        var name = callee["name"]!.GetValue<string>();
+        var args = expr["arguments"]!.AsArray().Select(a => Eval(a!, scope)).ToList();
+        return name switch
+        {
+            "range" => RangeCall(args),
+            "min" => NumericPair(args, min: true),
+            "max" => NumericPair(args, min: false),
+            _ => throw new InvalidOperationException($"dejavu.template.unknown-function: {name}"),
+        };
+    }
+
+    static JsonNode? RangeCall(List<JsonNode?> args)
+    {
+        if (args.Count is < 2 or > 3)
+            throw new InvalidOperationException($"dejavu.template.function-arity: range got {args.Count}");
+        if (!Integral(args[0], out var start) || !Integral(args[1], out var stop))
+            return null;
+        long step = 1;
+        if (args.Count == 3 && (!Integral(args[2], out step) || step == 0))
+            return null;
+        var outArray = new JsonArray();
+        for (var current = start; (step > 0 && current < stop) || (step < 0 && current > stop); current += step)
+        {
+            if (outArray.Count >= RangeLimit) return null;
+            outArray.Add(JsonValue.Create(current));
+        }
+        return outArray;
+    }
+
+    static JsonNode? NumericPair(List<JsonNode?> args, bool min)
+    {
+        if (args.Count != 2)
+            throw new InvalidOperationException("dejavu.template.function-arity: min/max expect 2 arguments");
+        if (!FiniteNumber(args[0], out var a) || !FiniteNumber(args[1], out var b))
+            return null;
+        var picked = min ? Math.Min(a, b) : Math.Max(a, b);
+        // 整数值保持整数形态，字符串与 Rust/TS 的 `4` 而非 `4.0` 对齐。
+        return picked == Math.Floor(picked) && picked >= long.MinValue && picked <= long.MaxValue
+            ? JsonValue.Create((long)picked)
+            : JsonValue.Create(picked);
+    }
+
+    static JsonNode? EvalTest(JsonNode expr, Dictionary<string, JsonNode?> scope)
+    {
+        var name = expr["test"]!.GetValue<string>();
+        var value = Eval(expr["expression"]!, scope);
+        var args = expr["arguments"]?.AsArray().Select(a => Eval(a!, scope)).ToList() ?? [];
+        if (args.Count != 0)
+            throw new InvalidOperationException($"dejavu.template.test-arity: {name} got {args.Count}");
+        var negated = expr["negated"]?.GetValue<bool>() == true;
+        var result = name switch
+        {
+            "null" or "none" => value is null,
+            "truthy" => Truthy(value),
+            "empty" => value is JsonValue sv && sv.TryGetValue<string>(out var s)
+                ? s.Length == 0
+                : value is JsonArray ea ? ea.Count == 0 : value is JsonObject eo && eo.Count == 0,
+            "array" => value is JsonArray,
+            "object" => value is JsonObject,
+            "string" => value is JsonValue sv2 && sv2.TryGetValue<string>(out _),
+            "number" => FiniteNumber(value, out _),
+            "boolean" => value is JsonValue bv && bv.TryGetValue<bool>(out _),
+            "even" => Integral(value, out var evenN) && evenN % 2 == 0,
+            "odd" => Integral(value, out var oddN) && oddN % 2 != 0,
+            _ => throw new InvalidOperationException($"dejavu.template.unknown-test: {name}"),
+        };
+        return JsonValue.Create(result != negated);
+    }
+
+    static bool Integral(JsonNode? value, out long result)
+    {
+        result = 0;
+        if (!FiniteNumber(value, out var d) || d != Math.Floor(d)) return false;
+        if (d < long.MinValue || d > long.MaxValue) return false;
+        result = (long)d;
+        return true;
+    }
+
+    static bool FiniteNumber(JsonNode? value, out double result)
+    {
+        result = 0;
+        return value is JsonValue jv
+            && jv.TryGetValue<double>(out result)
+            && double.IsFinite(result);
     }
 
     static JsonNode? EvalUnary(string op, JsonNode? v) => op switch

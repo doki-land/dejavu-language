@@ -1,0 +1,12 @@
+even=true
+noteven=false
+odd=true
+null=true
+none=true
+emptyarr=true
+emptyobj=false
+string=true
+number=true
+array=true
+object=true
+boolean=true
