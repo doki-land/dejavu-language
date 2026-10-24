@@ -1,5 +1,15 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import {
+    mkdirSync,
+    mkdtempSync,
+    readdirSync,
+    readFileSync,
+    renameSync,
+    rmSync,
+    unlinkSync,
+    writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -119,7 +129,12 @@ function transactionResidue(root) {
     function visit(current, prefix) {
         for (const entry of readdirSync(current, { withFileTypes: true })) {
             const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
-            if (entry.name.startsWith(".dejavu-tx-") || entry.name.endsWith(".dejavu-tmp")) {
+            if (
+                entry.name.startsWith(".dejavu-tx-") ||
+                entry.name.endsWith(".dejavu-tmp") ||
+                entry.name === ".dejavu.lock" ||
+                entry.name === ".dejavu-transaction.json"
+            ) {
                 residue.push(rel);
                 continue;
             }
@@ -232,5 +247,204 @@ test("a failed second generate restores the previous output byte for byte", asyn
     assert.deepEqual(after.files, before.files);
     assert.deepEqual(after.directories, before.directories);
     assert.deepEqual(readFileSync(join(out, "manifest.json")), manifestBefore);
+    assert.deepEqual(transactionResidue(out), []);
+});
+
+const LOCK_FILE = ".dejavu.lock";
+const TRANSACTION_RECORD = ".dejavu-transaction.json";
+
+/** sha256 of exact bytes, in the manifest's hash format. */
+function hashBytes(buffer) {
+    return `sha256:${createHash("sha256").update(buffer).digest("hex")}`;
+}
+
+/** Write a lock record into an output directory. */
+function writeLock(out, overrides = {}) {
+    writeFileSync(
+        join(out, LOCK_FILE),
+        `${JSON.stringify(
+            {
+                contract: "dejavu.generate.lock/v0",
+                pid: process.pid,
+                startedAt: new Date().toISOString(),
+                version: "test",
+                ...overrides,
+            },
+            null,
+            2,
+        )}\n`,
+    );
+}
+
+test("an active writer lock blocks the second publish and leaves the output untouched", async (t) => {
+    const dir = scaffold({ "home.dejavu": "<p>home</p>\n" });
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+
+    const out = join(dir, "out");
+    const first = await buildGeneratePlan({ cwd: dir });
+    writeOutput(first);
+    const before = snapshotTree(out);
+
+    // Simulate another live writer: the lock carries this (alive) pid.
+    writeLock(out);
+    const locked = snapshotTree(out);
+
+    const blocked = await buildGeneratePlan({ cwd: dir });
+    assert.throws(() => writeOutput(blocked), /locked by an active dejavu generate run/);
+
+    const untouched = snapshotTree(out);
+    assert.deepEqual(untouched.files, locked.files);
+    assert.deepEqual(untouched.directories, locked.directories);
+
+    // Releasing the lock lets the same plan publish normally again.
+    unlinkSync(join(out, LOCK_FILE));
+    const resumed = await buildGeneratePlan({ cwd: dir });
+    writeOutput(resumed);
+
+    assert.deepEqual(snapshotTree(out).files, before.files);
+    assert.deepEqual(transactionResidue(out), []);
+});
+
+test("an interrupted publish is rolled back before the next publish", async (t) => {
+    const dir = scaffold({ "home.dejavu": "<p>home</p>\n" });
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+
+    const out = join(dir, "out");
+    const first = await buildGeneratePlan({ cwd: dir });
+    writeOutput(first);
+    const before = snapshotTree(out);
+
+    // Reconstruct a commit that died halfway through: originals already moved
+    // to the backup area, new bytes partly in place, manifest replaced, staging
+    // still present and the journal on disk.
+    const txRoot = join(out, ".dejavu-tx-crash");
+    mkdirSync(join(txRoot, "stage"), { recursive: true });
+    mkdirSync(join(txRoot, "backup"), { recursive: true });
+
+    renameSync(join(out, "home.js"), join(txRoot, "backup", "home.js"));
+    writeFileSync(join(out, "home.js"), "// interrupted commit\n");
+
+    writeFileSync(join(out, "extra.js"), "// half published\n");
+    writeFileSync(join(txRoot, "stage", "extra.js"), "// half published\n");
+
+    mkdirSync(join(out, "_internal"), { recursive: true });
+    writeFileSync(join(out, "_internal", "part.js"), "// half published\n");
+
+    renameSync(join(out, "manifest.json"), join(txRoot, "backup", "manifest.json"));
+    writeFileSync(join(out, "manifest.json"), "{}\n");
+
+    writeFileSync(
+        join(out, TRANSACTION_RECORD),
+        `${JSON.stringify(
+            {
+                contract: "dejavu.generate.tx/v0",
+                phase: "commit",
+                pid: process.pid,
+                startedAt: new Date().toISOString(),
+                version: "test",
+                stageDir: ".dejavu-tx-crash/stage",
+                backupDir: ".dejavu-tx-crash/backup",
+                manifestPath: "manifest.json",
+                before: [...before.files.entries()].map(([path, bytes]) => ({
+                    path,
+                    hash: hashBytes(bytes),
+                })),
+                createdDirs: ["_internal"],
+                planned: ["manifest.json", "home.js", "extra.js", "_internal/part.js"],
+            },
+            null,
+            2,
+        )}\n`,
+    );
+
+    const second = await buildGeneratePlan({ cwd: dir });
+    writeOutput(second);
+
+    assert.ok(
+        second.warnings.some((warning) => warning.code === "dejavu.generate.recovered"),
+        "the run reports that it recovered the previous output",
+    );
+
+    // Recovery restored the pre-commit bytes and removed every residue before
+    // the fresh publish produced the same output again.
+    const after = snapshotTree(out);
+    assert.deepEqual(after.files, before.files);
+    assert.deepEqual(after.directories, before.directories);
+    assert.deepEqual(readFileSync(join(out, "manifest.json")), before.files.get("manifest.json"));
+    assert.deepEqual(transactionResidue(out), []);
+});
+
+test("recovery never deletes files the interrupted publish did not plan", async (t) => {
+    const dir = scaffold({ "home.dejavu": "<p>home</p>\n" });
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+
+    const out = join(dir, "out");
+    const first = await buildGeneratePlan({ cwd: dir });
+    writeOutput(first);
+    const before = snapshotTree(out);
+
+    const txRoot = join(out, ".dejavu-tx-crash");
+    mkdirSync(join(txRoot, "stage"), { recursive: true });
+    mkdirSync(join(txRoot, "backup"), { recursive: true });
+    renameSync(join(out, "home.js"), join(txRoot, "backup", "home.js"));
+    writeFileSync(join(out, "home.js"), "// interrupted commit\n");
+    renameSync(join(out, "manifest.json"), join(txRoot, "backup", "manifest.json"));
+    writeFileSync(join(out, "manifest.json"), "{}\n");
+    writeFileSync(join(out, "notes.txt"), "user note written during the crash window\n");
+
+    writeFileSync(
+        join(out, TRANSACTION_RECORD),
+        `${JSON.stringify(
+            {
+                contract: "dejavu.generate.tx/v0",
+                phase: "commit",
+                pid: process.pid,
+                startedAt: new Date().toISOString(),
+                version: "test",
+                stageDir: ".dejavu-tx-crash/stage",
+                backupDir: ".dejavu-tx-crash/backup",
+                manifestPath: "manifest.json",
+                before: [...before.files.entries()].map(([path, bytes]) => ({
+                    path,
+                    hash: hashBytes(bytes),
+                })),
+                createdDirs: [],
+                planned: ["manifest.json", "home.js"],
+            },
+            null,
+            2,
+        )}\n`,
+    );
+
+    const second = await buildGeneratePlan({ cwd: dir });
+    assert.throws(() => writeOutput(second), /unrecorded|not recorded|unknown/i);
+
+    // Recovery restored the previous output and left the user file alone, so
+    // the ownership check, not the recovery, reports the conflict.
+    assert.equal(readFileSync(join(out, "home.js"), "utf8"), before.files.get("home.js").toString("utf8"));
+    assert.equal(readFileSync(join(out, "notes.txt"), "utf8"), "user note written during the crash window\n");
+    assert.deepEqual(transactionResidue(out), []);
+});
+
+test("a stale lock from a dead or expired run is taken over", async (t) => {
+    const dir = scaffold({ "home.dejavu": "<p>home</p>\n" });
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+
+    const out = join(dir, "out");
+    const first = await buildGeneratePlan({ cwd: dir });
+    writeOutput(first);
+    const before = snapshotTree(out);
+
+    // Expired start time and a pid that cannot belong to a live writer.
+    writeLock(out, { pid: 2147483646, startedAt: "2000-01-01T00:00:00.000Z", version: "0.0.0-stale" });
+
+    const second = await buildGeneratePlan({ cwd: dir });
+    writeOutput(second);
+
+    assert.ok(
+        second.warnings.some((warning) => warning.code === "dejavu.generate.stale-lock"),
+        "the takeover is reported as a diagnostic",
+    );
+    assert.deepEqual(snapshotTree(out).files, before.files);
     assert.deepEqual(transactionResidue(out), []);
 });
