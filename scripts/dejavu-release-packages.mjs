@@ -86,8 +86,16 @@ export function nodeFileName(platform) {
   return `dejavu.${platform.nodeTriple}.node`
 }
 
-/** Publish order: platform addons first → runtime engine → @doki-land/dejavu meta-package last */
+/** Publish order: platform addons first → web JIT bridge → runtime engine → @doki-land/dejavu meta-package last */
 export const JS_PACKAGES = [
+  {
+    name: '@doki-land/dejavu-unknown-wasm32',
+    path: 'projects/dejavu.ts/platforms/dejavu-unknown-wasm32',
+  },
+  {
+    name: '@doki-land/dejavu-language',
+    path: 'projects/dejavu.ts/packages/dejavu-language',
+  },
   {
     name: '@doki-land/dejavu-engine',
     path: 'projects/dejavu.ts/packages/dejavu-engine',

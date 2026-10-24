@@ -27,15 +27,23 @@ if (!version || !/^\d+\.\d+\.\d+([.-].*)?$/.test(version)) {
 
 const root = process.cwd()
 
-// Facade @doki-land/dejavu (TS API) — optionalDependencies pinned
+/** Names that the release publishes; `workspace:*` specs must become concrete. */
+const publishable = new Set([
+  ...JS_PACKAGES.map((pkg) => pkg.name),
+  ...PLATFORM_PACKAGES.map((pkg) => pkg.name),
+])
+
+// Facade @doki-land/dejavu (TS API) — workspace deps pinned
 for (const pkg of JS_PACKAGES) {
   const file = join(root, pkg.path, 'package.json')
   if (existsSync(file)) {
     const json = JSON.parse(readFileSync(file, 'utf8'))
     json.version = version
-    if (json.optionalDependencies) {
-      for (const k of Object.keys(json.optionalDependencies)) {
-        json.optionalDependencies[k] = version
+    for (const field of ['dependencies', 'optionalDependencies']) {
+      const entries = json[field]
+      if (!entries) continue
+      for (const name of Object.keys(entries)) {
+        if (publishable.has(name)) entries[name] = version
       }
     }
     writeFileSync(file, `${JSON.stringify(json, null, 2)}\n`)
