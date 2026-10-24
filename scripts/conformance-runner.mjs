@@ -14,13 +14,19 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const BASE = join(ROOT, "specifications", "conformance");
 /** IR-level suites: expected.ir.json + context.ctx.json + expected.out.txt. */
-const IR_SUITES = [join(BASE, "t1"), join(BASE, "values")];
+const IR_SUITES = [
+    join(BASE, "t1"),
+    join(BASE, "values"),
+    join(BASE, "functions"),
+    join(BASE, "tests"),
+];
 /** Source-level suites: templates parsed by every host before rendering. */
 const CATALOG_SUITES = [
     join(BASE, "inheritance"),
     join(BASE, "whitespace"),
     join(BASE, "include-context"),
     join(BASE, "partial-params"),
+    join(BASE, "builtin-expressions"),
 ];
 const TMP = join(ROOT, ".conformance-tmp");
 
@@ -106,10 +112,10 @@ function canonicalRegistry(entries) {
 
 /**
  * Hard gate: the Rust registry and the TypeScript AOT registry must describe
- * the same filters, aliases, arity and capabilities.
+ * the same `filter`, `function` and `test` namespaces.
  */
-function checkFilterRegistry() {
-    console.log("## filter registry");
+function checkBuiltinRegistry() {
+    console.log("## builtin registry (filter / function / test)");
     const rustDump = run("cargo", [
         "run",
         "--quiet",
@@ -122,39 +128,48 @@ function checkFilterRegistry() {
         console.log("  rust: MISSING (required host)");
         return false;
     }
-    const engineFilter = join(
+    const runtimeDir = join(
         ROOT,
-        "projects/dejavu.ts/packages/dejavu-engine/dist/runtime/filter.js",
+        "projects/dejavu.ts/packages/dejavu-engine/dist/runtime",
     );
-    if (!existsSync(engineFilter)) {
-        console.log("  ts: MISSING (engine dist unavailable — required host)");
-        return false;
+    for (const file of ["filter.js", "function.js", "test.js"]) {
+        if (!existsSync(join(runtimeDir, file))) {
+            console.log("  ts: MISSING (engine dist unavailable — required host)");
+            return false;
+        }
     }
     const probe = run("node", [
         "--input-type=module",
         "-e",
-        `import(${JSON.stringify(pathToFileURL(engineFilter).href)}).then((m) => process.stdout.write(JSON.stringify(m.FILTERS)))`,
+        `Promise.all([` +
+            `import(${JSON.stringify(pathToFileURL(join(runtimeDir, "filter.js")).href)}),` +
+            `import(${JSON.stringify(pathToFileURL(join(runtimeDir, "function.js")).href)}),` +
+            `import(${JSON.stringify(pathToFileURL(join(runtimeDir, "test.js")).href)})` +
+            `]).then(([f, fn, t]) => process.stdout.write(JSON.stringify({` +
+            `filters: f.FILTERS, functions: fn.FUNCTIONS, tests: t.TESTS})))`,
     ]);
     if (!probe.ok) {
         console.log("  ts: MISSING (probe failed)");
         return false;
     }
-    let rustEntries;
-    let tsEntries;
+    let rust;
+    let ts;
     try {
-        rustEntries = JSON.parse(rustDump.stdout);
-        tsEntries = JSON.parse(probe.stdout);
+        rust = JSON.parse(rustDump.stdout);
+        ts = JSON.parse(probe.stdout);
     } catch (error) {
         console.log(`  parse: FAIL (${error instanceof Error ? error.message : error})`);
         return false;
     }
-    const rust = canonicalRegistry(rustEntries);
-    const ts = canonicalRegistry(tsEntries);
-    const ok = rust === ts;
-    console.log(`  rust vs ts: ${ok ? "OK" : "FAIL"}`);
-    if (!ok) {
-        console.log(`    rust ${rust}`);
-        console.log(`    ts   ${ts}`);
+    let ok = true;
+    for (const namespace of ["filters", "functions", "tests"]) {
+        const same = canonicalRegistry(rust[namespace] ?? []) === canonicalRegistry(ts[namespace] ?? []);
+        console.log(`  ${namespace} rust vs ts: ${same ? "OK" : "FAIL"}`);
+        if (!same) {
+            ok = false;
+            console.log(`    rust ${canonicalRegistry(rust[namespace] ?? [])}`);
+            console.log(`    ts   ${canonicalRegistry(ts[namespace] ?? [])}`);
+        }
     }
     console.log("");
     return ok;
@@ -330,7 +345,7 @@ function main() {
     console.log("Hard invariant: identical render(DejavuIR, Context) across languages");
     console.log("Required hosts: Rust, TypeScript, AOT — SKIP = FAIL\n");
 
-    if (!checkFilterRegistry()) {
+    if (!checkBuiltinRegistry()) {
         failed++;
     }
 

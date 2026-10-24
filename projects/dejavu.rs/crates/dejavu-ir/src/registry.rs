@@ -1,12 +1,14 @@
-//! Language-neutral description of the built-in filters.
+//! Language-neutral description of the built-in `filter`, `function` and
+//! `test` namespaces.
 //!
 //! Every host (Rust JIT, WASM, TypeScript AOT runtime) must agree on the same
-//! names, aliases, arity and output capability. This module is the Rust source
-//! of truth: the JIT renderer and the AOT compiler validate against it, and
-//! `examples/filter_registry.rs` dumps the same table for cross-host checks.
+//! names, aliases and arity. This module is the Rust source of truth: the JIT
+//! renderer and the AOT compiler validate against it, and
+//! `examples/filter_registry.rs` dumps the same tables for cross-host checks.
 //!
 //! This is intentionally a static table, not a runtime registry: no host may
-//! add filters that the other hosts do not implement.
+//! add entries that the other hosts do not implement, and arbitrary
+//! `Expr.Call` / host methods stay closed — only names listed here execute.
 
 /// Whether a filter's result must skip automatic HTML escaping.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -87,26 +89,190 @@ pub enum FilterLookupError {
     Arity { spec: &'static FilterSpec },
 }
 
-/// Serialize the table for cross-host conformance checks.
+// ---------------------------------------------------------------------------
+// function namespace
+// ---------------------------------------------------------------------------
+
+/// One built-in function contract.
+///
+/// Functions are pure: they never read the context, never touch the host and
+/// never produce output escaping. A call is only valid when the callee is a
+/// bare identifier resolving to a spec in this table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FunctionSpec {
+    /// Canonical name used by dispatch.
+    pub name: &'static str,
+    /// Accepted alternative spellings, all dispatching to `name`.
+    pub aliases: &'static [&'static str],
+    /// Minimum number of arguments.
+    pub min_args: usize,
+    /// Maximum number of arguments.
+    pub max_args: usize,
+}
+
+const fn function_entry(
+    name: &'static str,
+    aliases: &'static [&'static str],
+    min_args: usize,
+    max_args: usize,
+) -> FunctionSpec {
+    FunctionSpec { name, aliases, min_args, max_args }
+}
+
+/// The complete built-in function set, in contract order.
+pub const FUNCTIONS: &[FunctionSpec] = &[
+    function_entry("range", &[], 2, 3),
+    function_entry("min", &[], 2, 2),
+    function_entry("max", &[], 2, 2),
+];
+
+/// Look up a function by canonical name or alias.
+pub fn function_spec(name: &str) -> Option<&'static FunctionSpec> {
+    FUNCTIONS.iter().find(|spec| spec.name == name || spec.aliases.contains(&name))
+}
+
+/// Validate a function name and argument count.
+pub fn validate_function(name: &str, arg_count: usize) -> Result<&'static FunctionSpec, FunctionLookupError> {
+    let spec = function_spec(name).ok_or(FunctionLookupError::Unknown)?;
+    if arg_count < spec.min_args || arg_count > spec.max_args {
+        return Err(FunctionLookupError::Arity { spec });
+    }
+    Ok(spec)
+}
+
+/// Why a function reference is invalid.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FunctionLookupError {
+    /// No built-in function matches this name or any alias.
+    Unknown,
+    /// The function exists but the argument count is outside its contract.
+    Arity { spec: &'static FunctionSpec },
+}
+
+// ---------------------------------------------------------------------------
+// test namespace
+// ---------------------------------------------------------------------------
+
+/// One built-in predicate contract.
+///
+/// Tests are pure predicates over the evaluated left-hand value; they never
+/// read the context and never render output.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TestSpec {
+    /// Canonical name used by dispatch.
+    pub name: &'static str,
+    /// Accepted alternative spellings, all dispatching to `name`.
+    pub aliases: &'static [&'static str],
+    /// Minimum number of arguments.
+    pub min_args: usize,
+    /// Maximum number of arguments.
+    pub max_args: usize,
+}
+
+const fn test_entry(name: &'static str, aliases: &'static [&'static str]) -> TestSpec {
+    TestSpec { name, aliases, min_args: 0, max_args: 0 }
+}
+
+/// The complete built-in test set, in contract order.
+pub const TESTS: &[TestSpec] = &[
+    test_entry("null", &["none"]),
+    test_entry("truthy", &[]),
+    test_entry("empty", &[]),
+    test_entry("array", &[]),
+    test_entry("object", &[]),
+    test_entry("string", &[]),
+    test_entry("number", &[]),
+    test_entry("boolean", &[]),
+    test_entry("even", &[]),
+    test_entry("odd", &[]),
+];
+
+/// Look up a test by canonical name or alias.
+pub fn test_spec(name: &str) -> Option<&'static TestSpec> {
+    TESTS.iter().find(|spec| spec.name == name || spec.aliases.contains(&name))
+}
+
+/// Validate a test name and argument count.
+pub fn validate_test(name: &str, arg_count: usize) -> Result<&'static TestSpec, TestLookupError> {
+    let spec = test_spec(name).ok_or(TestLookupError::Unknown)?;
+    if arg_count < spec.min_args || arg_count > spec.max_args {
+        return Err(TestLookupError::Arity { spec });
+    }
+    Ok(spec)
+}
+
+/// Why a test reference is invalid.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TestLookupError {
+    /// No built-in test matches this name or any alias.
+    Unknown,
+    /// The test exists but the argument count is outside its contract.
+    Arity { spec: &'static TestSpec },
+}
+
+// ---------------------------------------------------------------------------
+// Cross-host dump
+// ---------------------------------------------------------------------------
+
+fn json_string(value: &str) -> String {
+    serde_json::to_string(value).expect("str always serializes")
+}
+
+fn json_aliases(aliases: &[&str]) -> String {
+    let items: Vec<String> = aliases.iter().map(|alias| json_string(alias)).collect();
+    format!("[{}]", items.join(","))
+}
+
+/// Serialize all three namespaces for cross-host conformance checks.
+///
+/// Shape: `{"filters":[...],"functions":[...],"tests":[...]}`. Field names and
+/// ordering are part of the conformance contract.
 pub fn to_json() -> String {
-    let entries: Vec<String> = FILTERS
+    let filters: Vec<String> = FILTERS
         .iter()
         .map(|spec| {
-            let aliases: Vec<String> =
-                spec.aliases.iter().map(|a| format!("\"{a}\"")).collect();
             let capability = match spec.capability {
                 FilterCapability::Pure => "pure",
                 FilterCapability::SafeOutput => "safe-output",
             };
             format!(
-                "{{\"name\":\"{}\",\"aliases\":[{}],\"minArgs\":{},\"maxArgs\":{},\"capability\":\"{}\"}}",
-                spec.name,
-                aliases.join(","),
+                "{{\"name\":{},\"aliases\":{},\"minArgs\":{},\"maxArgs\":{},\"capability\":{}}}",
+                json_string(spec.name),
+                json_aliases(spec.aliases),
                 spec.min_args,
                 spec.max_args,
-                capability
+                json_string(capability)
             )
         })
         .collect();
-    format!("[{}]", entries.join(","))
+    let functions: Vec<String> = FUNCTIONS
+        .iter()
+        .map(|spec| {
+            format!(
+                "{{\"name\":{},\"aliases\":{},\"minArgs\":{},\"maxArgs\":{}}}",
+                json_string(spec.name),
+                json_aliases(spec.aliases),
+                spec.min_args,
+                spec.max_args
+            )
+        })
+        .collect();
+    let tests: Vec<String> = TESTS
+        .iter()
+        .map(|spec| {
+            format!(
+                "{{\"name\":{},\"aliases\":{},\"minArgs\":{},\"maxArgs\":{}}}",
+                json_string(spec.name),
+                json_aliases(spec.aliases),
+                spec.min_args,
+                spec.max_args
+            )
+        })
+        .collect();
+    format!(
+        "{{\"filters\":[{}],\"functions\":[{}],\"tests\":[{}]}}",
+        filters.join(","),
+        functions.join(","),
+        tests.join(",")
+    )
 }

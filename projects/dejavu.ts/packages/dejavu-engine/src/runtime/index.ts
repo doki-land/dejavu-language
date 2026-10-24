@@ -8,4 +8,6 @@
 export { htmlEscape } from "./escape.js";
 export { valueToString, isTruthy, valuesEqual } from "./value.js";
 export { applyFilter } from "./filter.js";
+export { FUNCTIONS, functionSpec, callFunction } from "./function.js";
+export { TESTS, testSpec, applyTest } from "./test.js";
 export { binary, unary, exprMember, exprIndex } from "./expr.js";

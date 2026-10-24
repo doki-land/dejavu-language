@@ -41,12 +41,20 @@ fn arity_is_enforced_per_filter() {
 }
 
 #[test]
-fn registry_json_lists_every_filter() {
+fn registry_json_lists_every_namespace_entry() {
     let json = dejavu_ir::registry::to_json();
     for spec in dejavu_ir::registry::FILTERS {
         assert!(json.contains(&format!("\"name\":\"{}\"", spec.name)), "{json}");
     }
-    assert!(json.starts_with('[') && json.ends_with(']'), "{json}");
+    for spec in dejavu_ir::registry::FUNCTIONS {
+        assert!(json.contains(&format!("\"name\":\"{}\"", spec.name)), "{json}");
+    }
+    for spec in dejavu_ir::registry::TESTS {
+        assert!(json.contains(&format!("\"name\":\"{}\"", spec.name)), "{json}");
+    }
+    assert!(json.starts_with("{\"filters\":"), "{json}");
+    assert!(json.contains("\"functions\":["), "{json}");
+    assert!(json.contains("\"tests\":["), "{json}");
 }
 
 fn pipe_doc(filter: &str, args: Vec<serde_json::Value>) -> IrDocument {

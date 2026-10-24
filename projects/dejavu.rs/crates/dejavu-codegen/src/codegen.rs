@@ -351,7 +351,7 @@ pub(crate) fn build_module(
 ) -> String {
     let mut s = String::with_capacity(512 + body.len());
     s.push_str(&format!(
-        "import {{ htmlEscape, applyFilter, isTruthy, binary, unary, valueToString, exprMember, exprIndex }} from \"{RUNTIME_IMPORT}\";\n"
+        "import {{ htmlEscape, applyFilter, isTruthy, binary, unary, valueToString, exprMember, exprIndex, callFunction, applyTest }} from \"{RUNTIME_IMPORT}\";\n"
     ));
     for imp in template_imports {
         s.push_str(imp);

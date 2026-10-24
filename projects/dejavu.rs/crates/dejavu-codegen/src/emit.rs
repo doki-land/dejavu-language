@@ -26,7 +26,10 @@ use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 
 use dejavu_diagnostic::{ArgValue, Diagnostic, Severity, Span, Stage, codes};
-use dejavu_ir::registry::{FilterLookupError, FilterCapability, validate_filter};
+use dejavu_ir::registry::{
+    FilterCapability, FilterLookupError, FunctionLookupError, TestLookupError, validate_filter, validate_function,
+    validate_test,
+};
 use dejavu_ir::IrNode;
 
 use crate::options::CodegenOptions;
@@ -157,6 +160,7 @@ impl<'a> CodegenCtx<'a> {
             | IrNode::ExprMember { span, .. }
             | IrNode::ExprIndex { span, .. }
             | IrNode::ExprCall { span, .. }
+            | IrNode::ExprTest { span, .. }
             | IrNode::ExprBinary { span, .. }
             | IrNode::ExprUnary { span, .. }
             | IrNode::ExprObject { span, .. }
@@ -263,17 +267,91 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
             )
         }
         IrNode::ExprCall { callee, arguments, .. } => {
-            ctx.diagnostic_arg(
-                Severity::Error,
-                "dejavu.compile.calls-not-supported",
-                "dejavu-codegen: function calls are not supported in single-template mode",
-                "callee",
-                format!("{callee:?}"),
-            );
-            // Still return syntactically valid JS so downstream can print diagnostics.
-            let callee_s = emit_expr(callee, ctx);
+            // Only a bare identifier that resolves to the language-neutral
+            // function registry may execute. Member calls and unknown names
+            // stay closed — never emit a host call.
+            let IrNode::ExprIdentifier { name, .. } = callee.as_ref() else {
+                ctx.diagnostic_arg(
+                    Severity::Error,
+                    codes::CALLS_NOT_SUPPORTED,
+                    "dejavu-codegen: only built-in function calls are supported",
+                    "callee",
+                    format!("{callee:?}"),
+                );
+                // Keep the module syntactically valid so diagnostics still print.
+                emit_expr(callee, ctx);
+                emit_expr_list(arguments, ctx);
+                return "null".into();
+            };
             let args_s = emit_expr_list(arguments, ctx);
-            format!("({callee_s})({args_s}) /* unsupported call */")
+            match validate_function(name, arguments.len()) {
+                Ok(spec) => format!(
+                    "callFunction({}, [{args_s}])",
+                    json_string(spec.name)
+                ),
+                Err(FunctionLookupError::Unknown) => {
+                    ctx.diagnostic_arg(
+                        Severity::Error,
+                        codes::UNKNOWN_FUNCTION,
+                        format!("unknown function `{name}`"),
+                        "function",
+                        name.clone(),
+                    );
+                    "null".into()
+                }
+                Err(FunctionLookupError::Arity { spec }) => {
+                    ctx.diagnostic_arg(
+                        Severity::Error,
+                        codes::FUNCTION_ARITY,
+                        format!(
+                            "function `{}` expects {}..{} argument(s), got {}",
+                            spec.name,
+                            spec.min_args,
+                            spec.max_args,
+                            arguments.len()
+                        ),
+                        "function",
+                        spec.name,
+                    );
+                    "null".into()
+                }
+            }
+        }
+        IrNode::ExprTest { expression, test, arguments, negated, .. } => {
+            let inner = emit_expr(expression, ctx);
+            let args_s = emit_expr_list(arguments, ctx);
+            match validate_test(test, arguments.len()) {
+                Ok(spec) => format!(
+                    "applyTest({}, {inner}, [{args_s}], {negated})",
+                    json_string(spec.name)
+                ),
+                Err(TestLookupError::Unknown) => {
+                    ctx.diagnostic_arg(
+                        Severity::Error,
+                        codes::UNKNOWN_TEST,
+                        format!("unknown test `{test}`"),
+                        "test",
+                        test.clone(),
+                    );
+                    "null".into()
+                }
+                Err(TestLookupError::Arity { spec }) => {
+                    ctx.diagnostic_arg(
+                        Severity::Error,
+                        codes::TEST_ARITY,
+                        format!(
+                            "test `{}` expects {}..{} argument(s), got {}",
+                            spec.name,
+                            spec.min_args,
+                            spec.max_args,
+                            arguments.len()
+                        ),
+                        "test",
+                        spec.name,
+                    );
+                    "null".into()
+                }
+            }
         }
         // Anything else used as expression (Template, Text, ...) is nonsensical —
         // emit a JS null with a diagnostic so the module still parses.

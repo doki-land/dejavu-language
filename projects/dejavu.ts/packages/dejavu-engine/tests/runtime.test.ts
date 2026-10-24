@@ -4,6 +4,8 @@ import {
     valueToString,
     isTruthy,
     applyFilter,
+    callFunction,
+    applyTest,
     binary,
     unary,
     exprMember,
@@ -320,5 +322,68 @@ describe("exprIndex", () => {
 
     it("非数组非对象 → null", () => {
         expect(exprIndex(42, 0)).toBeNull();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// function 命名空间
+// ---------------------------------------------------------------------------
+describe("callFunction", () => {
+    it("range 生成整数序列", () => {
+        expect(callFunction("range", [0, 3])).toEqual([0, 1, 2]);
+        expect(callFunction("range", [3, 0, -1])).toEqual([3, 2, 1]);
+    });
+
+    it("range 非法参数 → null", () => {
+        expect(callFunction("range", [0, 3, 0])).toBeNull();
+        expect(callFunction("range", [0.5, 3])).toBeNull();
+        expect(callFunction("range", [0, 1_000_000])).toBeNull();
+    });
+
+    it("min / max 只接受有限数字", () => {
+        expect(callFunction("min", [4, 2.5])).toBe(2.5);
+        expect(callFunction("max", [4, 2.5])).toBe(4);
+        expect(callFunction("min", [4, "x"])).toBeNull();
+    });
+
+    it("未知函数与参数个数违约都抛错", () => {
+        expect(() => callFunction("nope", [])).toThrow(
+            "dejavu.template.unknown-function",
+        );
+        expect(() => callFunction("range", [0])).toThrow(
+            "dejavu.template.function-arity",
+        );
+    });
+});
+
+// ---------------------------------------------------------------------------
+// test 命名空间
+// ---------------------------------------------------------------------------
+describe("applyTest", () => {
+    it("值模型谓词与 Rust 一致", () => {
+        expect(applyTest("empty", [], [])).toBe(true);
+        expect(applyTest("empty", "x", [])).toBe(false);
+        expect(applyTest("array", [], [])).toBe(true);
+        expect(applyTest("object", { a: 1 }, [])).toBe(true);
+        expect(applyTest("truthy", "0", [])).toBe(true);
+        expect(applyTest("truthy", 0, [])).toBe(false);
+        expect(applyTest("null", null, [])).toBe(true);
+        expect(applyTest("even", 4, [])).toBe(true);
+        expect(applyTest("even", 4.5, [])).toBe(false);
+        expect(applyTest("odd", -3, [])).toBe(true);
+    });
+
+    it("is not 取反", () => {
+        expect(applyTest("empty", [], [], true)).toBe(false);
+        expect(applyTest("none", null, [], true)).toBe(false);
+    });
+
+    it("未知 test 与参数个数违约都抛错", () => {
+        expect(() => applyTest("nope", 1, [])).toThrow(
+            "dejavu.template.unknown-test",
+        );
+        expect(() => applyTest("empty", 1, [1])).toThrow(
+            "dejavu.template.test-arity",
+        );
     });
 });

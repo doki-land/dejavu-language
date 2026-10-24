@@ -158,6 +158,63 @@ impl<'a> ExprParser<'a> {
 
     fn parse_cmp(&mut self) -> Result<NativeExpr, ParseError> {
         let left = self.parse_add()?;
+        if matches!(self.peek(), Some(CodeToken::Is)) {
+            self.bump();
+            let negated = if matches!(self.peek(), Some(CodeToken::Not)) {
+                self.bump();
+                true
+            } else {
+                false
+            };
+            let test = match self.bump() {
+                Some(CodeToken::Ident(name)) => name,
+                Some(CodeToken::Null) => "null".into(),
+                _ => {
+                    let span = self.peek_span();
+                    return Err(ParseError::at(
+                        self.source,
+                        self.file,
+                        span.start,
+                        span.len(),
+                        "expected test name after `is`",
+                        "expected test",
+                    )
+                    .with_code(codes::PARSE_UNEXPECTED_TOKEN));
+                }
+            };
+            let mut arguments = Vec::new();
+            if matches!(self.peek(), Some(CodeToken::LParen)) {
+                self.bump();
+                if !matches!(self.peek(), Some(CodeToken::RParen)) {
+                    loop {
+                        arguments.push(self.parse_pipe()?);
+                        if matches!(self.peek(), Some(CodeToken::Comma)) {
+                            self.bump();
+                            continue;
+                        }
+                        break;
+                    }
+                }
+                if !matches!(self.bump(), Some(CodeToken::RParen)) {
+                    let span = self.peek_span();
+                    return Err(ParseError::at(
+                        self.source,
+                        self.file,
+                        span.start,
+                        span.len(),
+                        "expected `)` after test arguments",
+                        "expected )",
+                    )
+                    .with_code(codes::PARSE_UNCLOSED_EXPRESSION));
+                }
+            }
+            return Ok(NativeExpr::Test {
+                expression: Box::new(left),
+                test,
+                arguments,
+                negated,
+            });
+        }
         let op = match self.peek() {
             Some(CodeToken::EqEq) => Some("=="),
             Some(CodeToken::NotEq) => Some("!="),

@@ -184,6 +184,18 @@ pub enum IrNode {
         #[serde(skip_serializing_if = "Option::is_none")]
         span: Option<Span>,
     },
+    /// `expression is [not] test(args)` — predicate from the `test` namespace.
+    #[serde(rename = "Expr.Test")]
+    ExprTest {
+        expression: Box<IrNode>,
+        test: String,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        arguments: Vec<IrNode>,
+        #[serde(default, skip_serializing_if = "is_false")]
+        negated: bool,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        span: Option<Span>,
+    },
     #[serde(rename = "Expr.Binary")]
     ExprBinary {
         operator: String,

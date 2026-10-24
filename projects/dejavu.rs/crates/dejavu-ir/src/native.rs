@@ -90,6 +90,7 @@ pub enum NativeExpr {
     Member { object: Box<NativeExpr>, property: String },
     Index { object: Box<NativeExpr>, index: Box<NativeExpr> },
     Call { callee: Box<NativeExpr>, arguments: Vec<NativeExpr> },
+    Test { expression: Box<NativeExpr>, test: String, arguments: Vec<NativeExpr>, negated: bool },
     Binary { operator: String, left: Box<NativeExpr>, right: Box<NativeExpr> },
     Unary { operator: String, argument: Box<NativeExpr> },
     Pipe { expression: Box<NativeExpr>, filter: String, arguments: Vec<NativeExpr> },
@@ -188,6 +189,13 @@ fn encode_expr(e: &NativeExpr) -> IrNode {
         NativeExpr::Call { callee, arguments } => IrNode::ExprCall {
             callee: Box::new(encode_expr(callee)),
             arguments: arguments.iter().map(encode_expr).collect(),
+            span: None,
+        },
+        NativeExpr::Test { expression, test, arguments, negated } => IrNode::ExprTest {
+            expression: Box::new(encode_expr(expression)),
+            test: test.clone(),
+            arguments: arguments.iter().map(encode_expr).collect(),
+            negated: *negated,
             span: None,
         },
         NativeExpr::Binary { operator, left, right } => IrNode::ExprBinary {
@@ -304,6 +312,12 @@ fn decode_expr(n: &IrNode) -> NativeExpr {
         IrNode::ExprCall { callee, arguments, .. } => {
             NativeExpr::Call { callee: Box::new(decode_expr(callee)), arguments: arguments.iter().map(decode_expr).collect() }
         }
+        IrNode::ExprTest { expression, test, arguments, negated, .. } => NativeExpr::Test {
+            expression: Box::new(decode_expr(expression)),
+            test: test.clone(),
+            arguments: arguments.iter().map(decode_expr).collect(),
+            negated: *negated,
+        },
         IrNode::ExprBinary { operator, left, right, .. } => NativeExpr::Binary {
             operator: operator.clone(),
             left: Box::new(decode_expr(left)),

@@ -102,6 +102,13 @@ fn call(callee: Value, args: Vec<Value>) -> Value {
     json!({ "type": "Expr.Call", "callee": callee, "arguments": args })
 }
 
+fn test_node(expression: Value, test: &str, args: Vec<Value>, negated: bool) -> Value {
+    json!({
+        "type": "Expr.Test", "expression": expression, "test": test,
+        "arguments": args, "negated": negated
+    })
+}
+
 fn stmt_if(
     test: Value,
     consequent: Vec<Value>,
@@ -392,17 +399,80 @@ fn expr_unary_emits_helper() {
 }
 
 // ---------------------------------------------------------------------------
-// ExprCall — compile error but syntactic fallback
+// ExprCall / ExprTest — closed namespaces
 // ---------------------------------------------------------------------------
 
 #[test]
-fn expr_call_surfaces_compile_diagnostic() {
+fn expr_call_unknown_function_is_rejected() {
     let ir = doc(vec![interp(call(ident("f"), vec![lit(json!(1))]), false)]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     assert!(!res.diagnostics.is_empty());
-    assert_eq!(res.diagnostics[0].code, "dejavu.compile.calls-not-supported");
+    assert_eq!(res.diagnostics[0].code, "dejavu.template.unknown-function");
     assert!(res.diagnostics[0].severity == dejavu_diagnostic::Severity::Error);
     assert!(res.code.contains("export function render")); // module still parses
+}
+
+#[test]
+fn expr_call_member_callee_stays_closed() {
+    let ir = doc(vec![interp(
+        call(member(ident("user"), "format"), vec![]),
+        false,
+    )]);
+    let res = compile(&serde_json::to_string(&ir).unwrap());
+    assert_eq!(res.diagnostics[0].code, "dejavu.template.calls-not-supported");
+}
+
+#[test]
+fn expr_call_builtin_emits_call_function() {
+    let ir = doc(vec![interp(
+        call(ident("range"), vec![lit(json!(0)), lit(json!(3))]),
+        false,
+    )]);
+    let res = compile(&serde_json::to_string(&ir).unwrap());
+    let r = round_body(&res.code);
+    assert!(r.contains("callFunction(\"range\", [0, 3])"), "{r}");
+    assert!(res.diagnostics.is_empty(), "{:?}", res.diagnostics);
+}
+
+#[test]
+fn expr_call_arity_violation_is_diagnostic() {
+    let ir = doc(vec![interp(call(ident("range"), vec![lit(json!(0))]), false)]);
+    let res = compile(&serde_json::to_string(&ir).unwrap());
+    assert_eq!(res.diagnostics[0].code, "dejavu.template.function-arity");
+}
+
+#[test]
+fn expr_test_emits_apply_test() {
+    let ir = doc(vec![interp(test_node(ident("n"), "even", vec![], false), false)]);
+    let res = compile(&serde_json::to_string(&ir).unwrap());
+    let r = round_body(&res.code);
+    assert!(r.contains("applyTest(\"even\", ctx.n, [], false)"), "{r}");
+    assert!(res.diagnostics.is_empty(), "{:?}", res.diagnostics);
+}
+
+#[test]
+fn expr_test_negation_and_alias_use_canonical_name() {
+    let ir = doc(vec![interp(test_node(ident("v"), "none", vec![], true), false)]);
+    let res = compile(&serde_json::to_string(&ir).unwrap());
+    let r = round_body(&res.code);
+    assert!(r.contains("applyTest(\"null\", ctx.v, [], true)"), "{r}");
+}
+
+#[test]
+fn expr_test_unknown_name_is_diagnostic() {
+    let ir = doc(vec![interp(test_node(ident("v"), "nope", vec![], false), false)]);
+    let res = compile(&serde_json::to_string(&ir).unwrap());
+    assert_eq!(res.diagnostics[0].code, "dejavu.template.unknown-test");
+}
+
+#[test]
+fn expr_test_arity_violation_is_diagnostic() {
+    let ir = doc(vec![interp(
+        test_node(ident("v"), "empty", vec![lit(json!(1))], false),
+        false,
+    )]);
+    let res = compile(&serde_json::to_string(&ir).unwrap());
+    assert_eq!(res.diagnostics[0].code, "dejavu.template.test-arity");
 }
 
 // ---------------------------------------------------------------------------

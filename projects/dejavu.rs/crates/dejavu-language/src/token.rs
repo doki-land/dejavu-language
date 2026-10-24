@@ -34,6 +34,8 @@ pub enum CodeToken {
     Bool(bool),
     Null,
     In,
+    Is,
+    Not,
     Ident(String),
     Number(String),
     String(String),
@@ -171,6 +173,8 @@ impl<'a> CodeLexer<'a> {
             "false" => CodeToken::Bool(false),
             "null" => CodeToken::Null,
             "in" => CodeToken::In,
+            "is" => CodeToken::Is,
+            "not" => CodeToken::Not,
             _ => CodeToken::Ident(s.to_string()),
         }
     }

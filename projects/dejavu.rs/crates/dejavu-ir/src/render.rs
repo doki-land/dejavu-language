@@ -382,7 +382,18 @@ impl<'a> Renderer<'a> {
                     _ => Ok(Value::Null),
                 }
             }
-            IrNode::ExprCall { .. } => Err(diag_render(codes::CALLS_NOT_SUPPORTED)),
+            IrNode::ExprCall { callee, arguments, .. } => {
+                let IrNode::ExprIdentifier { name, .. } = callee.as_ref() else {
+                    return Err(diag_render(codes::CALLS_NOT_SUPPORTED));
+                };
+                let args: Result<Vec<_>, _> = arguments.iter().map(|a| self.eval(a)).collect();
+                crate::builtins::call_function(name, &args?)
+            }
+            IrNode::ExprTest { expression, test, arguments, negated, .. } => {
+                let value = self.eval(expression)?;
+                let args: Result<Vec<_>, _> = arguments.iter().map(|a| self.eval(a)).collect();
+                Ok(Value::Bool(crate::builtins::call_test(test, &value, &args?, *negated)?))
+            }
             IrNode::ExprBinary { operator, left, right, .. } => {
                 let l = self.eval(left)?;
                 let r = self.eval(right)?;
