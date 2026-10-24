@@ -195,13 +195,7 @@ impl<'a> Renderer<'a> {
 
     fn render_nodes(&mut self, node: &IrNode) -> Result<String, IrError> {
         match node {
-            IrNode::Template { children, .. } => {
-                let mut out = String::new();
-                for c in children {
-                    out.push_str(&self.render_nodes(c)?);
-                }
-                Ok(out)
-            }
+            IrNode::Template { children, .. } => self.render_list(children),
             IrNode::Text { value, .. } => Ok(value.clone()),
             IrNode::Comment { .. } => Ok(String::new()),
             IrNode::Interpolation { expression, raw, .. } => {
@@ -288,8 +282,11 @@ impl<'a> Renderer<'a> {
     }
 
     fn render_list(&mut self, nodes: &[IrNode]) -> Result<String, IrError> {
+        // Whitespace control is resolved once per sibling list so every host
+        // shares the same text before any node is rendered.
+        let nodes = crate::trim::normalized_children(nodes);
         let mut out = String::new();
-        for n in nodes {
+        for n in &nodes {
             out.push_str(&self.render_nodes(n)?);
         }
         Ok(out)

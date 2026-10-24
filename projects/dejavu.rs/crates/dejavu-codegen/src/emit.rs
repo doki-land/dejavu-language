@@ -370,7 +370,10 @@ pub fn emit_body(
     out: &mut String,
     catalog: Option<&CatalogEmitCtx>,
 ) {
-    for n in nodes {
+    // Apply the whitespace-control contract before emitting text so AOT output
+    // matches the interpreter byte for byte.
+    let nodes = dejavu_ir::trim::normalized_children(nodes);
+    for n in &nodes {
         emit_stmt(n, ctx, out, catalog);
     }
 }

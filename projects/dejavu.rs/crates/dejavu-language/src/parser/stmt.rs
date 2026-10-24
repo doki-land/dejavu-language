@@ -18,6 +18,8 @@ impl Parser<'_> {
         test_src: &str,
         test_base: usize,
         trim: TrimMode,
+        trim_end: TrimMode,
+        pending: Option<&str>,
     ) -> Result<(NativeNode, usize), ParseError> {
         let test = parse_expr(self.source, self.file, test_base, test_src)?;
         let (consequent, i2) = self.parse_until(i, &["else if", "else", "end if"])?;
@@ -80,13 +82,9 @@ impl Parser<'_> {
             }
         }
 
-        Ok((
-            NativeNode::new(
-                NativeKind::If { test, consequent, else_ifs, alternate, trim: trim.as_str().into() },
-                Some(Span { start: open, end: i }),
-            ),
-            i,
-        ))
+        let mut kind = NativeKind::If { test, consequent, else_ifs, alternate, trim: trim.as_str().into() };
+        apply_open_trim(&mut kind, pending, trim_end);
+        Ok((NativeNode::new(kind, Some(Span { start: open, end: i })), i))
     }
 
     pub(crate) fn parse_loop(
@@ -97,6 +95,8 @@ impl Parser<'_> {
         iter_src: &str,
         iter_base: usize,
         trim: TrimMode,
+        trim_end: TrimMode,
+        pending: Option<&str>,
     ) -> Result<(NativeNode, usize), ParseError> {
         let iterable = parse_expr(self.source, self.file, iter_base, iter_src)?;
 
@@ -120,13 +120,9 @@ impl Parser<'_> {
             }
         }
 
-        Ok((
-            NativeNode::new(
-                NativeKind::For { item, index: None, iterable, body, trim: trim.as_str().into() },
-                Some(Span { start: open, end: i }),
-            ),
-            i,
-        ))
+        let mut kind = NativeKind::For { item, index: None, iterable, body, trim: trim.as_str().into() };
+        apply_open_trim(&mut kind, pending, trim_end);
+        Ok((NativeNode::new(kind, Some(Span { start: open, end: i })), i))
     }
 
     pub(crate) fn parse_block(
@@ -135,6 +131,8 @@ impl Parser<'_> {
         mut i: usize,
         name: String,
         trim: TrimMode,
+        trim_end: TrimMode,
+        pending: Option<&str>,
     ) -> Result<(NativeNode, usize), ParseError> {
         let (body, i2) = self.parse_until(i, &["end block"])?;
         i = i2;
@@ -156,12 +154,42 @@ impl Parser<'_> {
             }
         }
 
-        Ok((
-            NativeNode::new(
-                NativeKind::Block { name, body, trim: trim.as_str().into() },
-                Some(Span { start: open, end: i }),
-            ),
-            i,
-        ))
+        let mut kind = NativeKind::Block { name, body, trim: trim.as_str().into() };
+        apply_open_trim(&mut kind, pending, trim_end);
+        Ok((NativeNode::new(kind, Some(Span { start: open, end: i })), i))
     }
+}
+
+/// Apply the right-side trim of an opening tag to the first text node the tag
+/// introduces. Inherited pending trims from a previous tag are applied first.
+fn apply_open_trim(kind: &mut NativeKind, pending: Option<&str>, trim_end: TrimMode) {
+    let levels: Vec<&str> = pending
+        .into_iter()
+        .chain(match trim_end {
+            TrimMode::None => None,
+            other => Some(other.as_str()),
+        })
+        .collect();
+    if levels.is_empty() {
+        return;
+    }
+    let Some(text) = first_text(kind) else {
+        return;
+    };
+    for level in levels {
+        dejavu_ir::trim::trim_prefix(text, level);
+    }
+}
+
+fn first_text(kind: &mut NativeKind) -> Option<&mut String> {
+    let nodes = match kind {
+        NativeKind::If { consequent, .. } => consequent,
+        NativeKind::For { body, .. } => body,
+        NativeKind::Block { body, .. } => body,
+        _ => return None,
+    };
+    nodes.iter_mut().find_map(|n| match &mut n.kind {
+        NativeKind::Text(value) => Some(value),
+        _ => None,
+    })
 }

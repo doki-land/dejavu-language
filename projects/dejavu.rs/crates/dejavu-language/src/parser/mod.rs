@@ -47,6 +47,15 @@ impl Delimiters {
     pub(crate) fn comment_end_len(&self) -> usize { self.comment_end.len() }
 }
 
+/// One scanned code tag: interior text plus the trim markers on both sides.
+pub(crate) struct TagScan {
+    pub(crate) inner: String,
+    pub(crate) inner_range: std::ops::Range<usize>,
+    pub(crate) next: usize,
+    pub(crate) trim_left: TrimMode,
+    pub(crate) trim_right: TrimMode,
+}
+
 impl<'a> Parser<'a> {
     pub fn new(source: &'a str, file: &'a str) -> Self {
         Self::with_language(source, file, &default_language())
@@ -65,6 +74,12 @@ impl<'a> Parser<'a> {
     /// Returns `(code_inner, content_span_in_source, index_after_close)`.
     /// Uses configured delimiters.
     pub(crate) fn peek_code(&self, i: usize) -> Result<(String, std::ops::Range<usize>, usize), ParseError> {
+        let tag = self.scan_tag(i)?;
+        Ok((tag.inner, tag.inner_range, tag.next))
+    }
+
+    /// Scan one code tag, including the whitespace-control markers on both ends.
+    pub(crate) fn scan_tag(&self, i: usize) -> Result<TagScan, ParseError> {
         let ds = &self.delimiters;
         if !self.source[i..].starts_with(&ds.code_start) {
             return Err(ParseError::at(
@@ -82,8 +97,12 @@ impl<'a> Parser<'a> {
         let mut j = i + start_len;
         let b = self.source.as_bytes();
         // Trim markers: check the first byte after code start for `.-_~=`
-        if j < self.source.len() && matches!(b[j], b'.' | b'_' | b'-' | b'~' | b'=') {
-            j += 1;
+        let mut trim_left = TrimMode::None;
+        if j < self.source.len() {
+            if let Some(t) = TrimMode::from_byte(b[j]) {
+                trim_left = t;
+                j += 1;
+            }
         }
         let rest = &self.source[j..];
         let end = rest.find(&ds.code_end).ok_or_else(|| {
@@ -97,9 +116,17 @@ impl<'a> Parser<'a> {
             )
             .with_code(codes::PARSE_UNCLOSED_BLOCK)
         })?;
-        let inner = rest[..end].to_string();
-        let content_start = j;
-        Ok((inner, content_start..content_start + end, j + end + end_len))
+        // Closing marker: the byte right before the close delimiter.
+        let mut inner_end = j + end;
+        let mut trim_right = TrimMode::None;
+        if inner_end > j {
+            if let Some(t) = TrimMode::from_byte(b[inner_end - 1]) {
+                trim_right = t;
+                inner_end -= 1;
+            }
+        }
+        let inner = self.source[j..inner_end].to_string();
+        Ok(TagScan { inner, inner_range: j..inner_end, next: j + end + end_len, trim_left, trim_right })
     }
 
     /// Parse until a stop head is encountered.
@@ -112,21 +139,22 @@ impl<'a> Parser<'a> {
         let bytes = self.source.as_bytes();
         let ds = &self.delimiters;
         let cs_len = ds.code_start_len();
-        let ce_len = ds.code_end_len();
         let cms_len = ds.comment_start_len();
         let cme_len = ds.comment_end_len();
         let cs = &ds.code_start;
-        let ce = &ds.code_end;
         let cms = &ds.comment_start;
         let cme = &ds.comment_end;
+        // Right-side trim of the previous tag, waiting for the next text node.
+        let mut pending: Option<&'static str> = None;
 
         while i < self.source.len() {
             if self.source[i..].starts_with(cs) && !stop.is_empty() {
-                let (code, code_span, _) = self.peek_code(i)?;
-                let trimmed = code.trim();
-                let content_base = code_span.start + (code.len() - code.trim_start().len());
-                let head = classify_code(self.source, self.file, trimmed, content_base)?;
+                let tag = self.scan_tag(i)?;
+                let code = tag.inner.trim();
+                let content_base = tag.inner_range.start + (tag.inner.len() - tag.inner.trim_start().len());
+                let head = classify_code(self.source, self.file, code, content_base)?;
                 if should_stop_head(&head, stop) {
+                    reject_closer_trim(self.source, self.file, &tag, &head)?;
                     return Ok((children, i));
                 }
             }
@@ -148,78 +176,83 @@ impl<'a> Parser<'a> {
 
             if self.source[i..].starts_with(cs) {
                 let open = i;
-                let mut j = i + cs_len;
-                let mut trim = TrimMode::None;
-                if j < self.source.len() {
-                    if let Some(t) = TrimMode::from_byte(bytes[j]) {
-                        trim = t;
-                        j += 1;
-                    } else if bytes[j] == b'!' {
-                        children.push(NativeNode::new(
-                            NativeKind::Text(cs.clone()),
-                            Some(Span { start: i, end: i + cs_len + 1 }),
-                        ));
-                        i += cs_len + 1;
-                        continue;
-                    }
+                let after_open = i + cs_len;
+                // `<%!` escapes the code open delimiter as literal text.
+                if after_open < self.source.len()
+                    && TrimMode::from_byte(bytes[after_open]).is_none()
+                    && bytes[after_open] == b'!'
+                {
+                    push_text(&mut children, cs.clone(), i, after_open + 1, pending.take());
+                    i = after_open + 1;
+                    continue;
                 }
-                let rest = &self.source[j..];
-                let end = rest
-                    .find(ce)
-                    .ok_or_else(|| {
-                        ParseError::at(self.source, self.file, open, cs_len, "unclosed code block", "opens here")
-                            .with_code(codes::PARSE_UNCLOSED_BLOCK)
-                    })?;
-                let code_raw = &rest[..end];
-                let code = code_raw.trim();
-                let code_content_start = j + (code_raw.len() - code_raw.trim_start().len());
-                let next_i = j + end + ce_len;
+
+                let tag = self.scan_tag(open)?;
+                let code = tag.inner.trim();
+                let code_content_start = tag.inner_range.start + (tag.inner.len() - tag.inner.trim_start().len());
+                let next_i = tag.next;
                 let head = classify_code(self.source, self.file, code, code_content_start)?;
 
                 if !stop.is_empty() && should_stop_head(&head, stop) {
+                    reject_closer_trim(self.source, self.file, &tag, &head)?;
                     return Ok((children, open));
                 }
 
                 match head {
                     CodeHead::If { test_src, test_base } => {
-                        let (node, new_i) = self.parse_if(open, next_i, test_src, test_base, trim)?;
+                        let (node, new_i) =
+                            self.parse_if(open, next_i, test_src, test_base, tag.trim_left, tag.trim_right, pending.take())?;
                         children.push(node);
                         i = new_i;
                     }
                     CodeHead::Loop { item, iter_src, iter_base } => {
-                        let (node, new_i) = self.parse_loop(open, next_i, item, iter_src, iter_base, trim)?;
+                        let (node, new_i) = self.parse_loop(
+                            open,
+                            next_i,
+                            item,
+                            iter_src,
+                            iter_base,
+                            tag.trim_left,
+                            tag.trim_right,
+                            pending.take(),
+                        )?;
                         children.push(node);
                         i = new_i;
                     }
                     CodeHead::Extends { parent_src, parent_base } => {
                         let parent = parse_expr(self.source, self.file, parent_base, parent_src)?;
                         children.push(NativeNode::new(
-                            NativeKind::Extends { parent, trim: trim.as_str().into() },
+                            NativeKind::Extends { parent, trim: tag.trim_left.as_str().into() },
                             Some(Span { start: open, end: next_i }),
                         ));
+                        pending = right_trim(tag.trim_right);
                         i = next_i;
                     }
                     CodeHead::Include { path_src, path_base } => {
                         let path = parse_expr(self.source, self.file, path_base, path_src)?;
                         children.push(NativeNode::new(
-                            NativeKind::Include { path, trim: trim.as_str().into() },
+                            NativeKind::Include { path, trim: tag.trim_left.as_str().into() },
                             Some(Span { start: open, end: next_i }),
                         ));
+                        pending = right_trim(tag.trim_right);
                         i = next_i;
                     }
                     CodeHead::Block { name } => {
-                        let (node, new_i) = self.parse_block(open, next_i, name, trim)?;
+                        let (node, new_i) =
+                            self.parse_block(open, next_i, name, tag.trim_left, tag.trim_right, pending.take())?;
                         children.push(node);
                         i = new_i;
                     }
                     CodeHead::Super => {
                         children.push(NativeNode::new(
-                            NativeKind::Super { trim: trim.as_str().into() },
+                            NativeKind::Super { trim: tag.trim_left.as_str().into() },
                             Some(Span { start: open, end: next_i }),
                         ));
+                        pending = right_trim(tag.trim_right);
                         i = next_i;
                     }
                     CodeHead::EndIf | CodeHead::EndLoop | CodeHead::EndBlock | CodeHead::Else | CodeHead::ElseIf { .. } => {
+                        reject_closer_trim(self.source, self.file, &tag, &head)?;
                         if stop.is_empty() {
                             let label = match &head {
                                 CodeHead::EndIf => "end if",
@@ -244,9 +277,14 @@ impl<'a> Parser<'a> {
                     CodeHead::Expr { src, base } => {
                         let expr = parse_expr(self.source, self.file, base, src)?;
                         children.push(NativeNode::new(
-                            NativeKind::Interpolation { expression: expr, trim: trim.as_str().into(), raw: false },
+                            NativeKind::Interpolation {
+                                expression: expr,
+                                trim: tag.trim_left.as_str().into(),
+                                raw: false,
+                            },
                             Some(Span { start: open, end: next_i }),
                         ));
+                        pending = right_trim(tag.trim_right);
                         i = next_i;
                     }
                 }
@@ -263,18 +301,12 @@ impl<'a> Parser<'a> {
             };
             match next {
                 Some(n) if n > i => {
-                    children.push(NativeNode::new(
-                        NativeKind::Text(self.source[i..n].to_string()),
-                        Some(Span { start: i, end: n }),
-                    ));
+                    push_text(&mut children, self.source[i..n].to_string(), i, n, pending.take());
                     i = n;
                 }
                 Some(_) => i += 1,
                 None => {
-                    children.push(NativeNode::new(
-                        NativeKind::Text(self.source[i..].to_string()),
-                        Some(Span { start: i, end: self.source.len() }),
-                    ));
+                    push_text(&mut children, self.source[i..].to_string(), i, self.source.len(), pending.take());
                     break;
                 }
             }
@@ -282,6 +314,51 @@ impl<'a> Parser<'a> {
 
         Ok((children, i))
     }
+}
+
+/// Convert a closer marker into the level string consumed by the next text node.
+fn right_trim(mode: TrimMode) -> Option<&'static str> {
+    match mode {
+        TrimMode::None => None,
+        other => Some(other.as_str()),
+    }
+}
+
+/// Append a text node, applying a pending right-side trim from the previous tag.
+fn push_text(children: &mut Vec<NativeNode>, mut value: String, start: usize, end: usize, pending: Option<&str>) {
+    if let Some(level) = pending {
+        dejavu_ir::trim::trim_prefix(&mut value, level);
+    }
+    children.push(NativeNode::new(NativeKind::Text(value), Some(Span { start, end })));
+}
+
+/// `else` / `else if` / `end *` closers do not own whitespace markers.
+fn reject_closer_trim(
+    source: &str,
+    file: &str,
+    tag: &TagScan,
+    head: &CodeHead<'_>,
+) -> Result<(), ParseError> {
+    if tag.trim_left == TrimMode::None && tag.trim_right == TrimMode::None {
+        return Ok(());
+    }
+    let label = match head {
+        CodeHead::EndIf => "end if",
+        CodeHead::EndLoop => "end loop",
+        CodeHead::EndBlock => "end block",
+        CodeHead::Else => "else",
+        CodeHead::ElseIf { .. } => "else if",
+        _ => "closer",
+    };
+    Err(ParseError::at(
+        source,
+        file,
+        tag.inner_range.start,
+        tag.inner.len().max(1),
+        format!("whitespace control markers are not supported on `{label}`"),
+        "unsupported marker",
+    )
+    .with_code(codes::PARSE_UNEXPECTED_TOKEN))
 }
 
 fn should_stop_head(head: &CodeHead<'_>, stop: &[&str]) -> bool {

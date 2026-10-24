@@ -12,40 +12,52 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
-const T1 = join(ROOT, "specifications", "conformance", "t1");
-const INHERITANCE = join(ROOT, "specifications", "conformance", "inheritance");
+const BASE = join(ROOT, "specifications", "conformance");
+/** IR-level suites: expected.ir.json + context.ctx.json + expected.out.txt. */
+const IR_SUITES = [join(BASE, "t1"), join(BASE, "values")];
+/** Source-level suites: templates parsed by every host before rendering. */
+const CATALOG_SUITES = [join(BASE, "inheritance"), join(BASE, "whitespace")];
 const TMP = join(ROOT, ".conformance-tmp");
 
-function cases() {
-    return readdirSync(T1, { withFileTypes: true })
+function suiteCases(suite) {
+    if (!existsSync(suite)) return [];
+    return readdirSync(suite, { withFileTypes: true })
         .filter((d) => d.isDirectory())
         .map((d) => d.name)
         .sort();
 }
 
-function loadCase(name) {
-    const dir = join(T1, name);
+function cases() {
+    return IR_SUITES.flatMap((suite) => suiteCases(suite).map((name) => join(suite, name)))
+        .map((dir) => ({ dir, name: relative(BASE, dir) }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function loadCase(c) {
+    const dir = c.dir;
     return {
-        name,
+        name: c.name,
         irPath: join(dir, "expected.ir.json"),
         ctxPath: join(dir, "context.ctx.json"),
         out: readFileSync(join(dir, "expected.out.txt"), "utf8"),
     };
 }
 
-function inheritanceCases() {
-    if (!existsSync(INHERITANCE)) return [];
-    return readdirSync(INHERITANCE, { withFileTypes: true })
-        .filter((d) => d.isDirectory())
-        .map((d) => {
-            const dir = join(INHERITANCE, d.name);
+function relative(from, to) {
+    return to.slice(from.length + 1).replaceAll("\\", "/");
+}
+
+function catalogCases() {
+    return CATALOG_SUITES.flatMap((suite) =>
+        suiteCases(suite).map((name) => {
+            const dir = join(suite, name);
             return {
-                name: d.name,
+                name: relative(BASE, dir),
                 dir,
                 out: readFileSync(join(dir, "expected.out.txt"), "utf8"),
             };
-        })
-        .sort((a, b) => a.name.localeCompare(b.name));
+        }),
+    ).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function run(cmd, args, cwd = ROOT) {
@@ -105,11 +117,13 @@ const adapters = {
         required: false,
         render(c) {
             mkdirSync(TMP, { recursive: true });
-            const script = join(TMP, `render_${c.name}.py`);
+            const script = join(TMP, `render_${c.name.replaceAll(/[\\/]/g, "_")}.py`);
             writeFileSync(
                 script,
                 `
 import json, sys
+# 关掉平台换行翻译，保证 stdout 与 Rust/TS 逐字节可比。
+sys.stdout.reconfigure(newline="\\n")
 sys.path.insert(0, r${JSON.stringify(join(ROOT, "projects/dejavu.py/src"))})
 from dejavu import Dejavu
 ir = json.load(open(r${JSON.stringify(c.irPath)}, encoding="utf-8"))
@@ -240,9 +254,9 @@ function main() {
     console.log("Hard invariant: identical render(DejavuIR, Context) across languages");
     console.log("Required hosts: Rust, TypeScript, AOT — SKIP = FAIL\n");
 
-    for (const name of cases()) {
-        const c = { ...loadCase(name), name };
-        console.log(`## ${name}`);
+    for (const entry of cases()) {
+        const c = { ...loadCase(entry), name: entry.name };
+        console.log(`## ${c.name}`);
         const outputs = {};
         for (const lang of t1Langs) {
             const adapter = adapters[lang];
@@ -281,11 +295,11 @@ function main() {
         console.log("");
     }
 
-    // ---- inheritance fixtures (multi-template catalog) ----
+    // ---- catalog fixtures (multi-template source parsing) ----
     const inheritanceAdapters = ["rs-catalog", "ts-catalog"].map((k) => adapters[k]).filter(Boolean);
     if (inheritanceAdapters.length) {
-        console.log("## inheritance fixtures (parser → catalog → render)");
-        for (const dir of inheritanceCases()) {
+        console.log("## catalog fixtures (parser → catalog → render)");
+        for (const dir of catalogCases()) {
             process.stdout.write(`  ${dir.name}: `);
             const outputs = {};
             let failed_any = false;

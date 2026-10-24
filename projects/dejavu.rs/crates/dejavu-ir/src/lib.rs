@@ -6,6 +6,7 @@ pub mod catalog;
 pub mod native;
 pub mod normalize;
 pub mod render;
+pub mod trim;
 pub mod types;
 
 pub use catalog::{
@@ -13,6 +14,7 @@ pub use catalog::{
 };
 pub use native::{NativeExpr, NativeKind, NativeNode, NativeTemplate};
 pub use normalize::normalize_value;
+pub use trim::{level_of, normalized_children, trim_prefix, trim_suffix};
 pub use render::{RenderOptions, ResolvedTemplate, TemplateLoader, render_ir, render_ir_opts, render_ir_with_loader};
 pub use types::{IrDocument, IrNode, Language, TemplateConfig, default_language};
 
