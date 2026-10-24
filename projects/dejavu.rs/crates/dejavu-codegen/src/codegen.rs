@@ -5,7 +5,7 @@
 //! a list of modules (entry + every template reachable via `include` /
 //! `extends`) plus a manifest describing their relationship.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use dejavu_diagnostic::{Diagnostic, Severity, Stage};
 use dejavu_ir::{IrDocument, IrNode, TemplateCatalog, canonical_id as ir_canonical_id};
@@ -171,6 +171,16 @@ pub fn precompile_catalog(
     // 2. Collect the set of reachable template ids (include + extends closure).
     let reachable = collect_all_reachable(&catalog, &entry_id);
 
+    // 2b. Which reachable templates declare `partial <params>`?
+    let mut partial_ids: HashSet<String> = HashSet::new();
+    for id in &reachable {
+        if let Some(doc) = catalog_document(&catalog, id) {
+            if declares_partial(&doc.body) {
+                partial_ids.insert(id.clone());
+            }
+        }
+    }
+
     // 3. Module naming plan: canonical id → file path.
     let mut id_to_path: serde_json::Map<String, Value> = serde_json::Map::new();
     let mut id_to_deps: HashMap<String, Vec<String>> = HashMap::new();
@@ -254,7 +264,19 @@ pub fn precompile_catalog(
         // topmost parent's body — strip any Stmt.Extends that might be there
         // (they should be top-level only).
         let body_children = match &render_doc.body {
-            IrNode::Template { children, .. } => children.clone(),
+            IrNode::Template { children, .. } => {
+                if partial_ids.contains(id) {
+                    // A partial template may only carry whitespace/comments
+                    // outside its declaration; emit just the declaration.
+                    children
+                        .iter()
+                        .filter(|n| matches!(n, IrNode::StmtPartial { .. }))
+                        .cloned()
+                        .collect()
+                } else {
+                    children.clone()
+                }
+            }
             _ => Vec::new(),
         };
 
@@ -262,6 +284,7 @@ pub fn precompile_catalog(
             merged_blocks: &merged_blocks,
             parent_blocks: &parent_blocks,
             include_imports: &include_imports,
+            partial_ids: &partial_ids,
         };
 
         let mut ctx = CodegenCtx::new(&opts);
@@ -469,6 +492,16 @@ fn catalog_document<'a>(catalog: &'a TemplateCatalog, id: &str) -> Option<&'a Ir
         }
     }
     None
+}
+
+/// Does this template body declare a top-level `partial`?
+fn declares_partial(body: &IrNode) -> bool {
+    match body {
+        IrNode::Template { children, .. } => {
+            children.iter().any(|n| matches!(n, IrNode::StmtPartial { .. }))
+        }
+        _ => false,
+    }
 }
 
 /// Walk document children collecting every `Stmt.Include` path literal

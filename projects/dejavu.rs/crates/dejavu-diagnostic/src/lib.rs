@@ -339,6 +339,8 @@ pub mod codes {
     pub const UNKNOWN_UNARY: &str = "dejavu.template.unknown-unary";
     pub const INVALID_EXPRESSION_NODE: &str = "dejavu.template.invalid-expression-node";
     pub const CONTEXT_NOT_OBJECT: &str = "dejavu.template.context-not-object";
+    pub const MISSING_PARAMETER: &str = "dejavu.template.missing-parameter";
+    pub const UNKNOWN_PARAMETER: &str = "dejavu.template.unknown-parameter";
     pub const UNKNOWN_BINARY: &str = "dejavu.template.unknown-binary";
 
     // Config

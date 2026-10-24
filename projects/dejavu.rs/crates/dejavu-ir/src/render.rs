@@ -183,6 +183,14 @@ impl<'a> Renderer<'a> {
             .ok_or_else(|| diag_load(codes::MISSING_LOADER).arg("feature", feature))?;
         let child = loader.resolve(path, Some(&self.current_id))?;
 
+        // A template declared as `partial <params>` binds exactly its declared
+        // parameters; it never inherits the caller's context.
+        let partial = partial_parts(&child.document.body);
+        let bound_scope = match partial {
+            Some((params, _)) => Some(bind_partial(params, with)?),
+            None => None,
+        };
+
         // include 循环检测（canonical id 栈 — 能覆盖 A include B include A 的双向环）
         if self.include_stack.contains(&child.id) {
             let mut chain = self.include_stack.clone();
@@ -199,18 +207,27 @@ impl<'a> Renderer<'a> {
         self.current_id = child.id.clone();
 
         // Include context: inherit by default, merge `with`, isolate on `only`.
+        // A partial's scope is the bound parameter map only.
         let saved_scope = std::mem::take(&mut self.scope);
-        if !only {
-            self.scope = saved_scope.clone();
-        }
-        if let Some(Value::Object(entries)) = with {
-            for (key, value) in entries {
-                self.scope.insert(key.clone(), value.clone());
+        match bound_scope {
+            Some(scope) => self.scope = scope,
+            None => {
+                if !only {
+                    self.scope = saved_scope.clone();
+                }
+                if let Some(Value::Object(entries)) = with {
+                    for (key, value) in entries {
+                        self.scope.insert(key.clone(), value.clone());
+                    }
+                }
             }
         }
 
         // 走 render_doc：被 include 的模板也可能有 extends/block 链
-        let out = self.render_doc(&child.document);
+        let out = match partial {
+            Some((_, body)) => self.render_list(body),
+            None => self.render_doc(&child.document),
+        };
 
         // 恢复当前模板上下文
         self.include_stack.pop();
@@ -269,6 +286,10 @@ impl<'a> Renderer<'a> {
                 Ok(out)
             }
             IrNode::StmtRaw { value, .. } => Ok(value.clone()),
+
+            // partial：参数绑定发生在 include 时（render_loaded）；直接渲染时
+            // 就是渲染其 body。
+            IrNode::StmtPartial { body, .. } => self.render_list(body),
 
             // block：如果有覆盖内容就渲染覆盖，否则渲染自身 body。
             IrNode::StmtBlock { name, body, .. } => {
@@ -436,6 +457,58 @@ fn restore(scope: &mut HashMap<String, Value>, key: &str, prev: Option<Value>) {
             scope.remove(key);
         }
     }
+}
+
+/// If `body` is a parameterized partial template, return its declaration.
+fn partial_parts(body: &IrNode) -> Option<(&[crate::types::PartialParam], &[IrNode])> {
+    if let IrNode::Template { children, .. } = body {
+        for c in children {
+            if let IrNode::StmtPartial { params, body, .. } = c {
+                return Some((params, body));
+            }
+        }
+    }
+    None
+}
+
+/// Bind a partial's declared parameters from the explicit `with` object.
+///
+/// The caller context is never consulted: a parameter is either present in
+/// `with`, has a literal default, or is a hard error. Undeclared keys are
+/// rejected so typos surface at render time.
+fn bind_partial(
+    params: &[crate::types::PartialParam],
+    with: Option<&Value>,
+) -> Result<HashMap<String, Value>, IrError> {
+    let entries = match with {
+        Some(Value::Object(map)) => Some(map),
+        _ => None,
+    };
+    let mut scope = HashMap::new();
+    for param in params {
+        match entries.and_then(|m| m.get(&param.name)) {
+            Some(value) => {
+                scope.insert(param.name.clone(), value.clone());
+            }
+            None => match &param.default {
+                Some(IrNode::ExprLiteral { value, .. }) => {
+                    scope.insert(param.name.clone(), value.clone());
+                }
+                Some(_) => return Err(diag_render(codes::INVALID_EXPRESSION_NODE)),
+                None => {
+                    return Err(diag_render(codes::MISSING_PARAMETER).arg("name", param.name.clone()));
+                }
+            },
+        }
+    }
+    if let Some(map) = entries {
+        for key in map.keys() {
+            if !params.iter().any(|p| &p.name == key) {
+                return Err(diag_render(codes::UNKNOWN_PARAMETER).arg("name", key.clone()));
+            }
+        }
+    }
+    Ok(scope)
 }
 
 /// 从文档 body 中提取所有顶层 `block` 定义。

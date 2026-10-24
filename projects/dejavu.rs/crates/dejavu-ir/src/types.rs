@@ -83,6 +83,14 @@ pub enum IrNode {
         #[serde(skip_serializing_if = "Option::is_none")]
         span: Option<Span>,
     },
+    #[serde(rename = "Stmt.Partial")]
+    StmtPartial {
+        params: Vec<PartialParam>,
+        body: Vec<IrNode>,
+        trim: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        span: Option<Span>,
+    },
     #[serde(rename = "Stmt.ElseIf")]
     StmtElseIf {
         test: Box<IrNode>,
@@ -205,6 +213,14 @@ pub enum IrNode {
         #[serde(skip_serializing_if = "Option::is_none")]
         span: Option<Span>,
     },
+}
+
+/// One `partial` parameter: name plus an optional literal default.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PartialParam {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default: Option<IrNode>,
 }
 
 /// One `key: value` entry of an object literal expression.

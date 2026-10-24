@@ -1,0 +1,1 @@
+<% partial label %>O(<% include "inner.dejavu" with { value: label } %>)<% end partial %>

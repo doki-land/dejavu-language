@@ -20,6 +20,7 @@ const CATALOG_SUITES = [
     join(BASE, "inheritance"),
     join(BASE, "whitespace"),
     join(BASE, "include-context"),
+    join(BASE, "partial-params"),
 ];
 const TMP = join(ROOT, ".conformance-tmp");
 

@@ -1,0 +1,1 @@
+<% partial title, suffix = "!" %>[<% title %><% suffix %>]<% end partial %>

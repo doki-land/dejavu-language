@@ -52,6 +52,11 @@ pub enum NativeKind {
         body: Vec<NativeNode>,
         trim: String,
     },
+    Partial {
+        params: Vec<NativeParam>,
+        body: Vec<NativeNode>,
+        trim: String,
+    },
     Extends {
         parent: NativeExpr,
         trim: String,
@@ -69,6 +74,13 @@ pub enum NativeKind {
         value: String,
         trim: String,
     },
+}
+
+/// One declared `partial` parameter.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NativeParam {
+    pub name: String,
+    pub default: Option<NativeExpr>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -132,6 +144,18 @@ fn encode_node(n: &NativeNode) -> IrNode {
         },
         NativeKind::Block { name, body, trim } => IrNode::StmtBlock {
             name: name.clone(),
+            body: body.iter().map(encode_node).collect(),
+            trim: trim.clone(),
+            span,
+        },
+        NativeKind::Partial { params, body, trim } => IrNode::StmtPartial {
+            params: params
+                .iter()
+                .map(|p| crate::types::PartialParam {
+                    name: p.name.clone(),
+                    default: p.default.as_ref().map(encode_expr),
+                })
+                .collect(),
             body: body.iter().map(encode_node).collect(),
             trim: trim.clone(),
             span,
@@ -230,6 +254,17 @@ fn decode_node(n: &IrNode) -> NativeNode {
         IrNode::StmtBlock { name, body, trim, span } => NativeNode::new(
             NativeKind::Block {
                 name: name.clone(),
+                body: body.iter().map(decode_node).collect(),
+                trim: trim.clone(),
+            },
+            span.clone(),
+        ),
+        IrNode::StmtPartial { params, body, trim, span } => NativeNode::new(
+            NativeKind::Partial {
+                params: params
+                    .iter()
+                    .map(|p| NativeParam { name: p.name.clone(), default: p.default.as_ref().map(decode_expr) })
+                    .collect(),
                 body: body.iter().map(decode_node).collect(),
                 trim: trim.clone(),
             },

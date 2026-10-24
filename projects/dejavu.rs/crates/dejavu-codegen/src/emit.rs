@@ -146,6 +146,7 @@ impl<'a> CodegenCtx<'a> {
             | IrNode::StmtElseIf { span, .. }
             | IrNode::StmtFor { span, .. }
             | IrNode::StmtBlock { span, .. }
+            | IrNode::StmtPartial { span, .. }
             | IrNode::StmtExtends { span, .. }
             | IrNode::StmtInclude { span, .. }
             | IrNode::StmtSuper { span, .. }
@@ -342,6 +343,9 @@ pub struct CatalogEmitCtx<'a> {
     /// during precompile_catalog's edge resolution so emit time only does
     /// lookup, no catalog traversal.
     pub include_imports: &'a HashMap<String, String>,
+    /// Canonical ids of templates declared as `partial`. Includes of these
+    /// bind only the explicit `with` object, never the caller context.
+    pub partial_ids: &'a HashSet<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -421,6 +425,9 @@ pub fn emit_stmt(
         IrNode::StmtBlock { name, body, .. } => {
             emit_block(name, body, ctx, out, catalog);
         }
+        IrNode::StmtPartial { params, body, .. } => {
+            emit_partial(params, body, ctx, out, catalog);
+        }
         IrNode::StmtExtends { .. } => {
             // In catalog mode the extends chain is flattened before we reach
             // emit — we should never land here. In single-template mode it's
@@ -484,6 +491,51 @@ fn emit_block(
     }
 }
 
+fn emit_partial(
+    params: &[dejavu_ir::types::PartialParam],
+    body: &[IrNode],
+    ctx: &mut CodegenCtx,
+    out: &mut String,
+    catalog: Option<&CatalogEmitCtx>,
+) {
+    // A partial binds exactly its declared parameters. The caller context is
+    // not visible inside the body, and undeclared parameters are rejected.
+    let saved = ctx.next_temp();
+    let names = ctx.next_temp();
+    out.push_str("{\n");
+    out.push_str(&format!("const {saved} = ctx;\n"));
+    let names_literal: Vec<String> = params.iter().map(|p| json_string(&p.name)).collect();
+    out.push_str(&format!("const {names} = [{}];\n", names_literal.join(", ")));
+    out.push_str(&format!("for (const __k of Object.keys({saved})) {{\n"));
+    out.push_str(&format!(
+        "  if ({names}.indexOf(__k) < 0) throw new Error({} + __k);\n",
+        json_string("dejavu.template.unknown-parameter: ")
+    ));
+    out.push_str("}\n");
+    out.push_str("ctx = {};\n");
+    for param in params {
+        let name = json_string(&param.name);
+        match &param.default {
+            Some(default) => {
+                out.push_str(&format!(
+                    "ctx[{name}] = Object.prototype.hasOwnProperty.call({saved}, {name}) ? {saved}[{name}] : {};\n",
+                    emit_expr(default, ctx)
+                ));
+            }
+            None => {
+                out.push_str(&format!(
+                    "if (!Object.prototype.hasOwnProperty.call({saved}, {name})) throw new Error({} + {name});\n",
+                    json_string("dejavu.template.missing-parameter: ")
+                ));
+                out.push_str(&format!("ctx[{name}] = {saved}[{name}];\n"));
+            }
+        }
+    }
+    emit_body(body, ctx, out, catalog);
+    out.push_str(&format!("ctx = {saved};\n"));
+    out.push_str("}\n");
+}
+
 fn emit_include(
     path_node: &IrNode,
     with: Option<&IrNode>,
@@ -515,17 +567,27 @@ fn emit_include(
     let binding = crate::catalog::js_import_name(canonical_id);
     // Include runtime contract: the included template's render(ctx, options)
     // returns a string; we spread it into __out.push for direct concatenation.
-    let context_expr = match (with, only) {
-        // Default: inherit the caller context.
-        (None, false) => "ctx".to_string(),
-        // `only` / `without context` with no explicit object: empty context.
-        (None, true) => "{}".to_string(),
-        (Some(expr), isolated) => {
-            let e = emit_expr(expr, ctx);
-            if isolated {
-                format!("Object.assign({{}}, {e})")
-            } else {
-                format!("Object.assign({{}}, ctx, {e})")
+    // A partial target never inherits the caller context, so it receives the
+    // explicit object only.
+    let target_is_partial = cat.partial_ids.contains(canonical_id);
+    let context_expr = if target_is_partial {
+        match with {
+            Some(expr) => format!("Object.assign({{}}, {})", emit_expr(expr, ctx)),
+            None => "{}".to_string(),
+        }
+    } else {
+        match (with, only) {
+            // Default: inherit the caller context.
+            (None, false) => "ctx".to_string(),
+            // `only` / `without context` with no explicit object: empty context.
+            (None, true) => "{}".to_string(),
+            (Some(expr), isolated) => {
+                let e = emit_expr(expr, ctx);
+                if isolated {
+                    format!("Object.assign({{}}, {e})")
+                } else {
+                    format!("Object.assign({{}}, ctx, {e})")
+                }
             }
         }
     };

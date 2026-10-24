@@ -67,8 +67,101 @@ impl<'a> Parser<'a> {
 
     pub fn parse_template(&self) -> Result<NativeTemplate, ParseError> {
         let (children, _) = self.parse_body(0, &[])?;
+        self.validate_partial_layout(&children)?;
         Ok(NativeTemplate { children })
     }
+
+    /// A template declaring `partial` must consist of exactly one partial:
+    /// no other statements, no surrounding content except whitespace/comments,
+    /// and no partial nested inside another control-flow body.
+    fn validate_partial_layout(&self, children: &[NativeNode]) -> Result<(), ParseError> {
+        let mut declared: Option<&NativeNode> = None;
+        for child in children {
+            if let NativeKind::Partial { .. } = &child.kind {
+                if declared.is_some() {
+                    return Err(self.partial_layout_error(
+                        child,
+                        "only one `partial` declaration is allowed per template",
+                    ));
+                }
+                declared = Some(child);
+            }
+        }
+
+        // No partial nested inside another control-flow body or another partial.
+        for child in children {
+            match &child.kind {
+                NativeKind::Partial { body, .. } => {
+                    if let Some(node) = Self::find_partial(body) {
+                        return Err(self.partial_layout_error(node, "`partial` cannot be nested"));
+                    }
+                }
+                _ => {
+                    if let Some(node) = Self::find_partial(std::slice::from_ref(child)) {
+                        return Err(self.partial_layout_error(node, "`partial` cannot be nested"));
+                    }
+                }
+            }
+        }
+
+        // Layout rules only constrain templates that actually declare a partial.
+        if declared.is_none() {
+            return Ok(());
+        }
+        for child in children {
+            match &child.kind {
+                NativeKind::Partial { .. } | NativeKind::Comment(_) => {}
+                NativeKind::Text(value) if value.trim().is_empty() => {}
+                _ => {
+                    return Err(self.partial_layout_error(
+                        child,
+                        "`partial` must wrap the whole template; other top-level content is not allowed",
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn partial_layout_error(&self, node: &NativeNode, message: &str) -> ParseError {
+        let (start, end) = node.span.as_ref().map(|s| (s.start, s.end)).unwrap_or((0, 1));
+        ParseError::at(self.source, self.file, start, end.saturating_sub(start).max(1), message, "unexpected")
+            .with_code(codes::PARSE_UNEXPECTED_TOKEN)
+    }
+
+/// Find the first `partial` declaration anywhere inside a sibling list.
+///
+/// Used by layout validation: a `partial` may only be a top-level statement of
+/// its own template, never nested inside control flow.
+fn find_partial(nodes: &[NativeNode]) -> Option<&NativeNode> {
+    for node in nodes {
+        match &node.kind {
+            NativeKind::Partial { .. } => return Some(node),
+            NativeKind::If { consequent, else_ifs, alternate, .. } => {
+                if let Some(hit) = Self::find_partial(consequent) {
+                    return Some(hit);
+                }
+                for (_, body) in else_ifs {
+                    if let Some(hit) = Self::find_partial(body) {
+                        return Some(hit);
+                    }
+                }
+                if let Some(body) = alternate {
+                    if let Some(hit) = Self::find_partial(body) {
+                        return Some(hit);
+                    }
+                }
+            }
+            NativeKind::For { body, .. } | NativeKind::Block { body, .. } => {
+                if let Some(hit) = Self::find_partial(body) {
+                    return Some(hit);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
 
     /// Peek at a code block starting at index `i`.
     /// Returns `(code_inner, content_span_in_source, index_after_close)`.
@@ -247,6 +340,19 @@ impl<'a> Parser<'a> {
                         children.push(node);
                         i = new_i;
                     }
+                    CodeHead::Partial { params_src, params_base } => {
+                        let (node, new_i) = self.parse_partial(
+                            open,
+                            next_i,
+                            params_src,
+                            params_base,
+                            tag.trim_left,
+                            tag.trim_right,
+                            pending.take(),
+                        )?;
+                        children.push(node);
+                        i = new_i;
+                    }
                     CodeHead::Super => {
                         children.push(NativeNode::new(
                             NativeKind::Super { trim: tag.trim_left.as_str().into() },
@@ -255,13 +361,19 @@ impl<'a> Parser<'a> {
                         pending = right_trim(tag.trim_right);
                         i = next_i;
                     }
-                    CodeHead::EndIf | CodeHead::EndLoop | CodeHead::EndBlock | CodeHead::Else | CodeHead::ElseIf { .. } => {
+                    CodeHead::EndIf
+                    | CodeHead::EndLoop
+                    | CodeHead::EndBlock
+                    | CodeHead::EndPartial
+                    | CodeHead::Else
+                    | CodeHead::ElseIf { .. } => {
                         reject_closer_trim(self.source, self.file, &tag, &head)?;
                         if stop.is_empty() {
                             let label = match &head {
                                 CodeHead::EndIf => "end if",
                                 CodeHead::EndLoop => "end loop",
                                 CodeHead::EndBlock => "end block",
+                                CodeHead::EndPartial => "end partial",
                                 CodeHead::Else => "else",
                                 CodeHead::ElseIf { .. } => "else if",
                                 _ => "control",

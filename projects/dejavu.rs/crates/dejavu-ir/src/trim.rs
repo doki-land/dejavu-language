@@ -26,6 +26,7 @@ pub fn level_of(node: &IrNode) -> &str {
         | IrNode::StmtElseIf { trim, .. }
         | IrNode::StmtFor { trim, .. }
         | IrNode::StmtBlock { trim, .. }
+        | IrNode::StmtPartial { trim, .. }
         | IrNode::StmtExtends { trim, .. }
         | IrNode::StmtInclude { trim, .. }
         | IrNode::StmtSuper { trim, .. }

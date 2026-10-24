@@ -347,6 +347,58 @@ fn stmt_include_with(path: Value, with: Option<Value>, only: bool) -> Value {
     node
 }
 
+fn stmt_partial(params: Vec<Value>, body: Vec<Value>) -> Value {
+    json!({ "type": "Stmt.Partial", "params": params, "body": body, "trim": "none" })
+}
+
+fn param(name: &str, default: Option<Value>) -> Value {
+    let mut node = json!({ "name": name });
+    if let Some(default) = default {
+        node["default"] = default;
+    }
+    node
+}
+
+fn obj(entries: Vec<(&str, Value)>) -> Value {
+    let entries: Vec<Value> =
+        entries.into_iter().map(|(key, value)| json!({ "key": key, "value": value })).collect();
+    json!({ "type": "Expr.Object", "entries": entries })
+}
+
+#[test]
+fn partial_binds_defaults_at_aot() {
+    let card = doc(vec![stmt_partial(
+        vec![param("title", None), param("suffix", Some(lit(json!("!"))))],
+        vec![text("["), interp(ident("title"), false), interp(ident("suffix"), false), text("]")],
+    )]);
+    let entry = doc(vec![stmt_include_with(
+        lit(json!("card.dejavu")),
+        Some(obj(vec![("title", lit(json!("Hi")))])),
+        false,
+    )]);
+    let res = compile_catalog(
+        &[("index.dejavu", entry), ("card.dejavu", card)],
+        "index.dejavu",
+    );
+    assert!(errors(&res).is_empty(), "errors: {:?}", errors(&res));
+    let entry_code = round(&res.modules[0].code);
+    // A partial target never inherits the caller context.
+    assert!(entry_code.contains("Object.assign({}, {"), "code: {entry_code}");
+    assert!(!entry_code.contains("Object.assign({}, ctx,"), "code: {entry_code}");
+    let card_code = res
+        .modules
+        .iter()
+        .find(|m| m.path.contains("card"))
+        .map(|m| round(&m.code))
+        .expect("card module");
+    assert!(card_code.contains("dejavu.template.missing-parameter"), "code: {card_code}");
+    assert!(card_code.contains("dejavu.template.unknown-parameter"), "code: {card_code}");
+
+    if let Some(out) = run_modules_in_node(&res.modules, "({name: 'ignored'})") {
+        assert_eq!(out, "[Hi!]");
+    }
+}
+
 #[test]
 fn include_with_merges_explicit_context_at_aot() {
     let partial = doc(vec![

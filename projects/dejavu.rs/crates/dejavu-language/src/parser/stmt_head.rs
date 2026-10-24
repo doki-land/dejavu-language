@@ -15,6 +15,8 @@ pub(crate) enum CodeHead<'a> {
     EndBlock,
     Super,
     Block { name: String },
+    Partial { params_src: &'a str, params_base: usize },
+    EndPartial,
     Extends { parent_src: &'a str, parent_base: usize },
     Include { path_src: &'a str, path_base: usize, with_src: Option<&'a str>, with_base: usize, only: bool },
     Expr { src: &'a str, base: usize },
@@ -138,6 +140,21 @@ pub(crate) fn classify_code<'a>(
         CodeToken::Ident(name) if name == "include" => {
             classify_include(source, file, content, content_base, &spans)
         }
+        CodeToken::Ident(name) if name == "partial" => {
+            let (params_src, params_base) = slice(1);
+            if params_src.is_empty() {
+                return Err(ParseError::at(
+                    source,
+                    file,
+                    content_base + spans[0].start,
+                    (spans[0].end - spans[0].start).max(1),
+                    "partial requires at least one parameter",
+                    "expected parameter",
+                )
+                .with_code(codes::PARSE_UNEXPECTED_TOKEN));
+            }
+            Ok(CodeHead::Partial { params_src, params_base })
+        }
         CodeToken::Ident(name) if name == "block" => {
             if spans.len() != 2 {
                 return Err(ParseError::at(
@@ -202,6 +219,9 @@ pub(crate) fn classify_code<'a>(
                     if n == "block" {
                         return Ok(CodeHead::EndBlock);
                     }
+                    if n == "partial" {
+                        return Ok(CodeHead::EndPartial);
+                    }
                 }
             }
             Err(ParseError::at(
@@ -209,7 +229,7 @@ pub(crate) fn classify_code<'a>(
                 file,
                 content_base + spans[0].start,
                 (spans.last().map(|s| s.end).unwrap_or(spans[0].end) - spans[0].start).max(1),
-                "expected `end if`, `end loop`, or `end block`",
+                "expected `end if`, `end loop`, `end block`, or `end partial`",
                 "unexpected",
             )
             .with_code(codes::PARSE_UNEXPECTED_TOKEN))
@@ -228,6 +248,7 @@ pub(crate) fn head_stop_kind(head: &CodeHead<'_>) -> &'static str {
         CodeHead::EndIf => "end if",
         CodeHead::EndLoop => "end loop",
         CodeHead::EndBlock => "end block",
+        CodeHead::EndPartial => "end partial",
         _ => "",
     }
 }
