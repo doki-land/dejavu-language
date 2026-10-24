@@ -86,6 +86,20 @@ const adapters = {
             return r.stdout;
         },
     },
+    aot: {
+        label: "AOT",
+        required: true,
+        /** Render IR via AOT codegen + `@doki-land/dejavu-engine/runtime`. */
+        render(c) {
+            const script = join(ROOT, "scripts/render-ir-aot.mjs");
+            const r = run("node", [script, c.irPath, c.ctxPath]);
+            if (!r.ok) {
+                console.error(r.stderr || r.stdout);
+                return null;
+            }
+            return r.stdout;
+        },
+    },
     py: {
         label: "Python",
         required: false,
@@ -172,7 +186,7 @@ sys.stdout.write(Dejavu.render(ir, ctx))
         required: true,
         /** Render a multi-template inheritance fixture via `render-catalog-ts.mjs`. */
         render(caseDir) {
-            const facadeDist = join(ROOT, "runtimes", "dejavu", "dist", "index.js");
+            const facadeDist = join(ROOT, "projects", "packages", "dejavu", "dist", "index.js");
             if (!existsSync(facadeDist)) return null;
             const script = join(ROOT, "scripts", "render-catalog-ts.mjs");
             const r = run("node", [script, caseDir.dir]);
@@ -224,7 +238,7 @@ function main() {
     const skipped = new Set();
 
     console.log("Hard invariant: identical render(DejavuIR, Context) across languages");
-    console.log("Required hosts: Rust, TypeScript — SKIP = FAIL\n");
+    console.log("Required hosts: Rust, TypeScript, AOT — SKIP = FAIL\n");
 
     for (const name of cases()) {
         const c = { ...loadCase(name), name };
@@ -278,7 +292,12 @@ function main() {
             for (const adapter of inheritanceAdapters) {
                 const out = adapter.render(dir);
                 if (out === null) {
-                    process.stdout.write(`[${adapter.label}=SKIP] `);
+                    if (adapter.required) {
+                        failed_any = true;
+                        process.stdout.write(`[${adapter.label}=MISSING] `);
+                    } else {
+                        process.stdout.write(`[${adapter.label}=SKIP] `);
+                    }
                     continue;
                 }
                 const ok = normalize(out) === normalize(dir.out);
@@ -313,7 +332,7 @@ function main() {
         console.error(`FAILED (${failed})`);
         process.exit(1);
     }
-    console.log("All required languages: identical IR render output.");
+    console.log("All required hosts (Rust, TypeScript, AOT): identical IR render output.");
 }
 
 main();

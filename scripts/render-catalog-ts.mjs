@@ -17,8 +17,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
-const { parse, renderSource } = await import(
-    pathToFileURL(join(root, "runtimes", "dejavu", "dist", "index.js")).href
+const { parseIr, renderSource } = await import(
+    pathToFileURL(join(root, "projects", "packages", "dejavu", "dist", "napi.js")).href
 );
 
 const fixtureDir = process.argv[2];
@@ -30,7 +30,7 @@ const entryName = readFileSync(join(fixtureDir, "entry.txt"), "utf8").trim();
 let delimiters = undefined;
 const languagePath = join(fixtureDir, "language.json");
 if (existsSync(languagePath)) {
-    delimiters = JSON.parse(readFileSync(languagePath, "utf8"));
+    delimiters = readFileSync(languagePath, "utf8").trim();
 }
 
 // ---- find entry template source ----
@@ -56,9 +56,14 @@ for (const entry of readdirSync(templatesDir, { withFileTypes: true })) {
     const name = entry.name;
     if (!extensions.some((ext) => name.endsWith(ext))) continue;
     const source = readFileSync(join(templatesDir, name), "utf8");
-    const irDoc = parse(source, { file: name, delimiters });
+    const parsed = parseIr(source, { file: name, ...(delimiters ? { delimiters } : {}) });
+    const errors = parsed.diagnostics.filter((d) => d.severity === "error");
+    if (errors.length > 0 || !parsed.irJson) {
+        console.error(`failed to parse ${name}: ${errors.map((d) => d.message).join("; ")}`);
+        process.exit(2);
+    }
     // The IR body's Template.children is what the catalog stores
-    rootEntries.push([name, JSON.stringify(irDoc)]);
+    rootEntries.push([name, parsed.irJson]);
 }
 
 // ---- build catalog manually ----
@@ -75,5 +80,5 @@ const catalog = {
     ],
 };
 
-const out = renderSource(entrySource, ctx, { catalog, delimiters });
+const out = renderSource(entrySource, ctx, { catalog: JSON.stringify(catalog), delimiters });
 process.stdout.write(out);

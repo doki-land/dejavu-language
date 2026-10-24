@@ -288,7 +288,7 @@ export function renderIr(
 export function renderSource(
     source: string,
     ctx: TemplateContext,
-    options: RenderOptions & { delimiters?: string } = {},
+    options: RenderOptions & { delimiters?: string; catalog?: string } = {},
 ): string {
     const native = loadNative();
     const response = native.renderSource({
@@ -296,6 +296,7 @@ export function renderSource(
         context: JSON.stringify(ctx),
         options: JSON.stringify(toWireRenderOptions(options)),
         ...(options.delimiters ? { delimiters: options.delimiters } : {}),
+        ...(options.catalog ? { catalog: options.catalog } : {}),
     });
     throwRenderDiagnostics(response.diagnostics, options);
     return response.output ?? "";
