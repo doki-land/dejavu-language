@@ -33,6 +33,9 @@ pnpm-lock.yaml
 # Built TypeScript output for Node packages (built by `pnpm build`)
 projects/dejavu.ts/*/dist/
 
+# Generated WASM bindings for the wasm32 platform package
+projects/dejavu.ts/platforms/dejavu-unknown-wasm32/src/lib/
+
 # Local tooling state (npm placeholder + trust bookkeeping)
 .cache/
 
