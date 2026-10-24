@@ -28,6 +28,8 @@ const CATALOG_SUITES = [
     join(BASE, "partial-params"),
     join(BASE, "builtin-expressions"),
 ];
+/** Diagnostic suites: expected.ir.json + expected.diagnostics.json (`code` / `stage`). */
+const DIAGNOSTIC_SUITES = [join(BASE, "diagnostics")];
 const TMP = join(ROOT, ".conformance-tmp");
 
 function suiteCases(suite) {
@@ -66,6 +68,22 @@ function catalogCases() {
                 name: relative(BASE, dir),
                 dir,
                 out: readFileSync(join(dir, "expected.out.txt"), "utf8"),
+            };
+        }),
+    ).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function diagnosticCases() {
+    return DIAGNOSTIC_SUITES.flatMap((suite) =>
+        suiteCases(suite).map((name) => {
+            const dir = join(suite, name);
+            const optionsPath = join(dir, "options.render.json");
+            return {
+                name: relative(BASE, dir),
+                irPath: join(dir, "expected.ir.json"),
+                ctxPath: join(dir, "context.ctx.json"),
+                optionsPath: existsSync(optionsPath) ? optionsPath : undefined,
+                expected: JSON.parse(readFileSync(join(dir, "expected.diagnostics.json"), "utf8")),
             };
         }),
     ).sort((a, b) => a.name.localeCompare(b.name));
@@ -359,6 +377,71 @@ sys.stdout.write(Dejavu.render(ir, ctx))
     },
 };
 
+const diagnosticAdapters = {
+    rs: {
+        label: "Rust",
+        required: true,
+        run(c) {
+            const manifest = join(ROOT, "Cargo.toml");
+            if (!existsSync(manifest)) return null;
+            const args = [
+                "run",
+                "--quiet",
+                "--manifest-path",
+                manifest,
+                "--example",
+                "render_ir_diag",
+                "--",
+                c.irPath,
+                c.ctxPath,
+            ];
+            if (c.optionsPath) args.push(c.optionsPath);
+            const r = run("cargo", args);
+            return r.ok ? r.stdout : null;
+        },
+    },
+    ts: {
+        label: "TypeScript",
+        required: true,
+        run(c) {
+            const facadeDist = join(ROOT, "projects", "dejavu.ts", "packages", "dejavu", "dist", "index.js");
+            if (!existsSync(facadeDist)) return null;
+            const args = [join(ROOT, "scripts/render-ir-diag-ts.mjs"), c.irPath, c.ctxPath];
+            if (c.optionsPath) args.push(c.optionsPath);
+            const r = run("node", args);
+            return r.ok ? r.stdout : null;
+        },
+    },
+    wasm: {
+        label: "WASM",
+        required: true,
+        run(c) {
+            const dist = join(ROOT, "projects", "dejavu.ts", "packages", "dejavu-language", "dist", "index.js");
+            const wasm = join(
+                ROOT,
+                "projects",
+                "dejavu.ts",
+                "platforms",
+                "dejavu-unknown-wasm32",
+                "src",
+                "lib",
+                "dejavu_wasm_bg.wasm",
+            );
+            if (!existsSync(dist) || !existsSync(wasm)) return null;
+            const args = [join(ROOT, "scripts/render-ir-diag-wasm.mjs"), c.irPath, c.ctxPath];
+            if (c.optionsPath) args.push(c.optionsPath);
+            const r = run("node", args);
+            return r.ok ? r.stdout : null;
+        },
+    },
+};
+
+/** Reduce a host payload to the comparable `code` / `stage` pairs. */
+function diagnosticKey(payload) {
+    const parsed = JSON.parse(payload);
+    return JSON.stringify((parsed.diagnostics ?? []).map((d) => ({ code: d.code, stage: d.stage })));
+}
+
 function main() {
     const filter = process.argv.slice(2).filter((a) => !a.startsWith("-"));
     // T1 fixture adapter list: exclude catalog adapters (only for inheritance)
@@ -459,6 +542,40 @@ function main() {
         }
         console.log("");
     }
+
+    // ---- diagnostic fixtures (structured code / stage parity) ----
+    console.log("## diagnostic fixtures (code + stage)");
+    for (const c of diagnosticCases()) {
+        const expected = JSON.stringify(c.expected.map((d) => ({ code: d.code, stage: d.stage })));
+        process.stdout.write(`  ${c.name}: `);
+        let failedAny = false;
+        const keys = {};
+        for (const [lang, adapter] of Object.entries(diagnosticAdapters)) {
+            const payload = adapter.run(c);
+            if (payload === null) {
+                if (adapter.required) {
+                    failedAny = true;
+                    process.stdout.write(`[${adapter.label}=MISSING] `);
+                } else {
+                    process.stdout.write(`[${adapter.label}=SKIP] `);
+                }
+                continue;
+            }
+            const key = diagnosticKey(payload);
+            keys[adapter.label] = key;
+            const ok = key === expected;
+            if (!ok) failedAny = true;
+            process.stdout.write(`[${adapter.label}=${ok ? "OK" : "FAIL"}] `);
+        }
+        const labels = Object.keys(keys);
+        if (labels.length >= 2 && !labels.every((label) => keys[label] === keys[labels[0]])) {
+            failedAny = true;
+            process.stdout.write("[CROSS-FAIL] ");
+        }
+        if (failedAny) failed++;
+        console.log("");
+    }
+    console.log("");
 
     if (skipped.size) {
         console.log(`Skipped (optional hosts): ${[...skipped].join(", ")}`);
