@@ -485,7 +485,7 @@ fn stmt_block_emits_throw_and_diagnostic() {
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
     assert!(r.contains(
-        "throw new Error(\"dejavu.compile.not-supported-in-single-template: Stmt.Block (head)\")"
+        "throw runtimeError(\"dejavu.compile.not-supported-in-single-template\", \"Stmt.Block (head)\")"
     ));
     assert_eq!(res.diagnostics.len(), 1);
     assert!(res.diagnostics[0].message.as_ref().unwrap().contains("Stmt.Block"));
@@ -520,7 +520,7 @@ fn strict_undefined_injects_check_after_identifier_interp() {
     );
     let r = round(&res.code);
     assert!(r.contains(
-        "if (__strict && __v === undefined) throw new Error(\"dejavu.template.undefined-variable: missing\");"
+        "if (__strict && __v === undefined) throw runtimeError(\"dejavu.template.undefined-variable\", \"missing\");"
     ));
 }
 
@@ -675,8 +675,14 @@ const __rt = {
   },
   exprMember: (obj, prop) => obj == null ? null : obj[prop] ?? null,
   exprIndex: (arr, i) => arr == null ? null : arr[i] ?? null,
+  runtimeError: (code, detail) => {
+    const err = new Error(detail ? `${code}: ${detail}` : code);
+    err.code = code;
+    err.stage = 'render';
+    return err;
+  },
 };
-const { htmlEscape, applyFilter, isTruthy, binary, unary, valueToString, exprMember, exprIndex } = __rt;
+const { htmlEscape, applyFilter, isTruthy, binary, unary, valueToString, exprMember, exprIndex, runtimeError } = __rt;
 "#;
 
     // Strip the ESM import/export lines so this runs as a plain script.

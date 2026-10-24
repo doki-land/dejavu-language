@@ -1,4 +1,5 @@
 import { htmlEscape } from "./escape.js";
+import { runtimeError } from "./errors.js";
 import { valueToString } from "./value.js";
 
 /**
@@ -48,11 +49,12 @@ export function applyFilter(
 ): unknown {
     const spec = filterSpec(name);
     if (!spec) {
-        throw new Error(`dejavu.template.unknown-filter: ${name}`);
+        throw runtimeError("dejavu.template.unknown-filter", name);
     }
     if (args.length < spec.minArgs || args.length > spec.maxArgs) {
-        throw new Error(
-            `dejavu.template.filter-arity: ${spec.name} expects ` +
+        throw runtimeError(
+            "dejavu.template.filter-arity",
+            `${spec.name} expects ` +
                 `${spec.minArgs}..${spec.maxArgs} argument(s), got ${args.length}`,
         );
     }
@@ -116,7 +118,7 @@ export function applyFilter(
 
         default:
             // Unreachable: `filterSpec` already rejected unknown names.
-            throw new Error(`dejavu.template.unknown-filter: ${name}`);
+            throw runtimeError("dejavu.template.unknown-filter", name);
     }
 }
 

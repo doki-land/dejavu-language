@@ -1,6 +1,6 @@
 [
     {
         "code": "dejavu.template.unknown-filter",
-        "stage": "render"
+        "stages": ["compile", "render"]
     }
 ]

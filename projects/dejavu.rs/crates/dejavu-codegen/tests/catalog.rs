@@ -108,8 +108,14 @@ const __rt = {
   unary: (op, a) => { switch (op) { case '!': return !a; default: return null; } },
   exprMember: (o, p) => o == null ? null : o[p] ?? null,
   exprIndex: (a, i) => a == null ? null : a[i] ?? null,
+  runtimeError: (code, detail) => {
+    const err = new Error(detail ? `${code}: ${detail}` : code);
+    err.code = code;
+    err.stage = 'render';
+    return err;
+  },
 };
-const { htmlEscape, applyFilter, isTruthy, binary, unary, valueToString, exprMember, exprIndex } = __rt;
+const { htmlEscape, applyFilter, isTruthy, binary, unary, valueToString, exprMember, exprIndex, runtimeError } = __rt;
 "#;
 
 fn run_modules_in_node(modules: &[dejavu_codegen::GeneratedModule], ctx_js: &str) -> Option<String> {

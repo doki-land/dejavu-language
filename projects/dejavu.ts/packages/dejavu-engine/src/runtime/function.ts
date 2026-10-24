@@ -5,6 +5,8 @@
  * 仅允许 `name(args)` 形式的裸标识符调用；成员调用与未知名字一律报错。
  */
 
+import { runtimeError } from "./errors.js";
+
 export interface FunctionSpec {
     name: string;
     aliases: string[];
@@ -31,11 +33,12 @@ export function functionSpec(name: string): FunctionSpec | undefined {
 export function callFunction(name: string, args: unknown[]): unknown {
     const spec = functionSpec(name);
     if (!spec) {
-        throw new Error(`dejavu.template.unknown-function: ${name}`);
+        throw runtimeError("dejavu.template.unknown-function", name);
     }
     if (args.length < spec.minArgs || args.length > spec.maxArgs) {
-        throw new Error(
-            `dejavu.template.function-arity: ${spec.name} expects ` +
+        throw runtimeError(
+            "dejavu.template.function-arity",
+            `${spec.name} expects ` +
                 `${spec.minArgs}..${spec.maxArgs} argument(s), got ${args.length}`,
         );
     }
@@ -48,7 +51,7 @@ export function callFunction(name: string, args: unknown[]): unknown {
             return numericPair(args, false);
         default:
             // Unreachable: `functionSpec` already rejected unknown names.
-            throw new Error(`dejavu.template.unknown-function: ${name}`);
+            throw runtimeError("dejavu.template.unknown-function", name);
     }
 }
 

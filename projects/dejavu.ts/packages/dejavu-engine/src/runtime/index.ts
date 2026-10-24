@@ -6,6 +6,7 @@
  */
 
 export { htmlEscape } from "./escape.js";
+export { DejavuRuntimeError, runtimeError } from "./errors.js";
 export { valueToString, isTruthy, valuesEqual } from "./value.js";
 export { applyFilter } from "./filter.js";
 export { FUNCTIONS, functionSpec, callFunction } from "./function.js";

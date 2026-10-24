@@ -6,6 +6,7 @@
  * 本文件只负责对已求值的左值执行谓词。
  */
 
+import { runtimeError } from "./errors.js";
 import { isTruthy } from "./value.js";
 
 export interface TestSpec {
@@ -44,11 +45,12 @@ export function applyTest(
 ): boolean {
     const spec = testSpec(name);
     if (!spec) {
-        throw new Error(`dejavu.template.unknown-test: ${name}`);
+        throw runtimeError("dejavu.template.unknown-test", name);
     }
     if (args.length < spec.minArgs || args.length > spec.maxArgs) {
-        throw new Error(
-            `dejavu.template.test-arity: ${spec.name} expects ` +
+        throw runtimeError(
+            "dejavu.template.test-arity",
+            `${spec.name} expects ` +
                 `${spec.minArgs}..${spec.maxArgs} argument(s), got ${args.length}`,
         );
     }
@@ -89,7 +91,7 @@ export function applyTest(
             break;
         default:
             // Unreachable: `testSpec` already rejected unknown names.
-            throw new Error(`dejavu.template.unknown-test: ${name}`);
+            throw runtimeError("dejavu.template.unknown-test", name);
     }
     return result !== negated;
 }

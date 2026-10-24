@@ -412,6 +412,28 @@ const diagnosticAdapters = {
             return r.ok ? r.stdout : null;
         },
     },
+    aot: {
+        label: "AOT",
+        required: true,
+        run(c) {
+            const napiEntry = join(ROOT, "projects", "dejavu.ts", "packages", "dejavu", "dist", "napi.js");
+            const runtimeEntry = join(
+                ROOT,
+                "projects",
+                "dejavu.ts",
+                "packages",
+                "dejavu-engine",
+                "dist",
+                "runtime",
+                "index.js",
+            );
+            if (!existsSync(napiEntry) || !existsSync(runtimeEntry)) return null;
+            const args = [join(ROOT, "scripts/render-ir-diag-aot.mjs"), c.irPath, c.ctxPath];
+            if (c.optionsPath) args.push(c.optionsPath);
+            const r = run("node", args);
+            return r.ok ? r.stdout : null;
+        },
+    },
     wasm: {
         label: "WASM",
         required: true,
@@ -436,10 +458,25 @@ const diagnosticAdapters = {
     },
 };
 
-/** Reduce a host payload to the comparable `code` / `stage` pairs. */
-function diagnosticKey(payload) {
+/** Reduce a host payload to comparable `code` / `stage` pairs. */
+function diagnosticPairs(payload) {
     const parsed = JSON.parse(payload);
-    return JSON.stringify((parsed.diagnostics ?? []).map((d) => ({ code: d.code, stage: d.stage })));
+    return (parsed.diagnostics ?? []).map((d) => ({ code: d.code, stage: d.stage }));
+}
+
+/** Diagnostic codes must match across hosts; stages may differ for statically
+ * detectable errors (AOT rejects unknown filters at compile time). */
+function codeKey(pairs) {
+    return JSON.stringify(pairs.map((p) => p.code));
+}
+
+function expectedStages(entry) {
+    return entry.stages ?? (entry.stage ? [entry.stage] : []);
+}
+
+function matchesExpected(pairs, expected) {
+    if (codeKey(pairs) !== codeKey(expected)) return false;
+    return pairs.every((pair, index) => expectedStages(expected[index]).includes(pair.stage));
 }
 
 function main() {
@@ -546,7 +583,6 @@ function main() {
     // ---- diagnostic fixtures (structured code / stage parity) ----
     console.log("## diagnostic fixtures (code + stage)");
     for (const c of diagnosticCases()) {
-        const expected = JSON.stringify(c.expected.map((d) => ({ code: d.code, stage: d.stage })));
         process.stdout.write(`  ${c.name}: `);
         let failedAny = false;
         const keys = {};
@@ -561,9 +597,9 @@ function main() {
                 }
                 continue;
             }
-            const key = diagnosticKey(payload);
-            keys[adapter.label] = key;
-            const ok = key === expected;
+            const pairs = diagnosticPairs(payload);
+            keys[adapter.label] = codeKey(pairs);
+            const ok = matchesExpected(pairs, c.expected);
             if (!ok) failedAny = true;
             process.stdout.write(`[${adapter.label}=${ok ? "OK" : "FAIL"}] `);
         }

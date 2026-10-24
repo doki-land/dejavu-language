@@ -78,8 +78,14 @@ const __rt = {
   unary: (op, a) => (op === '!' ? !a : null),
   exprMember: (o, p) => o == null ? null : (o[p] === undefined ? null : o[p]),
   exprIndex: (o, i) => o == null ? null : (o[i] === undefined ? null : o[i]),
+  runtimeError: (code, detail) => {
+    const err = new Error(detail ? `${code}: ${detail}` : code);
+    err.code = code;
+    err.stage = 'render';
+    return err;
+  },
 };
-const { htmlEscape, applyFilter, isTruthy, binary, unary, valueToString, exprMember, exprIndex } = __rt;
+const { htmlEscape, applyFilter, isTruthy, binary, unary, valueToString, exprMember, exprIndex, runtimeError } = __rt;
 "#;
 
 /// `Some(Ok((rendered, probe)))`, `Some(Err(message))`, or `None` when Node is

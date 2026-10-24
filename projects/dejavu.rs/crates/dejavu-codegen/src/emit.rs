@@ -612,8 +612,7 @@ fn emit_partial(
     out.push_str(&format!("const {names} = [{}];\n", names_literal.join(", ")));
     out.push_str(&format!("for (const __k of Object.keys({saved})) {{\n"));
     out.push_str(&format!(
-        "  if ({names}.indexOf(__k) < 0) throw new Error({} + __k);\n",
-        json_string("dejavu.template.unknown-parameter: ")
+        "  if ({names}.indexOf(__k) < 0) throw runtimeError(\"dejavu.template.unknown-parameter\", __k);\n"
     ));
     out.push_str("}\n");
     out.push_str("ctx = {};\n");
@@ -628,8 +627,7 @@ fn emit_partial(
             }
             None => {
                 out.push_str(&format!(
-                    "if (!Object.prototype.hasOwnProperty.call({saved}, {name})) throw new Error({} + {name});\n",
-                    json_string("dejavu.template.missing-parameter: ")
+                    "if (!Object.prototype.hasOwnProperty.call({saved}, {name})) throw runtimeError(\"dejavu.template.missing-parameter\", {name});\n"
                 ));
                 out.push_str(&format!("ctx[{name}] = {saved}[{name}];\n"));
             }
@@ -795,8 +793,8 @@ fn emit_for(
     // build-time default.
     if let IrNode::ExprIdentifier { name, .. } = iterable {
         out.push_str(&format!(
-            "if (__strict && {it_temp} === undefined) throw new Error({});\n",
-            json_string(&format!("dejavu.template.undefined-variable: {name}"))
+            "if (__strict && {it_temp} === undefined) throw runtimeError(\"dejavu.template.undefined-variable\", {});\n",
+            json_string(name)
         ));
     }
 
@@ -874,8 +872,8 @@ fn emit_interpolation(
     // of the build-time default.
     let strict_msg = match expression {
         IrNode::ExprIdentifier { name, .. } => Some(format!(
-            "if (__strict && {temp} === undefined) throw new Error({});",
-            json_string(&format!("dejavu.template.undefined-variable: {name}"))
+            "if (__strict && {temp} === undefined) throw runtimeError(\"dejavu.template.undefined-variable\", {});",
+            json_string(name)
         )),
         _ => None,
     };
@@ -935,13 +933,17 @@ fn emit_not_supported(
     ctx: &mut CodegenCtx,
     out: &mut String,
 ) {
-    let msg = if let Some(e) = extra {
-        format!("dejavu.compile.not-supported-in-single-template: {node_kind} ({e})")
+    let detail = if let Some(e) = extra {
+        format!("{node_kind} ({e})")
     } else {
-        format!("dejavu.compile.not-supported-in-single-template: {node_kind}")
+        node_kind.to_string()
     };
+    let msg = format!("dejavu.compile.not-supported-in-single-template: {detail}");
     ctx.diagnostic(Severity::Error, msg.clone(), msg.clone());
-    out.push_str(&format!("throw new Error({});\n", json_string(&msg)));
+    out.push_str(&format!(
+        "throw runtimeError(\"dejavu.compile.not-supported-in-single-template\", {});\n",
+        json_string(&detail)
+    ));
 }
 
 // ---------------------------------------------------------------------------
