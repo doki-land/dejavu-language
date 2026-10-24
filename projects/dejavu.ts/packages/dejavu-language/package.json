@@ -1,6 +1,6 @@
 {
     "name": "@doki-land/dejavu-language",
-    "version": "0.0.13",
+    "version": "0.0.14",
     "description": "Dejavu WASM language bridge for browsers and Workers — host wrapper over @doki-land/dejavu-unknown-wasm32",
     "license": "MPL-2.0",
     "author": "Doki Land",
