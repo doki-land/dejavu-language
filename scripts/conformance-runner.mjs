@@ -16,7 +16,11 @@ const BASE = join(ROOT, "specifications", "conformance");
 /** IR-level suites: expected.ir.json + context.ctx.json + expected.out.txt. */
 const IR_SUITES = [join(BASE, "t1"), join(BASE, "values")];
 /** Source-level suites: templates parsed by every host before rendering. */
-const CATALOG_SUITES = [join(BASE, "inheritance"), join(BASE, "whitespace")];
+const CATALOG_SUITES = [
+    join(BASE, "inheritance"),
+    join(BASE, "whitespace"),
+    join(BASE, "include-context"),
+];
 const TMP = join(ROOT, ".conformance-tmp");
 
 function suiteCases(suite) {

@@ -334,3 +334,65 @@ fn mixed_if_for_include_all_nodes_emit() {
         assert_eq!(out, "pre YES Alice items=[x,y,] PART");
     }
 }
+
+// ---------------------------------------------------------------------------
+// 8. include context modifiers
+// ---------------------------------------------------------------------------
+
+fn stmt_include_with(path: Value, with: Option<Value>, only: bool) -> Value {
+    let mut node = json!({ "type": "Stmt.Include", "path": path, "trim": "none", "only": only });
+    if let Some(w) = with {
+        node["with"] = w;
+    }
+    node
+}
+
+#[test]
+fn include_with_merges_explicit_context_at_aot() {
+    let partial = doc(vec![
+        text("card:"),
+        interp(ident("name"), false),
+        text("/"),
+        interp(ident("title"), false),
+    ]);
+    let entry = doc(vec![
+        stmt_include_with(lit(json!("card.dejavu")), Some(ident("card")), false),
+        text("|"),
+        interp(ident("name"), false),
+    ]);
+    let res = compile_catalog(
+        &[("index.dejavu", entry), ("card.dejavu", partial)],
+        "index.dejavu",
+    );
+    assert!(errors(&res).is_empty(), "errors: {:?}", errors(&res));
+    let r = round(&res.modules[0].code);
+    assert!(r.contains("Object.assign({}, ctx, ctx.card)"), "code: {r}");
+
+    if let Some(out) = run_modules_in_node(
+        &res.modules,
+        "({name: 'X', card: {name: 'Y', title: 'T'}})",
+    ) {
+        assert_eq!(out, "card:Y/T|X");
+    }
+}
+
+#[test]
+fn include_only_isolates_context_at_aot() {
+    let partial = doc(vec![text("card:"), interp(ident("name"), false)]);
+    let entry = doc(vec![
+        stmt_include_with(lit(json!("card.dejavu")), None, true),
+        text("|"),
+        interp(ident("name"), false),
+    ]);
+    let res = compile_catalog(
+        &[("index.dejavu", entry), ("card.dejavu", partial)],
+        "index.dejavu",
+    );
+    assert!(errors(&res).is_empty(), "errors: {:?}", errors(&res));
+    let r = round(&res.modules[0].code);
+    assert!(r.contains("({}, options)"), "code: {r}");
+
+    if let Some(out) = run_modules_in_node(&res.modules, "({name: 'X'})") {
+        assert_eq!(out, "card:|X");
+    }
+}

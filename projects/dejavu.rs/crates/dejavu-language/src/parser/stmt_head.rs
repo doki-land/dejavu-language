@@ -16,7 +16,7 @@ pub(crate) enum CodeHead<'a> {
     Super,
     Block { name: String },
     Extends { parent_src: &'a str, parent_base: usize },
-    Include { path_src: &'a str, path_base: usize },
+    Include { path_src: &'a str, path_base: usize, with_src: Option<&'a str>, with_base: usize, only: bool },
     Expr { src: &'a str, base: usize },
 }
 
@@ -136,19 +136,7 @@ pub(crate) fn classify_code<'a>(
             Ok(CodeHead::Extends { parent_src, parent_base })
         }
         CodeToken::Ident(name) if name == "include" => {
-            let (path_src, path_base) = slice(1);
-            if path_src.is_empty() {
-                return Err(ParseError::at(
-                    source,
-                    file,
-                    content_base + spans[0].start,
-                    (spans[0].end - spans[0].start).max(1),
-                    "include requires a path expression",
-                    "expected path",
-                )
-                .with_code(codes::PARSE_UNEXPECTED_TOKEN));
-            }
-            Ok(CodeHead::Include { path_src, path_base })
+            classify_include(source, file, content, content_base, &spans)
         }
         CodeToken::Ident(name) if name == "block" => {
             if spans.len() != 2 {
@@ -242,4 +230,118 @@ pub(crate) fn head_stop_kind(head: &CodeHead<'_>) -> &'static str {
         CodeHead::EndBlock => "end block",
         _ => "",
     }
+}
+
+/// Sub-keyword of `include` that starts a context modifier.
+fn include_modifier(tok: &CodeToken) -> Option<&'static str> {
+    match tok {
+        CodeToken::Ident(name) if name == "with" => Some("with"),
+        CodeToken::Ident(name) if name == "only" => Some("only"),
+        CodeToken::Ident(name) if name == "without" => Some("without"),
+        _ => None,
+    }
+}
+
+/// Classify `include <path> [with <expr>] [only | without context]`.
+///
+/// Context modifiers are language keywords, so they are located at bracket
+/// depth zero after the path expression. Semantics:
+/// - `include path` — child inherits the caller context.
+/// - `include path with expr` — child inherits the caller context plus `expr`.
+/// - `include path only` / `without context` — child sees no caller context.
+/// - `include path with expr only` — child sees only `expr`.
+fn classify_include<'a>(
+    source: &str,
+    file: &str,
+    content: &'a str,
+    content_base: usize,
+    spans: &[Spanned],
+) -> Result<CodeHead<'a>, ParseError> {
+    let err = |idx: usize, message: &str, label: &str| {
+        ParseError::at(
+            source,
+            file,
+            content_base + spans[idx].start,
+            (spans[idx].end - spans[idx].start).max(1),
+            message,
+            label,
+        )
+        .with_code(codes::PARSE_UNEXPECTED_TOKEN)
+    };
+    let slice = |from: usize, to: usize| -> (&'a str, usize) {
+        if from >= to {
+            return ("", content_base + content.len());
+        }
+        let start = spans[from].start;
+        let end = spans[to - 1].end;
+        (&content[start..end], content_base + start)
+    };
+
+    let modifier_at = |from: usize| -> Option<usize> {
+        let mut depth = 0i32;
+        for i in from..spans.len() {
+            match spans[i].tok {
+                CodeToken::LParen | CodeToken::LBracket => depth += 1,
+                CodeToken::RParen | CodeToken::RBracket => depth -= 1,
+                _ => {}
+            }
+            if depth == 0 && include_modifier(&spans[i].tok).is_some() {
+                return Some(i);
+            }
+        }
+        None
+    };
+
+    let path_end = modifier_at(1).unwrap_or(spans.len());
+    let (path_src, path_base) = slice(1, path_end);
+    if path_src.is_empty() {
+        return Err(err(0, "include requires a path expression", "expected path"));
+    }
+
+    let mut with_src = None;
+    let mut with_base = content_base + content.len();
+    let mut only = false;
+    let mut cursor = path_end;
+    while cursor < spans.len() {
+        match include_modifier(&spans[cursor].tok) {
+            Some("with") => {
+                if with_src.is_some() {
+                    return Err(err(cursor, "include accepts a single `with` expression", "duplicate with"));
+                }
+                let next = cursor + 1;
+                let end = modifier_at(next).unwrap_or(spans.len());
+                let (src, base) = slice(next, end);
+                if src.is_empty() {
+                    return Err(err(cursor, "`with` requires a context expression", "expected expression"));
+                }
+                with_src = Some(src);
+                with_base = base;
+                cursor = end;
+            }
+            Some("only") => {
+                only = true;
+                cursor += 1;
+                if cursor != spans.len() {
+                    return Err(err(cursor, "unexpected tokens after `only`", "unexpected"));
+                }
+            }
+            Some("without") => {
+                match spans.get(cursor + 1) {
+                    Some(Spanned { tok: CodeToken::Ident(n), .. }) if n == "context" => {}
+                    _ => {
+                        return Err(err(cursor, "`without` requires `context`", "expected context"));
+                    }
+                }
+                only = true;
+                cursor += 2;
+                if cursor != spans.len() {
+                    return Err(err(cursor, "unexpected tokens after `without context`", "unexpected"));
+                }
+            }
+            Some(_) => unreachable!(),
+            None => return Err(err(cursor, "unexpected tokens after include", "unexpected")),
+        }
+    }
+
+    Ok(CodeHead::Include { path_src, path_base, with_src, with_base, only })
 }

@@ -228,10 +228,14 @@ impl<'a> Parser<'a> {
                         pending = right_trim(tag.trim_right);
                         i = next_i;
                     }
-                    CodeHead::Include { path_src, path_base } => {
+                    CodeHead::Include { path_src, path_base, with_src, with_base, only } => {
                         let path = parse_expr(self.source, self.file, path_base, path_src)?;
+                        let with = match with_src {
+                            Some(src) => Some(parse_expr(self.source, self.file, with_base, src)?),
+                            None => None,
+                        };
                         children.push(NativeNode::new(
-                            NativeKind::Include { path, trim: tag.trim_left.as_str().into() },
+                            NativeKind::Include { path, with, only, trim: tag.trim_left.as_str().into() },
                             Some(Span { start: open, end: next_i }),
                         ));
                         pending = right_trim(tag.trim_right);

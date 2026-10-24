@@ -159,7 +159,24 @@ impl<'a> Renderer<'a> {
         self.render_nodes(&doc.body)
     }
 
-    fn render_loaded(&mut self, path: &str, feature: &str) -> Result<String, IrError> {
+    /// Render an included template.
+    ///
+    /// `with` is the evaluated explicit context and `only` isolates the child
+    /// from the caller's context (`only` / `without context`).
+    fn render_loaded(
+        &mut self,
+        path: &str,
+        feature: &str,
+        with: Option<&Value>,
+        only: bool,
+    ) -> Result<String, IrError> {
+        // Validate the explicit context before mutating renderer state.
+        if let Some(Value::Null) | Some(Value::Object(_)) | None = with {
+            // null is treated as "no explicit entries"
+        } else if let Some(other) = with {
+            return Err(diag_render(codes::CONTEXT_NOT_OBJECT).arg("got", json_kind(other)));
+        }
+
         let loader = self
             .loader
             .as_deref_mut()
@@ -181,6 +198,17 @@ impl<'a> Renderer<'a> {
         let saved_visiting_extends = std::mem::take(&mut self.visiting_extends);
         self.current_id = child.id.clone();
 
+        // Include context: inherit by default, merge `with`, isolate on `only`.
+        let saved_scope = std::mem::take(&mut self.scope);
+        if !only {
+            self.scope = saved_scope.clone();
+        }
+        if let Some(Value::Object(entries)) = with {
+            for (key, value) in entries {
+                self.scope.insert(key.clone(), value.clone());
+            }
+        }
+
         // 走 render_doc：被 include 的模板也可能有 extends/block 链
         let out = self.render_doc(&child.document);
 
@@ -190,6 +218,7 @@ impl<'a> Renderer<'a> {
         self.blocks = saved_blocks;
         self.parent_blocks = saved_parent_blocks;
         self.visiting_extends = saved_visiting_extends;
+        self.scope = saved_scope;
         out
     }
 
@@ -266,10 +295,14 @@ impl<'a> Renderer<'a> {
             }
 
             // include：加载并内联渲染。
-            IrNode::StmtInclude { path, .. } => {
+            IrNode::StmtInclude { path, with, only, .. } => {
                 let p = self.eval(path)?;
                 let path_str = value_to_string(&p);
-                self.render_loaded(&path_str, "include")
+                let explicit = match with {
+                    Some(expr) => Some(self.eval(expr)?),
+                    None => None,
+                };
+                self.render_loaded(&path_str, "include", explicit.as_ref(), *only)
             }
 
             // extends：由 render_doc 集中处理，这里不应单独出现。
@@ -372,6 +405,18 @@ fn json_object_to_map(ctx: &Value) -> Result<HashMap<String, Value>, IrError> {
     match ctx {
         Value::Object(map) => Ok(map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
         _ => Err(diag_render(codes::CONTEXT_NOT_OBJECT)),
+    }
+}
+
+/// Human-readable JSON kind for diagnostics.
+fn json_kind(v: &Value) -> &'static str {
+    match v {
+        Value::Null => "null",
+        Value::Bool(_) => "bool",
+        Value::Number(_) => "number",
+        Value::String(_) => "string",
+        Value::Array(_) => "array",
+        Value::Object(_) => "object",
     }
 }
 

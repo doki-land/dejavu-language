@@ -120,6 +120,12 @@ pub enum IrNode {
     #[serde(rename = "Stmt.Include")]
     StmtInclude {
         path: Box<IrNode>,
+        /// Explicit child context merged over the inherited one.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        with: Option<Box<IrNode>>,
+        /// `only` / `without context`: the child sees no inherited context.
+        #[serde(default, skip_serializing_if = "is_false")]
+        only: bool,
         trim: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         span: Option<Span>,

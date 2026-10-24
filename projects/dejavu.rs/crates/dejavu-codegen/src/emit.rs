@@ -426,8 +426,8 @@ pub fn emit_stmt(
                 None => emit_not_supported("Stmt.Extends", None, ctx, out),
             }
         }
-        IrNode::StmtInclude { path, .. } => {
-            emit_include(path, ctx, out, catalog);
+        IrNode::StmtInclude { path, with, only, .. } => {
+            emit_include(path, with.as_deref(), *only, ctx, out, catalog);
         }
         IrNode::StmtSuper { .. } => {
             emit_super(ctx, out, catalog);
@@ -478,6 +478,8 @@ fn emit_block(
 
 fn emit_include(
     path_node: &IrNode,
+    with: Option<&IrNode>,
+    only: bool,
     ctx: &mut CodegenCtx,
     out: &mut String,
     catalog: Option<&CatalogEmitCtx>,
@@ -505,7 +507,21 @@ fn emit_include(
     let binding = crate::catalog::js_import_name(canonical_id);
     // Include runtime contract: the included template's render(ctx, options)
     // returns a string; we spread it into __out.push for direct concatenation.
-    out.push_str(&format!("__out.push({binding}(ctx, options));\n"));
+    let context_expr = match (with, only) {
+        // Default: inherit the caller context.
+        (None, false) => "ctx".to_string(),
+        // `only` / `without context` with no explicit object: empty context.
+        (None, true) => "{}".to_string(),
+        (Some(expr), isolated) => {
+            let e = emit_expr(expr, ctx);
+            if isolated {
+                format!("Object.assign({{}}, {e})")
+            } else {
+                format!("Object.assign({{}}, ctx, {e})")
+            }
+        }
+    };
+    out.push_str(&format!("__out.push({binding}({context_expr}, options));\n"));
 }
 
 fn emit_super(

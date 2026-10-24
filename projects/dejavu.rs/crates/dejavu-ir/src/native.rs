@@ -58,6 +58,8 @@ pub enum NativeKind {
     },
     Include {
         path: NativeExpr,
+        with: Option<NativeExpr>,
+        only: bool,
         trim: String,
     },
     Super {
@@ -136,9 +138,13 @@ fn encode_node(n: &NativeNode) -> IrNode {
         NativeKind::Extends { parent, trim } => {
             IrNode::StmtExtends { parent: Box::new(encode_expr(parent)), trim: trim.clone(), span }
         }
-        NativeKind::Include { path, trim } => {
-            IrNode::StmtInclude { path: Box::new(encode_expr(path)), trim: trim.clone(), span }
-        }
+        NativeKind::Include { path, with, only, trim } => IrNode::StmtInclude {
+            path: Box::new(encode_expr(path)),
+            with: with.as_ref().map(|w| Box::new(encode_expr(w))),
+            only: *only,
+            trim: trim.clone(),
+            span,
+        },
         NativeKind::Super { trim } => IrNode::StmtSuper { trim: trim.clone(), span },
         NativeKind::Raw { value, trim } => IrNode::StmtRaw { value: value.clone(), trim: trim.clone(), span },
     }
@@ -225,9 +231,15 @@ fn decode_node(n: &IrNode) -> NativeNode {
             NativeKind::Extends { parent: decode_expr(parent), trim: trim.clone() },
             span.clone(),
         ),
-        IrNode::StmtInclude { path, trim, span } => {
-            NativeNode::new(NativeKind::Include { path: decode_expr(path), trim: trim.clone() }, span.clone())
-        }
+        IrNode::StmtInclude { path, with, only, trim, span } => NativeNode::new(
+            NativeKind::Include {
+                path: decode_expr(path),
+                with: with.as_ref().map(|w| decode_expr(w)),
+                only: *only,
+                trim: trim.clone(),
+            },
+            span.clone(),
+        ),
         IrNode::StmtSuper { trim, span } => NativeNode::new(NativeKind::Super { trim: trim.clone() }, span.clone()),
         IrNode::StmtRaw { value, trim, span } => {
             NativeNode::new(NativeKind::Raw { value: value.clone(), trim: trim.clone() }, span.clone())
