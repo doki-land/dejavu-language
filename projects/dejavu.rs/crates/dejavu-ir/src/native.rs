@@ -57,6 +57,12 @@ pub enum NativeKind {
         body: Vec<NativeNode>,
         trim: String,
     },
+    Macro {
+        name: String,
+        params: Vec<NativeParam>,
+        body: Vec<NativeNode>,
+        trim: String,
+    },
     Extends {
         parent: NativeExpr,
         trim: String,
@@ -150,6 +156,19 @@ fn encode_node(n: &NativeNode) -> IrNode {
             span,
         },
         NativeKind::Partial { params, body, trim } => IrNode::StmtPartial {
+            params: params
+                .iter()
+                .map(|p| crate::types::PartialParam {
+                    name: p.name.clone(),
+                    default: p.default.as_ref().map(encode_expr),
+                })
+                .collect(),
+            body: body.iter().map(encode_node).collect(),
+            trim: trim.clone(),
+            span,
+        },
+        NativeKind::Macro { name, params, body, trim } => IrNode::StmtMacro {
+            name: name.clone(),
             params: params
                 .iter()
                 .map(|p| crate::types::PartialParam {
@@ -269,6 +288,18 @@ fn decode_node(n: &IrNode) -> NativeNode {
         ),
         IrNode::StmtPartial { params, body, trim, span } => NativeNode::new(
             NativeKind::Partial {
+                params: params
+                    .iter()
+                    .map(|p| NativeParam { name: p.name.clone(), default: p.default.as_ref().map(decode_expr) })
+                    .collect(),
+                body: body.iter().map(decode_node).collect(),
+                trim: trim.clone(),
+            },
+            span.clone(),
+        ),
+        IrNode::StmtMacro { name, params, body, trim, span } => NativeNode::new(
+            NativeKind::Macro {
+                name: name.clone(),
                 params: params
                     .iter()
                     .map(|p| NativeParam { name: p.name.clone(), default: p.default.as_ref().map(decode_expr) })

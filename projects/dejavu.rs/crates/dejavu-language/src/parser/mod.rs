@@ -68,6 +68,7 @@ impl<'a> Parser<'a> {
     pub fn parse_template(&self) -> Result<NativeTemplate, ParseError> {
         let (children, _) = self.parse_body(0, &[])?;
         self.validate_partial_layout(&children)?;
+        self.validate_macro_layout(&children)?;
         Ok(NativeTemplate { children })
     }
 
@@ -123,6 +124,35 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
+    /// `macro` declarations are template-level only: no nesting inside control
+    /// flow or another macro, no duplicate names, no control keywords as names.
+    fn validate_macro_layout(&self, children: &[NativeNode]) -> Result<(), ParseError> {
+        let mut seen: Vec<&str> = Vec::new();
+        for child in children {
+            match &child.kind {
+                NativeKind::Macro { name, .. } => {
+                    if matches!(
+                        name.as_str(),
+                        "if" | "else" | "for" | "loop" | "block" | "partial" | "macro" | "end" | "include"
+                            | "extends" | "super" | "raw"
+                    ) {
+                        return Err(self.partial_layout_error(child, "macro name cannot be a control keyword"));
+                    }
+                    if seen.contains(&name.as_str()) {
+                        return Err(self.partial_layout_error(child, "duplicate `macro` name in one template"));
+                    }
+                    seen.push(name.as_str());
+                }
+                _ => {
+                    if let Some(node) = Self::find_macro(std::slice::from_ref(child)) {
+                        return Err(self.partial_layout_error(node, "`macro` must be a top-level declaration"));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn partial_layout_error(&self, node: &NativeNode, message: &str) -> ParseError {
         let (start, end) = node.span.as_ref().map(|s| (s.start, s.end)).unwrap_or((0, 1));
         ParseError::at(self.source, self.file, start, end.saturating_sub(start).max(1), message, "unexpected")
@@ -152,8 +182,39 @@ fn find_partial(nodes: &[NativeNode]) -> Option<&NativeNode> {
                     }
                 }
             }
-            NativeKind::For { body, .. } | NativeKind::Block { body, .. } => {
+            NativeKind::For { body, .. } | NativeKind::Block { body, .. } | NativeKind::Macro { body, .. } => {
                 if let Some(hit) = Self::find_partial(body) {
+                    return Some(hit);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Find the first `macro` declaration inside a control-flow body.
+fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
+    for node in nodes {
+        match &node.kind {
+            NativeKind::Macro { .. } => return Some(node),
+            NativeKind::If { consequent, else_ifs, alternate, .. } => {
+                if let Some(hit) = Self::find_macro(consequent) {
+                    return Some(hit);
+                }
+                for (_, body) in else_ifs {
+                    if let Some(hit) = Self::find_macro(body) {
+                        return Some(hit);
+                    }
+                }
+                if let Some(body) = alternate {
+                    if let Some(hit) = Self::find_macro(body) {
+                        return Some(hit);
+                    }
+                }
+            }
+            NativeKind::For { body, .. } | NativeKind::Block { body, .. } | NativeKind::Partial { body, .. } => {
+                if let Some(hit) = Self::find_macro(body) {
                     return Some(hit);
                 }
             }
@@ -353,6 +414,20 @@ fn find_partial(nodes: &[NativeNode]) -> Option<&NativeNode> {
                         children.push(node);
                         i = new_i;
                     }
+                    CodeHead::Macro { name, params_src, params_base } => {
+                        let (node, new_i) = self.parse_macro(
+                            open,
+                            next_i,
+                            name,
+                            params_src,
+                            params_base,
+                            tag.trim_left,
+                            tag.trim_right,
+                            pending.take(),
+                        )?;
+                        children.push(node);
+                        i = new_i;
+                    }
                     CodeHead::Super => {
                         children.push(NativeNode::new(
                             NativeKind::Super { trim: tag.trim_left.as_str().into() },
@@ -365,6 +440,7 @@ fn find_partial(nodes: &[NativeNode]) -> Option<&NativeNode> {
                     | CodeHead::EndLoop
                     | CodeHead::EndBlock
                     | CodeHead::EndPartial
+                    | CodeHead::EndMacro
                     | CodeHead::Else
                     | CodeHead::ElseIf { .. } => {
                         reject_closer_trim(self.source, self.file, &tag, &head)?;
@@ -374,6 +450,7 @@ fn find_partial(nodes: &[NativeNode]) -> Option<&NativeNode> {
                                 CodeHead::EndLoop => "end loop",
                                 CodeHead::EndBlock => "end block",
                                 CodeHead::EndPartial => "end partial",
+                                CodeHead::EndMacro => "end macro",
                                 CodeHead::Else => "else",
                                 CodeHead::ElseIf { .. } => "else if",
                                 _ => "control",

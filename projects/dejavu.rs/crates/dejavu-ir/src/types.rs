@@ -91,6 +91,18 @@ pub enum IrNode {
         #[serde(skip_serializing_if = "Option::is_none")]
         span: Option<Span>,
     },
+    /// `macro name(params)` — a named template-local component. Invoked through
+    /// a bare-identifier [`IrNode::ExprCall`]; its body sees its parameters
+    /// only, never the caller scope.
+    #[serde(rename = "Stmt.Macro")]
+    StmtMacro {
+        name: String,
+        params: Vec<PartialParam>,
+        body: Vec<IrNode>,
+        trim: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        span: Option<Span>,
+    },
     #[serde(rename = "Stmt.ElseIf")]
     StmtElseIf {
         test: Box<IrNode>,
@@ -227,7 +239,7 @@ pub enum IrNode {
     },
 }
 
-/// One `partial` parameter: name plus an optional literal default.
+/// One `partial` / `macro` parameter: name plus an optional literal default.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PartialParam {
     pub name: String,

@@ -171,6 +171,7 @@ impl<'a> CodegenCtx<'a> {
             | IrNode::StmtFor { span, .. }
             | IrNode::StmtBlock { span, .. }
             | IrNode::StmtPartial { span, .. }
+            | IrNode::StmtMacro { span, .. }
             | IrNode::StmtExtends { span, .. }
             | IrNode::StmtInclude { span, .. }
             | IrNode::StmtSuper { span, .. }
@@ -562,6 +563,9 @@ pub fn emit_stmt(
         IrNode::StmtPartial { params, body, .. } => {
             emit_partial(params, body, ctx, out, catalog);
         }
+        // Macro definitions are hoisted into module-level functions by
+        // `precompile`; the declaration itself emits no output.
+        IrNode::StmtMacro { .. } => {}
         IrNode::StmtExtends { .. } => {
             // In catalog mode the extends chain is flattened before we reach
             // emit — we should never land here. In single-template mode it's

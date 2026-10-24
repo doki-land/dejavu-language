@@ -17,6 +17,8 @@ pub(crate) enum CodeHead<'a> {
     Block { name: String },
     Partial { params_src: &'a str, params_base: usize },
     EndPartial,
+    Macro { name: String, params_src: &'a str, params_base: usize },
+    EndMacro,
     Extends { parent_src: &'a str, parent_base: usize },
     Include { path_src: &'a str, path_base: usize, with_src: Option<&'a str>, with_base: usize, only: bool },
     Expr { src: &'a str, base: usize },
@@ -155,6 +157,37 @@ pub(crate) fn classify_code<'a>(
             }
             Ok(CodeHead::Partial { params_src, params_base })
         }
+        CodeToken::Ident(name) if name == "macro" => {
+            let macro_diag = |message: &str, label: &str, idx: usize| {
+                let span = spans.get(idx).map(|s| (s.start, (s.end - s.start).max(1))).unwrap_or((spans[0].start, 1));
+                ParseError::at(source, file, content_base + span.0, span.1, message, label)
+                    .with_code(codes::PARSE_UNEXPECTED_TOKEN)
+            };
+            if spans.len() < 3 {
+                return Err(macro_diag("macro requires a name and a parameter list", "expected `macro name(...)`", 0));
+            }
+            let CodeToken::Ident(macro_name) = &spans[1].tok else {
+                return Err(macro_diag("macro requires a name identifier", "expected ident", 1));
+            };
+            if !matches!(spans[2].tok, CodeToken::LParen) {
+                return Err(macro_diag("macro parameters must be written in parentheses", "expected `(`", 2));
+            }
+            if !matches!(spans.last().map(|s| &s.tok), Some(CodeToken::RParen)) {
+                return Err(macro_diag(
+                    "macro parameter list must end with `)`",
+                    "expected `)`",
+                    spans.len() - 1,
+                ));
+            }
+            let open = &spans[2];
+            let close = spans.last().expect("checked above");
+            let params_src = &content[open.end..close.start];
+            Ok(CodeHead::Macro {
+                name: macro_name.clone(),
+                params_src,
+                params_base: content_base + open.end,
+            })
+        }
         CodeToken::Ident(name) if name == "block" => {
             if spans.len() != 2 {
                 return Err(ParseError::at(
@@ -222,6 +255,9 @@ pub(crate) fn classify_code<'a>(
                     if n == "partial" {
                         return Ok(CodeHead::EndPartial);
                     }
+                    if n == "macro" {
+                        return Ok(CodeHead::EndMacro);
+                    }
                 }
             }
             Err(ParseError::at(
@@ -229,7 +265,7 @@ pub(crate) fn classify_code<'a>(
                 file,
                 content_base + spans[0].start,
                 (spans.last().map(|s| s.end).unwrap_or(spans[0].end) - spans[0].start).max(1),
-                "expected `end if`, `end loop`, `end block`, or `end partial`",
+                "expected `end if`, `end loop`, `end block`, `end partial`, or `end macro`",
                 "unexpected",
             )
             .with_code(codes::PARSE_UNEXPECTED_TOKEN))
@@ -249,6 +285,7 @@ pub(crate) fn head_stop_kind(head: &CodeHead<'_>) -> &'static str {
         CodeHead::EndLoop => "end loop",
         CodeHead::EndBlock => "end block",
         CodeHead::EndPartial => "end partial",
+        CodeHead::EndMacro => "end macro",
         _ => "",
     }
 }

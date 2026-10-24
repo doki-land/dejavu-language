@@ -162,6 +162,47 @@ impl Parser<'_> {
         Ok((NativeNode::new(kind, Some(Span { start: open, end: i })), i))
     }
 
+    pub(crate) fn parse_macro(
+        &self,
+        open: usize,
+        mut i: usize,
+        name: String,
+        params_src: &str,
+        params_base: usize,
+        trim: TrimMode,
+        trim_end: TrimMode,
+        pending: Option<&str>,
+    ) -> Result<(NativeNode, usize), ParseError> {
+        let params = if params_src.trim().is_empty() {
+            Vec::new()
+        } else {
+            parse_params(self.source, self.file, params_src, params_base)?
+        };
+        let (body, i2) = self.parse_until(i, &["end macro"])?;
+        i = i2;
+        let (end_code, end_span, end_i) = self.peek_code(i)?;
+        let end_trim = end_code.trim();
+        let end_base = end_span.start + (end_code.len() - end_code.trim_start().len());
+        match classify_code(self.source, self.file, end_trim, end_base)? {
+            CodeHead::EndMacro => i = end_i,
+            _ => {
+                return Err(ParseError::at(
+                    self.source,
+                    self.file,
+                    end_span.start,
+                    end_span.len(),
+                    "expected `end macro`",
+                    "expected end macro",
+                )
+                .with_code(codes::PARSE_UNCLOSED_BLOCK));
+            }
+        }
+
+        let mut kind = NativeKind::Macro { name, params, body, trim: trim.as_str().into() };
+        apply_open_trim(&mut kind, pending, trim_end);
+        Ok((NativeNode::new(kind, Some(Span { start: open, end: i })), i))
+    }
+
     pub(crate) fn parse_block(
         &self,
         open: usize,
@@ -224,6 +265,7 @@ fn first_text(kind: &mut NativeKind) -> Option<&mut String> {
         NativeKind::For { body, .. } => body,
         NativeKind::Block { body, .. } => body,
         NativeKind::Partial { body, .. } => body,
+        NativeKind::Macro { body, .. } => body,
         _ => return None,
     };
     nodes.iter_mut().find_map(|n| match &mut n.kind {
@@ -233,7 +275,7 @@ fn first_text(kind: &mut NativeKind) -> Option<&mut String> {
 }
 
 /// Parse a `partial` parameter list: `name`, `name = <literal>`, comma separated.
-fn parse_params(
+pub(crate) fn parse_params(
     source: &str,
     file: &str,
     params_src: &str,
