@@ -548,6 +548,10 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
                 Some(_) => i += 1,
                 None => {
                     push_text(&mut children, self.source[i..].to_string(), i, self.source.len(), pending.take());
+                    // Report the end-of-input position so callers that expect a
+                    // closer (`end call`, `end macro`, …) can produce an
+                    // "unclosed block" diagnostic instead of "expected code open".
+                    i = self.source.len();
                     break;
                 }
             }

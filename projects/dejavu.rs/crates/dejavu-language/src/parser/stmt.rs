@@ -264,6 +264,17 @@ impl Parser<'_> {
         };
         let (body, i2) = self.parse_until(i, &["end call"])?;
         i = i2;
+        if i >= self.source.len() {
+            return Err(ParseError::at(
+                self.source,
+                self.file,
+                open,
+                1,
+                "unclosed `call` block, expected `end call`",
+                "call block opens here",
+            )
+            .with_code(codes::PARSE_UNCLOSED_BLOCK));
+        }
         let (end_code, end_span, end_i) = self.peek_code(i)?;
         let end_trim = end_code.trim();
         let end_base = end_span.start + (end_code.len() - end_code.trim_start().len());
