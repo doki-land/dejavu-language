@@ -185,7 +185,7 @@ jobs:
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && 'dev' || github.ref }}
 
-      - name: Install pnpm (must precede setup-node with pnpm cache)
+      - name: Install pnpm
         uses: pnpm/action-setup@v4
 
       - name: Setup Node.js + pnpm
@@ -193,8 +193,8 @@ jobs:
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+          # No pnpm store cache: the lockfile is not tracked, so setup-node has
+          # nothing to key on and fails with "paths were not resolved".
 
       - name: npm CLI for OIDC provenance
         run: npm install -g npm@^11.5.1
