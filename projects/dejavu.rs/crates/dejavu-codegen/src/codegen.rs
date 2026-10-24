@@ -104,24 +104,23 @@ pub fn precompile_single(
     let entry_id = opts.entry_id().to_string();
     let mut ctx = CodegenCtx::new(&opts);
 
-    let body_str = match &doc.body {
+    let mut body_str = String::new();
+    let mut macro_fns = String::new();
+    match &doc.body {
         IrNode::Template { children, .. } => {
-            let mut out = String::new();
-            emit::emit_body(children, &mut ctx, &mut out, None);
-            out
+            ctx.set_macros(macro_names(children));
+            emit::emit_body(children, &mut ctx, &mut body_str, None);
+            macro_fns = emit::emit_macro_functions(children, &mut ctx, None);
         }
-        other => {
-            ctx.diagnostic(
-                Severity::Error,
-                "dejavu.compile.root-not-template",
-                format!("IR root node must be Template, got {other:?}"),
-            );
-            String::new()
-        }
-    };
+        other => ctx.diagnostic(
+            Severity::Error,
+            "dejavu.compile.root-not-template",
+            format!("IR root node must be Template, got {other:?}"),
+        ),
+    }
 
-    let code = build_module(&body_str, &[], None, opts.strict_undefined, None);
-    let origins = shift_origins(&ctx.origins, module_header_lines(0));
+    let code = build_module(&body_str, &macro_fns, &[], None, opts.strict_undefined, None);
+    let origins = shift_origins(&ctx.origins, module_header_lines(0, macro_lines(&macro_fns)));
 
     Ok(PrecompileResult {
         code,
@@ -288,8 +287,10 @@ pub fn precompile_catalog(
         };
 
         let mut ctx = CodegenCtx::new(&opts);
+        ctx.set_macros(macro_names(&body_children));
         let mut body_str = String::new();
         emit::emit_body(&body_children, &mut ctx, &mut body_str, Some(&cat_ctx));
+        let macro_fns = emit::emit_macro_functions(&body_children, &mut ctx, Some(&cat_ctx));
 
         // Drop Stmt.Extends nodes from the emitted body — they have already
         // been flattened. The emit_stmt above will still append a warning
@@ -301,12 +302,16 @@ pub fn precompile_catalog(
         let export_name = js_import_name(id);
         let code = build_module(
             &body_str,
+            &macro_fns,
             &entry_imports,
             Some(&id_to_deps),
             opts.strict_undefined,
             Some(&export_name),
         );
-        let origins = shift_origins(&ctx.origins, module_header_lines(entry_imports.len()));
+        let origins = shift_origins(
+            &ctx.origins,
+            module_header_lines(entry_imports.len(), macro_lines(&macro_fns)),
+        );
 
         diagnostics.extend(ctx.diagnostics);
 
@@ -351,12 +356,13 @@ pub fn precompile_catalog(
 /// `import` statements *after* the runtime import.
 pub(crate) fn build_module(
     body: &str,
+    macro_fns: &str,
     template_imports: &[String],
     _dep_map: Option<&HashMap<String, Vec<String>>>,
     strict_undefined: bool,
     export_name: Option<&str>,
 ) -> String {
-    let mut s = String::with_capacity(512 + body.len());
+    let mut s = String::with_capacity(512 + body.len() + macro_fns.len());
     s.push_str(&format!(
         "import {{ htmlEscape, applyFilter, isTruthy, binary, unary, valueToString, exprMember, exprIndex, callFunction, applyTest, runtimeError }} from \"{RUNTIME_IMPORT}\";\n"
     ));
@@ -365,6 +371,7 @@ pub(crate) fn build_module(
         s.push('\n');
     }
     s.push('\n');
+    s.push_str(macro_fns);
     s.push_str("export function render(ctx, options = {}) {\n");
     s.push_str("  if (!ctx || typeof ctx !== 'object') ctx = {};\n");
     // Build-time `strictUndefined` is the default; an explicit per-call value
@@ -398,10 +405,28 @@ pub(crate) fn build_module(
 ///
 /// Body lines map 1:1 onto module lines (empty body lines still occupy a line),
 /// so this offset is all a source map needs.
-fn module_header_lines(template_imports: usize) -> u32 {
-    // runtime import + template imports, blank, `export function render`, three
-    // prologue statements, blank.
-    u32::try_from(1 + template_imports + 1 + 4 + 1).unwrap_or(u32::MAX)
+fn module_header_lines(template_imports: usize, macro_lines: u32) -> u32 {
+    // runtime import + template imports, blank, macro functions,
+    // `export function render`, three prologue statements, blank.
+    u32::try_from(1 + template_imports + 1 + 4 + 1)
+        .unwrap_or(u32::MAX)
+        .saturating_add(macro_lines)
+}
+
+/// Lines occupied by the emitted macro function block.
+fn macro_lines(macro_fns: &str) -> u32 {
+    u32::try_from(macro_fns.lines().count()).unwrap_or(u32::MAX)
+}
+
+/// Names of the macros declared at the template top level.
+fn macro_names(children: &[IrNode]) -> Vec<String> {
+    children
+        .iter()
+        .filter_map(|n| match n {
+            IrNode::StmtMacro { name, .. } => Some(name.clone()),
+            _ => None,
+        })
+        .collect()
 }
 
 /// Move body-line origins to module-line positions.
@@ -565,7 +590,9 @@ fn collect_includes_from_nodes(
             }
             // Included templates inside a partial or block body are still real
             // module dependencies.
-            IrNode::StmtPartial { body, .. } | IrNode::StmtBlock { body, .. } => {
+            IrNode::StmtPartial { body, .. }
+            | IrNode::StmtMacro { body, .. }
+            | IrNode::StmtBlock { body, .. } => {
                 collect_includes_from_nodes(catalog, body, from_id, out);
             }
             IrNode::Template { children, .. } => {

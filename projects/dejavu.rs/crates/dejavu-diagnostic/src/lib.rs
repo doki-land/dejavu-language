@@ -346,6 +346,14 @@ pub mod codes {
     pub const CONTEXT_NOT_OBJECT: &str = "dejavu.template.context-not-object";
     pub const MISSING_PARAMETER: &str = "dejavu.template.missing-parameter";
     pub const UNKNOWN_PARAMETER: &str = "dejavu.template.unknown-parameter";
+    /// A macro was called with fewer arguments than required parameters.
+    pub const MISSING_MACRO_ARGUMENT: &str = "dejavu.template.missing-macro-argument";
+    /// A macro was called with too many arguments.
+    pub const MACRO_ARITY: &str = "dejavu.template.macro-arity";
+    /// A macro call exceeded the recursion limit.
+    pub const MACRO_RECURSION: &str = "dejavu.template.macro-recursion";
+    /// A macro name collides with a registered function.
+    pub const MACRO_CONFLICT: &str = "dejavu.template.macro-conflict";
     pub const UNKNOWN_BINARY: &str = "dejavu.template.unknown-binary";
 
     // Config

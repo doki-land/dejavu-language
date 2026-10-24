@@ -26,6 +26,7 @@ const CATALOG_SUITES = [
     join(BASE, "whitespace"),
     join(BASE, "include-context"),
     join(BASE, "partial-params"),
+    join(BASE, "macros"),
     join(BASE, "builtin-expressions"),
 ];
 /** Diagnostic suites: expected.ir.json + expected.diagnostics.json (`code` / `stage`). */

@@ -102,11 +102,35 @@ pub struct CodegenCtx<'a> {
     super_chain: Vec<Vec<IrNode>>,
     /// Index inside `super_chain` that the next `super` should inline.
     super_index: usize,
+    /// Names of the macros declared by the module being emitted.
+    pub macros: HashSet<String>,
+    /// JS expression for the next macro call's depth counter.
+    macro_depth_expr: String,
 }
 
 impl<'a> CodegenCtx<'a> {
     pub fn new(options: &'a CodegenOptions) -> Self {
-        Self { options, diagnostics: Vec::new(), origins: Vec::new(), temp_counter: 0, super_chain: Vec::new(), super_index: 0 }
+        Self {
+            options,
+            diagnostics: Vec::new(),
+            origins: Vec::new(),
+            temp_counter: 0,
+            super_chain: Vec::new(),
+            super_index: 0,
+            macros: HashSet::new(),
+            macro_depth_expr: "1".into(),
+        }
+    }
+
+    /// Register the module's macro names so calls emit macro functions instead
+    /// of registry function calls.
+    pub fn set_macros(&mut self, names: impl IntoIterator<Item = String>) {
+        self.macros = names.into_iter().collect();
+    }
+
+    /// Does `name` resolve to a macro in the module being emitted?
+    pub fn is_macro(&self, name: &str) -> bool {
+        self.macros.contains(name)
     }
 
     /// Return the next unique temp variable name (`__v`, `__v1`, `__v2`, ...).
@@ -308,6 +332,17 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
                 emit_expr_list(arguments, ctx);
                 return "null".into();
             };
+            // A macro in the same module wins over a registry function of the
+            // same name (the parser/renderer reject such a conflict at compile
+            // time, so this branch is unambiguous).
+            if ctx.is_macro(name) {
+                let args_s = emit_expr_list(arguments, ctx);
+                return format!(
+                    "{}(ctx, [{args_s}], {}, __strict)",
+                    macro_fn_name(name),
+                    ctx.macro_depth_expr
+                );
+            }
             let args_s = emit_expr_list(arguments, ctx);
             match validate_function(name, arguments.len()) {
                 Ok(spec) => format!(
@@ -944,6 +979,15 @@ fn analyze_interpolation(
     if raw {
         return (emit_expr(expression, ctx), false);
     }
+    // A macro returns markup it rendered itself, so its invocation is already
+    // safe output (the interpreter applies the same rule).
+    if let IrNode::ExprCall { callee, .. } = expression {
+        if let IrNode::ExprIdentifier { name, .. } = callee.as_ref() {
+            if ctx.is_macro(name) {
+                return (emit_expr(expression, ctx), false);
+            }
+        }
+    }
     match expression {
         IrNode::ExprPipe { filter, .. } => {
             // Only the outermost (final) filter decides escaping, via the
@@ -956,6 +1000,94 @@ fn analyze_interpolation(
         }
         _ => (emit_expr(expression, ctx), true),
     }
+}
+
+// ---------------------------------------------------------------------------
+// Macro functions
+// ---------------------------------------------------------------------------
+
+/// JS function name for a template macro.
+pub fn macro_fn_name(name: &str) -> String {
+    let mut safe: String = name
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' })
+        .collect();
+    if safe.is_empty() {
+        safe.push('_');
+    }
+    if safe.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+        safe.insert(0, '_');
+    }
+    format!("__macro_{safe}")
+}
+
+/// Emit one JS function per top-level macro declaration.
+///
+/// Macro functions live at module scope so declarations produce no output
+/// where they appear. Their body only sees the bound parameters (`ctx` is
+/// rebuilt from `args`), matching the interpreter's lexical isolation.
+pub fn emit_macro_functions(
+    children: &[IrNode],
+    ctx: &mut CodegenCtx,
+    catalog: Option<&CatalogEmitCtx<'_>>,
+) -> String {
+    let mut out = String::new();
+    let limit = dejavu_ir::render::MACRO_RECURSION_LIMIT;
+    for child in children {
+        let IrNode::StmtMacro { name, params, body, .. } = child else {
+            continue;
+        };
+        let required = params.iter().filter(|p| p.default.is_none()).count();
+        let max = params.len();
+        out.push_str(&format!("function {}(__caller, args, __depth, __strict) {{\n", macro_fn_name(name)));
+        if max > 0 {
+            out.push_str(&format!(
+                "if (args.length > {max}) throw runtimeError(\"dejavu.template.macro-arity\", {}, {{ macro: {}, minArgs: {required}, maxArgs: {max}, got: args.length }});\n",
+                json_string(&format!("macro `{name}` expects {required}..{max} argument(s)")),
+                json_string(name)
+            ));
+        }
+        for (i, param) in params.iter().enumerate() {
+            if param.default.is_none() {
+                out.push_str(&format!(
+                    "if (args.length <= {i}) throw runtimeError(\"dejavu.template.missing-macro-argument\", {}, {{ macro: {}, name: {} }});\n",
+                    json_string(&format!("macro `{name}` requires `{}`", param.name)),
+                    json_string(name),
+                    json_string(&param.name)
+                ));
+            }
+        }
+        out.push_str(&format!(
+            "if (__depth > {limit}) throw runtimeError(\"dejavu.template.macro-recursion\", {}, {{ macro: {}, limit: {limit} }});\n",
+            json_string(&format!("macro `{name}` exceeded the recursion limit")),
+            json_string(name)
+        ));
+
+        out.push_str("const ctx = {};\n");
+        for (i, param) in params.iter().enumerate() {
+            let value = match &param.default {
+                Some(IrNode::ExprLiteral { value, .. }) => emit_json_value(value),
+                _ => "undefined".into(),
+            };
+            out.push_str(&format!(
+                "ctx[{}] = args.length > {i} ? args[{i}] : {value};\n",
+                json_string(&param.name)
+            ));
+        }
+
+        let mut inner = CodegenCtx::new(ctx.options);
+        inner.macros = ctx.macros.clone();
+        inner.macro_depth_expr = "__depth + 1".into();
+        let mut body_str = String::new();
+        emit_body(body, &mut inner, &mut body_str, catalog);
+        ctx.diagnostics.extend(inner.diagnostics);
+
+        out.push_str("const __out = [];\n");
+        out.push_str(&body_str);
+        out.push_str("return __out.join(\"\");\n");
+        out.push_str("}\n\n");
+    }
+    out
 }
 
 // ---------------------------------------------------------------------------

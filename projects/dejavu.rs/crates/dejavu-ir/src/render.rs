@@ -1,8 +1,11 @@
 use crate::{IrError, codes, diag_load, diag_render};
 use crate::registry::{FilterCapability, FilterLookupError, validate_filter};
-use crate::types::{IrDocument, IrNode};
+use crate::types::{IrDocument, IrNode, PartialParam};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
+
+/// Maximum nested macro invocations before `dejavu.template.macro-recursion`.
+pub const MACRO_RECURSION_LIMIT: usize = 32;
 
 // ---------------------------------------------------------------------------
 // RenderOptions：宿主可选渲染参数（严格模式、依赖追踪等）
@@ -76,6 +79,8 @@ pub fn render_ir_opts(
         block_levels: Vec::new(),
         block_level: 0,
         current_block: None,
+        macro_modules: HashMap::new(),
+        macro_depth: 0,
         visiting_extends: HashSet::new(),
         include_stack: Vec::new(),
     };
@@ -97,16 +102,119 @@ struct Renderer<'a> {
     /// Which level's block body is being rendered (`super` looks one level up).
     block_level: usize,
     current_block: Option<String>,
+    /// Macros declared by each loaded template, keyed by canonical id.
+    macro_modules: HashMap<String, HashMap<String, MacroDef>>,
+    /// Current macro call nesting depth.
+    macro_depth: usize,
     /// extends 访问过的 canonical id（防止继承环）
     visiting_extends: HashSet<String>,
     /// include 递归栈（防止 include 环）
     include_stack: Vec<String>,
 }
 
+/// One template-local macro: name, declared parameters, and body.
+///
+/// `module` is the canonical id of the template that declared it. Macro
+/// bodies resolve names against that module's macro table, so an included
+/// template can never see the caller's macros.
+#[derive(Debug, Clone)]
+struct MacroDef {
+    name: String,
+    params: Vec<PartialParam>,
+    body: Vec<IrNode>,
+    module: String,
+}
+
 impl<'a> Renderer<'a> {
+    /// Register the macros declared at the top level of the current template.
+    ///
+    /// A macro whose name matches a registered function is rejected: calls
+    /// must have exactly one meaning across JIT and AOT.
+    fn register_module(&mut self, children: &[IrNode]) -> Result<(), IrError> {
+        let id = self.current_id.clone();
+        if self.macro_modules.contains_key(&id) {
+            return Ok(());
+        }
+        let mut table: HashMap<String, MacroDef> = HashMap::new();
+        for child in children {
+            if let IrNode::StmtMacro { name, params, body, .. } = child {
+                if crate::registry::function_spec(name).is_some() {
+                    return Err(diag_render(codes::MACRO_CONFLICT).arg("name", name.clone()));
+                }
+                table.insert(
+                    name.clone(),
+                    MacroDef { name: name.clone(), params: params.clone(), body: body.clone(), module: id.clone() },
+                );
+            }
+        }
+        self.macro_modules.insert(id, table);
+        Ok(())
+    }
+
+    fn lookup_macro(&self, name: &str) -> Option<MacroDef> {
+        self.macro_modules.get(&self.current_id).and_then(|table| table.get(name)).cloned()
+    }
+
+    /// Is this expression a macro invocation (whose output is safe HTML)?
+    fn is_macro_call(&self, expr: &IrNode) -> bool {
+        if let IrNode::ExprCall { callee, .. } = expr {
+            if let IrNode::ExprIdentifier { name, .. } = callee.as_ref() {
+                return self.macro_modules.get(&self.current_id).is_some_and(|t| t.contains_key(name));
+            }
+        }
+        false
+    }
+
+    /// Invoke a macro. The body sees its bound parameters only; the caller
+    /// context is never inherited.
+    fn call_macro(&mut self, mac: &MacroDef, args: &[Value]) -> Result<Value, IrError> {
+        if args.len() > mac.params.len() {
+            return Err(diag_render(codes::MACRO_ARITY)
+                .arg("macro", mac.name.clone())
+                .arg("minArgs", mac.params.iter().filter(|p| p.default.is_none()).count())
+                .arg("maxArgs", mac.params.len())
+                .arg("got", args.len()));
+        }
+        for (i, param) in mac.params.iter().enumerate() {
+            if i >= args.len() && param.default.is_none() {
+                return Err(diag_render(codes::MISSING_MACRO_ARGUMENT)
+                    .arg("macro", mac.name.clone())
+                    .arg("name", param.name.clone()));
+            }
+        }
+        if self.macro_depth >= MACRO_RECURSION_LIMIT {
+            return Err(diag_render(codes::MACRO_RECURSION)
+                .arg("macro", mac.name.clone())
+                .arg("limit", MACRO_RECURSION_LIMIT));
+        }
+
+        let mut scope = HashMap::new();
+        for (i, param) in mac.params.iter().enumerate() {
+            let value = match args.get(i) {
+                Some(v) => v.clone(),
+                None => match &param.default {
+                    Some(IrNode::ExprLiteral { value, .. }) => value.clone(),
+                    _ => Value::Null,
+                },
+            };
+            scope.insert(param.name.clone(), value);
+        }
+
+        let saved_scope = std::mem::take(&mut self.scope);
+        let saved_id = std::mem::replace(&mut self.current_id, mac.module.clone());
+        self.scope = scope;
+        self.macro_depth += 1;
+        let rendered = self.render_list(&mac.body).map(Value::String);
+        self.macro_depth -= 1;
+        self.scope = saved_scope;
+        self.current_id = saved_id;
+        rendered
+    }
+
     fn render_doc(&mut self, doc: &IrDocument) -> Result<String, IrError> {
         // 特殊处理 Template body：先收集 block 定义，处理 extends，再渲染。
         if let IrNode::Template { children, .. } = &doc.body {
+            self.register_module(children)?;
             let mut extends_path: Option<String> = None;
             let mut own_blocks: HashMap<String, Vec<IrNode>> = HashMap::new();
 
@@ -241,7 +349,7 @@ impl<'a> Renderer<'a> {
             IrNode::Interpolation { expression, raw, .. } => {
                 let v = self.eval(expression)?;
                 let s = value_to_string(&v);
-                let skip_escape = *raw || is_raw_filter(expression);
+                let skip_escape = *raw || is_raw_filter(expression) || self.is_macro_call(expression);
                 if skip_escape { Ok(s) } else { Ok(html_escape(&s)) }
             }
             IrNode::StmtIf { test, consequent, else_ifs, alternate, .. } => {
@@ -284,6 +392,9 @@ impl<'a> Renderer<'a> {
             // partial：参数绑定发生在 include 时（render_loaded）；直接渲染时
             // 就是渲染其 body。
             IrNode::StmtPartial { body, .. } => self.render_list(body),
+
+            // A macro declaration produces no output at its declaration site.
+            IrNode::StmtMacro { .. } => Ok(String::new()),
 
             // block：最派生的层级定义优先，没有覆盖时渲染自身 body。
             IrNode::StmtBlock { name, body, .. } => {
@@ -366,7 +477,7 @@ impl<'a> Renderer<'a> {
     // 表达式求值
     // ------------------------------------------------------------------
 
-    fn eval(&self, expr: &IrNode) -> Result<Value, IrError> {
+    fn eval(&mut self, expr: &IrNode) -> Result<Value, IrError> {
         match expr {
             IrNode::ExprLiteral { value, .. } => Ok(value.clone()),
             IrNode::ExprIdentifier { name, .. } => {
@@ -401,6 +512,10 @@ impl<'a> Renderer<'a> {
                 let IrNode::ExprIdentifier { name, .. } = callee.as_ref() else {
                     return Err(diag_render(codes::CALLS_NOT_SUPPORTED));
                 };
+                if let Some(mac) = self.lookup_macro(name) {
+                    let args: Result<Vec<_>, _> = arguments.iter().map(|a| self.eval(a)).collect();
+                    return self.call_macro(&mac, &args?);
+                }
                 let args: Result<Vec<_>, _> = arguments.iter().map(|a| self.eval(a)).collect();
                 crate::builtins::call_function(name, &args?)
             }

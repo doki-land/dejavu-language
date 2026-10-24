@@ -1,0 +1,1 @@
+<% macro card(title, suffix = "!") %><b><% title %><% suffix %></b><% end macro %><% macro icon(name) %><i><% name %></i><% end macro %><% card("Hi") %><% icon("star") %>
