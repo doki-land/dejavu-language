@@ -11,16 +11,40 @@ export async function fetchText(url) {
     return response.text();
 }
 
+/**
+ * Registry fixtures keep their descriptions in `meta.json` and their
+ * implementations in a module the realm imports by URL, which is the same
+ * shape a real host would pass to `renderIr`.
+ */
+async function loadRegistry(fixture) {
+    const meta = JSON.parse(await fetchText(fixture.metaUrl));
+    const module = await import(fixture.registryUrl);
+    return {
+        entries: meta.customRegistry ?? [],
+        filter: module.filter,
+        function: module["function"],
+        test: module.test,
+    };
+}
+
 export async function runFixtures(fixtures, api) {
     const results = [];
     for (const fixture of fixtures) {
         try {
             const context = JSON.parse(await fetchText(fixture.ctxUrl));
             const expected = await fetchText(fixture.expectedUrl);
-            const rendered =
-                fixture.kind === "source"
-                    ? api.renderSource({ source: await fetchText(fixture.sourceUrl), context })
-                    : api.renderIr({ ir: await fetchText(fixture.irUrl), context });
+            let rendered;
+            if (fixture.kind === "source") {
+                rendered = api.renderSource({ source: await fetchText(fixture.sourceUrl), context });
+            } else if (fixture.kind === "ir-registry") {
+                rendered = api.renderIr({
+                    ir: await fetchText(fixture.irUrl),
+                    context,
+                    registry: await loadRegistry(fixture),
+                });
+            } else {
+                rendered = api.renderIr({ ir: await fetchText(fixture.irUrl), context });
+            }
             const output = rendered.output ?? "";
             const diagnostics = rendered.diagnostics ?? [];
             results.push({

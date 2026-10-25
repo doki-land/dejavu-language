@@ -48,6 +48,7 @@ const GATE_IMAGE = Buffer.from("R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==
  */
 const SOURCE_FIXTURES = ["comment", "hello", "if_else", "loop_pipe", "member", "safe_raw"];
 const IR_FIXTURES = ["objects", "truthiness"];
+const REGISTRY_FIXTURES = ["custom-namespaces"];
 
 const MIME = new Map([
     [".html", "text/html; charset=utf-8"],
@@ -91,6 +92,32 @@ function buildFixtures() {
             kind: "ir",
             irUrl: `${base}/expected.ir.json`,
             ctxUrl: `${base}/context.ctx.json`,
+            expectedUrl: `${base}/expected.out.txt`,
+        });
+    }
+    return fixtures;
+}
+
+/**
+ * Registry fixtures render through the same `renderIr` entry but pass host
+ * callbacks, so the browser realms prove the wasm `js_sys` invocation path
+ * rather than a Rust-side substitute.
+ */
+function buildRegistryFixtures() {
+    const fixtures = [];
+    for (const name of REGISTRY_FIXTURES) {
+        const base = `/specifications/conformance/registry/${name}`;
+        const dir = join(ROOT, base);
+        for (const file of ["meta.json", "registry.mjs", "template.ir.json", "context.json", "expected.out.txt"]) {
+            requireFile(join(dir, file), "run the repository build before the browser smoke");
+        }
+        fixtures.push({
+            name: `registry/${name}`,
+            kind: "ir-registry",
+            metaUrl: `${base}/meta.json`,
+            registryUrl: `${base}/registry.mjs`,
+            irUrl: `${base}/template.ir.json`,
+            ctxUrl: `${base}/context.json`,
             expectedUrl: `${base}/expected.out.txt`,
         });
     }
@@ -282,7 +309,7 @@ function reportSection(label, section) {
 }
 
 async function main() {
-    const fixtures = buildFixtures();
+    const fixtures = [...buildFixtures(), ...buildRegistryFixtures()];
     requireFile(WASM_ENTRY, "build the wasm platform package before the browser smoke");
     const workerBridge = buildWorkerBridge();
     const browser = findBrowser();
