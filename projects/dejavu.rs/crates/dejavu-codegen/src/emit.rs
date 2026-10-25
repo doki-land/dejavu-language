@@ -869,7 +869,21 @@ fn emit_include(
             }
         }
     };
-    out.push_str(&format!("__out.push({binding}({context_expr}, options));\n"));
+    // A partial may recurse into itself to render nested data. The depth limit
+    // is the interpreter's constant, inlined here so both hosts share one bound.
+    // Non-partial targets keep passing the current depth through.
+    let depth = if target_is_partial {
+        let limit = dejavu_ir::render::PARTIAL_RECURSION_LIMIT;
+        out.push_str(&format!(
+            "if (__partialDepth >= {limit}) throw runtimeError(\"{}\", {}, {{ limit: {limit} }});\n",
+            codes::PARTIAL_RECURSION,
+            json_string("partial recursion exceeded the limit")
+        ));
+        "__partialDepth + 1"
+    } else {
+        "__partialDepth"
+    };
+    out.push_str(&format!("__out.push({binding}({context_expr}, options, {depth}));\n"));
 }
 
 fn emit_super(

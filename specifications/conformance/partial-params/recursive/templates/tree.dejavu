@@ -1,0 +1,1 @@
+<% partial node %><% node.name %><% if node.child %>(<% include "tree.dejavu" with { node: node.child } %>)<% end if %><% end partial %>

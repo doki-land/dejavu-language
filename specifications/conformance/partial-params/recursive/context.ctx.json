@@ -1,0 +1,12 @@
+{
+  "node": {
+    "name": "root",
+    "child": {
+      "name": "a",
+      "child": {
+        "name": "a1",
+        "child": { "name": "a1x" }
+      }
+    }
+  }
+}

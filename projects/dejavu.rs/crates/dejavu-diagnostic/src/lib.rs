@@ -356,6 +356,8 @@ pub mod codes {
     pub const MACRO_ARITY: &str = "dejavu.template.macro-arity";
     /// A macro call exceeded the recursion limit.
     pub const MACRO_RECURSION: &str = "dejavu.template.macro-recursion";
+    /// A `partial` template was entered recursively beyond the depth limit.
+    pub const PARTIAL_RECURSION: &str = "dejavu.template.partial-recursion";
     /// A macro name collides with a registered function.
     pub const MACRO_CONFLICT: &str = "dejavu.template.macro-conflict";
     /// `from ... import` requires a literal template path.

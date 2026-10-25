@@ -3,8 +3,8 @@
 use std::collections::HashMap;
 
 use dejavu_ir::{
-    IrDocument, IrError, ResolvedTemplate, TemplateLoader, codes, default_language, diag_load,
-    render_ir_with_loader,
+    IrDocument, IrError, ResolvedTemplate, Stage, TemplateLoader, codes, default_language,
+    diag_load, render_ir_with_loader,
 };
 use serde_json::Value;
 
@@ -21,13 +21,17 @@ fn text(value: &str) -> Value {
     serde_json::json!({ "type": "Text", "value": value })
 }
 
-fn interp(name: &str) -> Value {
+fn interp_expr(expression: Value) -> Value {
     serde_json::json!({
         "type": "Interpolation",
-        "expression": { "type": "Expr.Identifier", "name": name },
+        "expression": expression,
         "trim": "none",
         "raw": false,
     })
+}
+
+fn interp(name: &str) -> Value {
+    interp_expr(identifier(name))
 }
 
 fn include(path: &str, with: Option<Value>, only: bool) -> Value {
@@ -51,13 +55,74 @@ fn identifier(name: &str) -> Value {
     serde_json::json!({ "type": "Expr.Identifier", "name": name })
 }
 
+fn member(object: Value, property: &str) -> Value {
+    serde_json::json!({ "type": "Expr.Member", "object": object, "property": property })
+}
+
+fn object(entries: &[(&str, Value)]) -> Value {
+    let entries: Vec<Value> = entries
+        .iter()
+        .map(|(key, value)| serde_json::json!({ "key": key, "value": value }))
+        .collect();
+    serde_json::json!({ "type": "Expr.Object", "entries": entries })
+}
+
+fn stmt_if(test: Value, consequent: Vec<Value>) -> Value {
+    serde_json::json!({
+        "type": "Stmt.If",
+        "test": test,
+        "consequent": consequent,
+        "elseIfs": [],
+        "trim": "none",
+    })
+}
+
+fn stmt_partial(params: &[(&str, Option<Value>)], body: Vec<Value>) -> Value {
+    let params: Vec<Value> = params
+        .iter()
+        .map(|(name, default)| match default {
+            Some(default) => serde_json::json!({ "name": name, "default": default }),
+            None => serde_json::json!({ "name": name }),
+        })
+        .collect();
+    serde_json::json!({
+        "type": "Stmt.Partial",
+        "params": params,
+        "body": body,
+        "trim": "none",
+    })
+}
+
+/// A `partial node` that renders `node.name` and recurses into `node.child`.
+fn recursive_partial() -> IrDocument {
+    tpl(vec![stmt_partial(
+        &[("node", None)],
+        vec![
+            interp_expr(member(identifier("node"), "name")),
+            stmt_if(
+                member(identifier("node"), "child"),
+                vec![
+                    text("("),
+                    include(
+                        "tree",
+                        Some(object(&[("node", member(identifier("node"), "child"))])),
+                        false,
+                    ),
+                    text(")"),
+                ],
+            ),
+        ],
+    )])
+}
+
 struct InMemoryLoader {
     docs: HashMap<String, IrDocument>,
+    resolves: usize,
 }
 
 impl InMemoryLoader {
     fn new() -> Self {
-        Self { docs: HashMap::new() }
+        Self { docs: HashMap::new(), resolves: 0 }
     }
 
     fn insert(mut self, path: &str, doc: IrDocument) -> Self {
@@ -68,6 +133,7 @@ impl InMemoryLoader {
 
 impl TemplateLoader for InMemoryLoader {
     fn resolve(&mut self, ref_: &str, _from: Option<&str>) -> Result<ResolvedTemplate, IrError> {
+        self.resolves += 1;
         let doc = self
             .docs
             .get(ref_)
@@ -175,4 +241,67 @@ fn include_with_null_context_behaves_like_no_entries() {
 
     let out = render(&entry, serde_json::json!({ "name": "X" }), &mut loader).expect("render");
     assert_eq!(out, "X");
+}
+
+#[test]
+fn partial_reenters_itself_to_render_nested_data() {
+    let entry = tpl(vec![include(
+        "tree",
+        Some(object(&[("node", identifier("node"))])),
+        false,
+    )]);
+    let mut loader = InMemoryLoader::new().insert("tree", recursive_partial());
+
+    let ctx = serde_json::json!({
+        "node": {
+            "name": "root",
+            "child": { "name": "a", "child": { "name": "a1", "child": { "name": "a1x" } } }
+        }
+    });
+    let out = render(&entry, ctx, &mut loader).expect("render");
+    assert_eq!(out, "root(a(a1(a1x)))");
+}
+
+#[test]
+fn partial_recursion_limit_reports_render_diagnostic() {
+    // `partial node` that includes itself without any base case.
+    let looping = tpl(vec![stmt_partial(
+        &[("node", None)],
+        vec![include(
+            "loop",
+            Some(object(&[("node", identifier("node"))])),
+            false,
+        )],
+    )]);
+    let entry = tpl(vec![include(
+        "loop",
+        Some(object(&[("node", literal(serde_json::json!(1)))])),
+        false,
+    )]);
+    let mut loader = InMemoryLoader::new().insert("loop", looping);
+
+    let err = render(&entry, serde_json::json!({}), &mut loader).expect_err("unbounded recursion must fail");
+    match err {
+        IrError::Diagnostic(d) => {
+            assert_eq!(d.code, codes::PARTIAL_RECURSION);
+            assert_eq!(d.stage, Stage::Render);
+            assert_eq!(d.args.get("limit").cloned(), Some(32.0.into()));
+        }
+        other => panic!("expected diagnostic, got {other:?}"),
+    }
+}
+
+#[test]
+fn repeated_include_resolves_once_per_render() {
+    let entry = tpl(vec![
+        include("partial", None, false),
+        include("partial", None, false),
+        include("partial", None, false),
+    ]);
+    let partial = tpl(vec![text("x")]);
+    let mut loader = InMemoryLoader::new().insert("partial", partial);
+
+    let out = render(&entry, serde_json::json!({}), &mut loader).expect("render");
+    assert_eq!(out, "xxx");
+    assert_eq!(loader.resolves, 1, "same (ref, from) must resolve once");
 }

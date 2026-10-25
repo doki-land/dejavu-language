@@ -108,17 +108,18 @@ const __rt = {
   unary: (op, a) => { switch (op) { case '!': return !a; default: return null; } },
   exprMember: (o, p) => o == null ? null : o[p] ?? null,
   exprIndex: (a, i) => a == null ? null : a[i] ?? null,
-  runtimeError: (code, detail) => {
+  runtimeError: (code, detail, args) => {
     const err = new Error(detail ? `${code}: ${detail}` : code);
     err.code = code;
     err.stage = 'render';
+    err.args = args;
     return err;
   },
 };
 const { htmlEscape, applyFilter, isTruthy, binary, unary, valueToString, exprMember, exprIndex, runtimeError } = __rt;
 "#;
 
-fn run_modules_in_node(modules: &[dejavu_codegen::GeneratedModule], ctx_js: &str) -> Option<String> {
+fn stub_for(modules: &[dejavu_codegen::GeneratedModule]) -> Option<String> {
     let mut stub = NODE_STUB.to_string();
     for m in modules {
         let base = m.path.rsplit('/').next().unwrap_or(&m.path).trim_end_matches(".js");
@@ -154,13 +155,39 @@ fn run_modules_in_node(modules: &[dejavu_codegen::GeneratedModule], ctx_js: &str
             macro_bindings.join("\n"),
         ));
     }
+    Some(stub)
+}
+
+fn entry_var(modules: &[dejavu_codegen::GeneratedModule]) -> Option<String> {
     let entry = modules.first()?;
     let entry_base = entry.path.rsplit('/').next().unwrap_or(&entry.path).trim_end_matches(".js");
-    let entry_var = format!("__m_{entry_base}");
-    stub.push_str(&format!("console.log({entry_var}.render({ctx_js}, {{}}));" ));
+    Some(format!("__m_{entry_base}"))
+}
+
+fn run_modules_in_node(modules: &[dejavu_codegen::GeneratedModule], ctx_js: &str) -> Option<String> {
+    let mut stub = stub_for(modules)?;
+    let var = entry_var(modules)?;
+    stub.push_str(&format!("console.log({var}.render({ctx_js}, {{}}));" ));
     match std::process::Command::new("node").args(["-e", &stub]).output() {
         Ok(o) if o.status.success() => Some(String::from_utf8_lossy(&o.stdout).trim().to_string()),
         Ok(o) => { let stderr = String::from_utf8_lossy(&o.stderr); panic!("node fail: {stderr}"); }
+        Err(_) => { eprintln!("SKIP: node absent"); None }
+    }
+}
+
+/// Run the generated entry and capture a thrown render error as JSON.
+fn run_modules_capture_error(
+    modules: &[dejavu_codegen::GeneratedModule],
+    ctx_js: &str,
+) -> Option<String> {
+    let mut stub = stub_for(modules)?;
+    let var = entry_var(modules)?;
+    stub.push_str(&format!(
+        "try {{ console.log({var}.render({ctx_js}, {{}})); }} catch (e) {{ \
+         console.log(JSON.stringify({{ code: e.code, stage: e.stage, args: e.args }})); }}"
+    ));
+    match std::process::Command::new("node").args(["-e", &stub]).output() {
+        Ok(o) => Some(String::from_utf8_lossy(&o.stdout).trim().to_string()),
         Err(_) => { eprintln!("SKIP: node absent"); None }
     }
 }
@@ -415,6 +442,10 @@ fn obj(entries: Vec<(&str, Value)>) -> Value {
     json!({ "type": "Expr.Object", "entries": entries })
 }
 
+fn member(object: Value, property: &str) -> Value {
+    json!({ "type": "Expr.Member", "object": object, "property": property })
+}
+
 fn interp_pipe(filter: &str, arguments: Vec<Value>) -> Value {
     json!({
         "type": "Interpolation",
@@ -527,11 +558,125 @@ fn include_only_isolates_context_at_aot() {
     );
     assert!(errors(&res).is_empty(), "errors: {:?}", errors(&res));
     let r = round(&res.modules[0].code);
-    assert!(r.contains("({}, options)"), "code: {r}");
+    assert!(r.contains("({}, options, __partialDepth)"), "code: {r}");
 
     if let Some(out) = run_modules_in_node(&res.modules, "({name: 'X'})") {
         assert_eq!(out, "card:|X");
     }
+}
+
+// ---------------------------------------------------------------------------
+// 8b. Bounded `partial` self-recursion
+// ---------------------------------------------------------------------------
+
+/// `partial node` rendering `node.name` and recursing into `node.child`.
+fn recursive_tree_template() -> Value {
+    doc(vec![stmt_partial(
+        vec![param("node", None)],
+        vec![
+            interp(member(ident("node"), "name"), false),
+            stmt_if(
+                member(ident("node"), "child"),
+                vec![
+                    text("("),
+                    stmt_include_with(
+                        lit(json!("tree.dejavu")),
+                        Some(obj(vec![("node", member(ident("node"), "child"))])),
+                        false,
+                    ),
+                    text(")"),
+                ],
+                vec![],
+                None,
+            ),
+        ],
+    )])
+}
+
+#[test]
+fn partial_self_recursion_emits_a_local_call_not_an_import() {
+    let entry = doc(vec![stmt_include_with(
+        lit(json!("tree.dejavu")),
+        Some(obj(vec![("node", ident("node"))])),
+        false,
+    )]);
+    let res = compile_catalog(&[("index.dejavu", entry), ("tree.dejavu", recursive_tree_template())], "index.dejavu");
+    assert!(errors(&res).is_empty(), "errors: {:?}", errors(&res));
+
+    let tree = res
+        .modules
+        .iter()
+        .find(|m| m.path.contains("tree"))
+        .unwrap_or_else(|| panic!("missing tree module: {:?}", res.modules.iter().map(|m| &m.path).collect::<Vec<_>>()));
+    assert!(
+        !tree.code.lines().any(|line| line.starts_with("import ") && line.contains("./")),
+        "self-recursion must not self-import: {}",
+        tree.code
+    );
+    assert!(
+        round(&tree.code).contains("if (__partialDepth >= 32) throw runtimeError(\"dejavu.template.partial-recursion\""),
+        "code: {}",
+        tree.code
+    );
+
+    let ctx = "({node: {name: 'root', child: {name: 'a', child: {name: 'a1', child: {name: 'a1x'}}}}})";
+    if let Some(out) = run_modules_in_node(&res.modules, ctx) {
+        assert_eq!(out, "root(a(a1(a1x)))");
+    }
+}
+
+#[test]
+fn partial_recursion_limit_is_a_render_runtime_diagnostic_at_aot() {
+    let looping = doc(vec![stmt_partial(
+        vec![param("node", None)],
+        vec![stmt_include_with(
+            lit(json!("loop.dejavu")),
+            Some(obj(vec![("node", ident("node"))])),
+            false,
+        )],
+    )]);
+    let entry = doc(vec![stmt_include_with(
+        lit(json!("loop.dejavu")),
+        Some(obj(vec![("node", lit(json!(1)))])),
+        false,
+    )]);
+    let res = compile_catalog(&[("index.dejavu", entry), ("loop.dejavu", looping)], "index.dejavu");
+    assert!(errors(&res).is_empty(), "errors: {:?}", errors(&res));
+
+    let loop_mod = res.modules.iter().find(|m| m.path.contains("loop")).expect("loop module");
+    let code = round(&loop_mod.code);
+    assert!(code.contains("limit: 32"), "code: {code}");
+    assert!(
+        code.contains("throw runtimeError(\"dejavu.template.partial-recursion\""),
+        "code: {code}"
+    );
+
+    if let Some(raw) = run_modules_capture_error(&res.modules, "({})") {
+        let error: Value = serde_json::from_str(&raw).expect("captured error json");
+        assert_eq!(error["code"], json!("dejavu.template.partial-recursion"));
+        assert_eq!(error["stage"], json!("render"));
+        assert_eq!(error["args"]["limit"], json!(32));
+    }
+}
+
+#[test]
+fn include_cycle_through_a_non_partial_template_is_still_rejected() {
+    let a = doc(vec![stmt_partial(
+        vec![param("node", None)],
+        vec![stmt_include(lit(json!("b.dejavu")))],
+    )]);
+    let b = doc(vec![stmt_include(lit(json!("a.dejavu")))]);
+    let entry = doc(vec![stmt_include_with(
+        lit(json!("a.dejavu")),
+        Some(obj(vec![("node", ident("node"))])),
+        false,
+    )]);
+    let res = compile_catalog(&[("index.dejavu", entry), ("a.dejavu", a), ("b.dejavu", b)], "index.dejavu");
+    let diag = errors(&res)
+        .into_iter()
+        .find(|d| d.code == dejavu_diagnostic::codes::CIRCULAR_INCLUDE)
+        .unwrap_or_else(|| panic!("errors: {:?}", errors(&res)));
+    assert_eq!(diag.stage, dejavu_diagnostic::Stage::Load);
 }
 
 // ---------------------------------------------------------------------------

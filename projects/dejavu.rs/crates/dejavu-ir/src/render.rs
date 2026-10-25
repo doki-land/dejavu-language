@@ -1,11 +1,19 @@
-use crate::{IrError, codes, diag_load, diag_render};
+use crate::{Diagnostic, IrError, codes, diag_load, diag_render};
 use crate::registry::{Capability, CapabilitySet, FilterLookupError, validate_filter};
 use crate::types::{IrDocument, IrNode, PartialParam};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 
 /// Maximum nested macro invocations before `dejavu.template.macro-recursion`.
 pub const MACRO_RECURSION_LIMIT: usize = 32;
+
+/// Maximum nested `partial` entries before `dejavu.template.partial-recursion`.
+///
+/// A template declared as `partial <params>` may include itself (directly or
+/// through other partials) to render nested data. This is the single source of
+/// truth for that bound; AOT codegen inlines the same number.
+pub const PARTIAL_RECURSION_LIMIT: usize = 32;
 
 // ---------------------------------------------------------------------------
 // RenderOptions：宿主可选渲染参数（严格模式、依赖追踪等）
@@ -88,6 +96,8 @@ pub fn render_ir_opts(
         caller_stack: Vec::new(),
         visiting_extends: HashSet::new(),
         include_stack: Vec::new(),
+        partial_depth: 0,
+        resolved: HashMap::new(),
     };
     r.render_doc(doc)
 }
@@ -118,8 +128,23 @@ struct Renderer<'a> {
     caller_stack: Vec<CallerBlock>,
     /// extends 访问过的 canonical id（防止继承环）
     visiting_extends: HashSet<String>,
-    /// include 递归栈（防止 include 环）
+    /// include 递归栈（防止非 partial 的 include 环）
     include_stack: Vec<String>,
+    /// 当前已经进入的 partial 层数（`dejavu.template.partial-recursion` 依据）。
+    partial_depth: usize,
+    /// 本次渲染内 `(ref, from)` → 已解析模板。
+    ///
+    /// Key 包含调用方 canonical id，因为相对路径解析依赖它。缓存只在单次
+    /// `render_ir_opts` 内有效，跨调用不复用；文档以 `Rc` 共享，重复 include
+    /// 不再重复克隆 IR。
+    resolved: HashMap<(String, Option<String>), Result<Resolved, Diagnostic>>,
+}
+
+/// 缓存中的已解析模板：canonical id + 共享文档。
+#[derive(Debug, Clone)]
+struct Resolved {
+    id: String,
+    document: Rc<IrDocument>,
 }
 
 /// One template-local macro: name, declared parameters, and body.
@@ -145,6 +170,42 @@ struct CallerBlock {
 }
 
 impl<'a> Renderer<'a> {
+    /// Resolve a template through the loader, memoized for this render.
+    ///
+    /// The key is `(ref, from)` because relative resolution depends on the
+    /// caller. Both successes and structured failures are cached, so a repeated
+    /// failing include reproduces the same diagnostic without re-resolving.
+    fn resolve_template(
+        &mut self,
+        path: &str,
+        from: &str,
+        feature: &str,
+    ) -> Result<Resolved, IrError> {
+        let key = (path.to_string(), Some(from.to_string()));
+        if let Some(cached) = self.resolved.get(&key) {
+            return match cached {
+                Ok(resolved) => Ok(resolved.clone()),
+                Err(diagnostic) => Err(IrError::Diagnostic(diagnostic.clone())),
+            };
+        }
+        let result = match self.loader.as_deref_mut() {
+            Some(loader) => loader.resolve(path, Some(from)),
+            None => Err(diag_load(codes::MISSING_LOADER).arg("feature", feature)),
+        };
+        match result {
+            Ok(template) => {
+                let resolved = Resolved { id: template.id, document: Rc::new(template.document) };
+                self.resolved.insert(key, Ok(resolved.clone()));
+                Ok(resolved)
+            }
+            Err(IrError::Diagnostic(diagnostic)) => {
+                self.resolved.insert(key, Err(diagnostic.clone()));
+                Err(IrError::Diagnostic(diagnostic))
+            }
+            Err(other) => Err(other),
+        }
+    }
+
     /// Register the macros declared at the top level of the current template.
     ///
     /// A macro whose name matches a registered function is rejected: calls
@@ -189,13 +250,7 @@ impl<'a> Renderer<'a> {
                 IrNode::ExprLiteral { value: Value::String(s), .. } => s.clone(),
                 _ => return Err(diag_render(codes::IMPORT_PATH_NOT_LITERAL)),
             };
-            let target = {
-                let loader = self
-                    .loader
-                    .as_deref_mut()
-                    .ok_or_else(|| diag_load(codes::MISSING_LOADER).arg("feature", "import"))?;
-                loader.resolve(&path_str, Some(id))?
-            };
+            let target = self.resolve_template(&path_str, id, "import")?;
             self.register_document(&target.id, &target.document)?;
             let target_table = self.macro_modules.get(&target.id).cloned().unwrap_or_default();
             for spec in names {
@@ -342,11 +397,8 @@ impl<'a> Renderer<'a> {
             self.block_levels.push(own_blocks);
 
             if let Some(parent_str) = extends_path {
-                let loader = self
-                    .loader
-                    .as_deref_mut()
-                    .ok_or_else(|| diag_load(codes::MISSING_LOADER).arg("feature", "extends"))?;
-                let parent = loader.resolve(&parent_str, Some(&self.current_id))?;
+                let from = self.current_id.clone();
+                let parent = self.resolve_template(&parent_str, &from, "extends")?;
 
                 // canonical id 层面的循环检测
                 if self.visiting_extends.contains(&parent.id) {
@@ -387,28 +439,36 @@ impl<'a> Renderer<'a> {
             return Err(diag_render(codes::CONTEXT_NOT_OBJECT).arg("got", json_kind(other)));
         }
 
-        let loader = self
-            .loader
-            .as_deref_mut()
-            .ok_or_else(|| diag_load(codes::MISSING_LOADER).arg("feature", feature))?;
-        let child = loader.resolve(path, Some(&self.current_id))?;
+        let from = self.current_id.clone();
+        let child = self.resolve_template(path, &from, feature)?;
 
         // A template declared as `partial <params>` binds exactly its declared
         // parameters; it never inherits the caller's context.
         let partial = partial_parts(&child.document.body);
+
+        // A partial may re-enter itself to render nested data. The recursion is
+        // bounded so unbounded data fails with one stable diagnostic instead of
+        // overflowing the stack. Non-partial includes keep the hard cycle error.
+        if partial.is_some() {
+            if self.partial_depth >= PARTIAL_RECURSION_LIMIT {
+                return Err(diag_render(codes::PARTIAL_RECURSION).arg("limit", PARTIAL_RECURSION_LIMIT));
+            }
+        } else if self.include_stack.contains(&child.id) {
+            let mut chain = self.include_stack.clone();
+            chain.push(child.id);
+            return Err(diag_load(codes::CIRCULAR_INCLUDE).arg("chain", chain.join(" -> ")));
+        }
+
         let bound_scope = match partial {
             Some((params, _)) => Some(bind_partial(params, with)?),
             None => None,
         };
 
-        // include 循环检测（canonical id 栈 — 能覆盖 A include B include A 的双向环）
-        if self.include_stack.contains(&child.id) {
-            let mut chain = self.include_stack.clone();
-            chain.push(child.id);
-            return Err(diag_load(codes::CIRCULAR_INCLUDE)
-                .arg("chain", chain.join(" -> ")));
-        }
+        // include 循环栈（canonical id 栈 — 能覆盖 A include B include A 的双向环）
         self.include_stack.push(child.id.clone());
+        if partial.is_some() {
+            self.partial_depth += 1;
+        }
         // 保存当前模板的上下文，让被 include 模板的继承链独立解析
         let saved_id = std::mem::take(&mut self.current_id);
         let saved_blocks = std::mem::take(&mut self.block_levels);
@@ -441,6 +501,9 @@ impl<'a> Renderer<'a> {
 
         // 恢复当前模板上下文
         self.include_stack.pop();
+        if partial.is_some() {
+            self.partial_depth -= 1;
+        }
         self.current_id = saved_id;
         self.block_levels = saved_blocks;
         self.block_level = saved_block_level;

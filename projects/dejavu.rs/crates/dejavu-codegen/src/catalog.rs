@@ -195,6 +195,13 @@ fn detect_cycle_inner(
     for (next, kind) in collect_edges(catalog, id, false) {
         if state.get(&next).copied() == Some(CycleState::Visiting) {
             if let Some(kind) = kind {
+                // A cycle made only of `partial` templates is bounded recursion
+                // at render time (`dejavu.template.partial-recursion`), not a
+                // build error. Any non-partial member keeps the hard rejection,
+                // matching the interpreter. `extends` cycles never qualify.
+                if kind == EdgeKind::Include && cycle_is_partial(catalog, &next, path) {
+                    continue;
+                }
                 return Err(circular_diagnostic(kind, &next, path));
             }
             continue;
@@ -205,6 +212,25 @@ fn detect_cycle_inner(
     path.pop();
     state.insert(id.to_string(), CycleState::Done);
     Ok(())
+}
+
+/// Is this template declared as `partial <params>`?
+///
+/// The declaration must be a direct child of the template body, matching how
+/// the parser and the interpreter identify a partial.
+pub(crate) fn is_partial_template(catalog: &TemplateCatalog, id: &str) -> bool {
+    let Some((root_name, path)) = split_canonical(id) else { return false };
+    let Some(doc) = catalog_document(catalog, root_name, path) else { return false };
+    matches!(
+        &doc.body,
+        IrNode::Template { children, .. } if children.iter().any(|n| matches!(n, IrNode::StmtPartial { .. }))
+    )
+}
+
+/// Does the cycle closed by `target` consist solely of partial templates?
+fn cycle_is_partial(catalog: &TemplateCatalog, target: &str, path: &[String]) -> bool {
+    let start = path.iter().position(|id| id == target).unwrap_or(0);
+    path[start..].iter().all(|id| is_partial_template(catalog, id))
 }
 
 /// Build the load-stage cycle diagnostic for the edge that closes the cycle.

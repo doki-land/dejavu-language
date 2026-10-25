@@ -193,10 +193,8 @@ pub fn precompile_catalog(
     // 2b. Which reachable templates declare `partial <params>`?
     let mut partial_ids: HashSet<String> = HashSet::new();
     for id in &reachable {
-        if let Some(doc) = catalog_document(&catalog, id) {
-            if declares_partial(&doc.body) {
-                partial_ids.insert(id.clone());
-            }
+        if crate::catalog::is_partial_template(&catalog, id) {
+            partial_ids.insert(id.clone());
         }
     }
 
@@ -557,7 +555,7 @@ pub(crate) fn build_module(
     }
     s.push('\n');
     s.push_str(macro_fns);
-    s.push_str("export function render(ctx, options = {}) {\n");
+    s.push_str("export function render(ctx, options = {}, __partialDepth = 0) {\n");
     s.push_str("  if (!ctx || typeof ctx !== 'object') ctx = {};\n");
     // Build-time `strictUndefined` is the default; an explicit per-call value
     // overrides it.
@@ -782,6 +780,11 @@ fn build_import_lines(
         _ => "",
     };
     for dep_id in dependencies {
+        // A partial that includes itself is recursion, not a module edge. The
+        // module already binds its own `__tmpl_` alias, so no import is needed.
+        if dep_id == current_id {
+            continue;
+        }
         let Some(Value::String(target_path)) = id_to_path.get(dep_id) else { continue; };
         let binding = js_import_name(dep_id);
         let rel = relative_import_path(current_path, target_path);
@@ -857,16 +860,6 @@ fn catalog_document<'a>(catalog: &'a TemplateCatalog, id: &str) -> Option<&'a Ir
         }
     }
     None
-}
-
-/// Does this template body declare a top-level `partial`?
-fn declares_partial(body: &IrNode) -> bool {
-    match body {
-        IrNode::Template { children, .. } => {
-            children.iter().any(|n| matches!(n, IrNode::StmtPartial { .. }))
-        }
-        _ => false,
-    }
 }
 
 /// Walk document children collecting every `Stmt.Include` path literal
