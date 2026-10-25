@@ -45,19 +45,25 @@ type NativeEngine = {
         diagnostics: NativeDiagnostic[];
     };
     normalizeIr(request: { ir: string }): { ir?: string; diagnostics: NativeDiagnostic[] };
-    renderIr(request: {
-        ir: string;
-        context: string;
-        options?: string;
-        catalog?: string;
-    }): { output?: string; diagnostics: NativeDiagnostic[] };
-    renderSource(request: {
-        source: string;
-        context: string;
-        options?: string;
-        catalog?: string;
-        delimiters?: string;
-    }): { output?: string; diagnostics: NativeDiagnostic[] };
+    renderIr(
+        request: {
+            ir: string;
+            context: string;
+            options?: string;
+            catalog?: string;
+        },
+        registry?: object,
+    ): { output?: string; diagnostics: NativeDiagnostic[] };
+    renderSource(
+        request: {
+            source: string;
+            context: string;
+            options?: string;
+            catalog?: string;
+            delimiters?: string;
+        },
+        registry?: object,
+    ): { output?: string; diagnostics: NativeDiagnostic[] };
     resolveTemplateRef(request: {
         reference: string;
         from?: string;
@@ -116,7 +122,7 @@ type NativeGeneratedOrigin = {
 // ---------------------------------------------------------------------------
 
 /** Binding contract version this facade is written against. */
-export const BINDING_CONTRACT = "dejavu.napi/2";
+export const BINDING_CONTRACT = "dejavu.napi/3";
 
 const PLATFORM_PACKAGES: Record<string, string> = {
     "linux-x64": "@doki-land/dejavu-linux-x64",
@@ -275,11 +281,14 @@ export function renderIr(
     options: RenderOptions = {},
 ): string {
     const native = loadNative();
-    const response = native.renderIr({
-        ir: irJson,
-        context: JSON.stringify(ctx),
-        options: JSON.stringify(toWireRenderOptions(options)),
-    });
+    const response = native.renderIr(
+        {
+            ir: irJson,
+            context: JSON.stringify(ctx),
+            options: JSON.stringify(toWireRenderOptions(options)),
+        },
+        options.custom,
+    );
     throwRenderDiagnostics(response.diagnostics, options);
     return response.output ?? "";
 }
@@ -291,13 +300,16 @@ export function renderSource(
     options: RenderOptions & { delimiters?: string; catalog?: string } = {},
 ): string {
     const native = loadNative();
-    const response = native.renderSource({
-        source,
-        context: JSON.stringify(ctx),
-        options: JSON.stringify(toWireRenderOptions(options)),
-        ...(options.delimiters ? { delimiters: options.delimiters } : {}),
-        ...(options.catalog ? { catalog: options.catalog } : {}),
-    });
+    const response = native.renderSource(
+        {
+            source,
+            context: JSON.stringify(ctx),
+            options: JSON.stringify(toWireRenderOptions(options)),
+            ...(options.delimiters ? { delimiters: options.delimiters } : {}),
+            ...(options.catalog ? { catalog: options.catalog } : {}),
+        },
+        options.custom,
+    );
     throwRenderDiagnostics(response.diagnostics, options);
     return response.output ?? "";
 }

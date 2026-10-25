@@ -63,6 +63,12 @@ export type RenderOptions = {
     onDiagnostic?: (d: Diagnostic) => void;
     /** Optional onDependency callback for observing resolved include/extends. */
     onDependency?: (id: string) => void;
+    /**
+     * Host-supplied registry for JIT renders. Entries are validated once per
+     * render; implementations run synchronously and may throw, which becomes
+     * `dejavu.template.custom-invocation`.
+     */
+    custom?: CustomRegistry;
 };
 
 /** Options accepted by `parse`. */
@@ -94,7 +100,30 @@ export type CustomEntryWire = {
     aliases?: string[];
     minArgs?: number;
     maxArgs?: number;
-    capability: CustomEntryCapability;
+    capability?: CustomEntryCapability;
+};
+
+/** Host implementation of a custom `filter`: `(value, args) => value`. */
+export type CustomFilter = (value: unknown, args: unknown[]) => unknown;
+
+/** Host implementation of a custom `function`: `(args) => value`. */
+export type CustomFunction = (args: unknown[]) => unknown;
+
+/** Host implementation of a custom `test`: `(value, args) => boolean`. */
+export type CustomTest = (value: unknown, args: unknown[]) => boolean;
+
+/**
+ * Host-supplied registry for a JIT render.
+ *
+ * Descriptions use {@link CustomEntryWire} so the same conflict, arity and
+ * capability rules as AOT codegen apply. Implementations are keyed by canonical
+ * name; aliases never reach them.
+ */
+export type CustomRegistry = {
+    entries: CustomEntryWire[];
+    filter?: Record<string, CustomFilter>;
+    function?: Record<string, CustomFunction>;
+    test?: Record<string, CustomTest>;
 };
 
 /** Options accepted by `precompile`. */

@@ -15,16 +15,18 @@
 use std::collections::BTreeMap;
 
 use dejavu_diagnostic::{Diagnostic, Severity, Stage, codes};
-use dejavu_ir::registry::CapabilitySet;
+use dejavu_ir::registry::{CapabilitySet, CustomEntry, Namespace};
 use dejavu_ir::{
-    CatalogRoot, IrDocument, IrError, RenderOptions, ResolveRoot, TemplateCatalog, TemplateLoader, render_ir_opts, resolve_ref,
+    CatalogRoot, CustomError, CustomRegistry, IrDocument, IrError, RenderOptions, ResolveRoot, TemplateCatalog,
+    TemplateLoader, render_ir_opts, resolve_ref,
 };
+use napi::bindgen_prelude::{Env, FnArgs, Function, Object, Unknown};
 use napi_derive::napi;
 use serde::Deserialize;
 use serde_json::Value;
 
 /// 绑定合同标识。
-pub const BINDING_CONTRACT: &str = "dejavu.napi/2";
+pub const BINDING_CONTRACT: &str = "dejavu.napi/3";
 
 /// path-v1 默认扩展名表（与 catalog loader 一致）。
 const DEFAULT_EXTENSIONS: [&str; 4] = ["", ".html", ".doki", ".dejavu"];
@@ -311,17 +313,29 @@ pub fn normalize_ir(request: NormalizeRequest) -> IrResponse {
 
 /// 渲染 IR JSON。
 #[napi(js_name = "renderIr")]
-pub fn render_ir_api(request: RenderRequest) -> RenderResponse {
+pub fn render_ir_api(env: Env, request: RenderRequest, registry: Option<Object>) -> RenderResponse {
     let document = match serde_json::from_str::<IrDocument>(&request.ir) {
         Ok(document) => document,
         Err(error) => return RenderResponse { output: None, diagnostics: vec![to_js(&json_diag(error.to_string()))] },
     };
-    render_document(&document, &request.context, request.options.as_deref(), request.catalog.as_deref())
+    let registry = match JsCustomRegistry::from_object(&env, registry) {
+        Ok(registry) => registry,
+        Err(diagnostic) => {
+            return RenderResponse { output: None, diagnostics: vec![to_js(&diagnostic)] };
+        }
+    };
+    render_document(
+        &document,
+        &request.context,
+        request.options.as_deref(),
+        request.catalog.as_deref(),
+        registry.as_ref().map(|registry| registry as &dyn CustomRegistry),
+    )
 }
 
 /// 解析并渲染模板源码。
 #[napi(js_name = "renderSource")]
-pub fn render_source_api(request: RenderSourceRequest) -> RenderResponse {
+pub fn render_source_api(env: Env, request: RenderSourceRequest, registry: Option<Object>) -> RenderResponse {
     let language = request
         .delimiters
         .as_deref()
@@ -340,7 +354,19 @@ pub fn render_source_api(request: RenderSourceRequest) -> RenderResponse {
             return RenderResponse { output: None, diagnostics: vec![to_js(&dejavu_engine::parse_error_diagnostic(error))] };
         }
     };
-    render_document(&document, &request.context, request.options.as_deref(), request.catalog.as_deref())
+    let registry = match JsCustomRegistry::from_object(&env, registry) {
+        Ok(registry) => registry,
+        Err(diagnostic) => {
+            return RenderResponse { output: None, diagnostics: vec![to_js(&diagnostic)] };
+        }
+    };
+    render_document(
+        &document,
+        &request.context,
+        request.options.as_deref(),
+        request.catalog.as_deref(),
+        registry.as_ref().map(|registry| registry as &dyn CustomRegistry),
+    )
 }
 
 /// 纯 path-v1 引用解析：不读文件、不解析模板。
@@ -462,7 +488,132 @@ struct CatalogRootSpec {
     base_path: Option<String>,
 }
 
-fn render_document(document: &IrDocument, context: &str, options: Option<&str>, catalog: Option<&str>) -> RenderResponse {
+// ---------------------------------------------------------------------------
+// JS registry adapter
+// ---------------------------------------------------------------------------
+
+/// Host-supplied registry passed as the optional `registry` argument.
+///
+/// Shape: `{ entries: CustomEntry[], filter?: {name: fn}, function?: {name: fn},
+/// test?: {name: fn} }`, identical to the WASM bridge. Implementations run
+/// synchronously on the calling JS thread; a thrown exception becomes
+/// `dejavu.template.custom-invocation` so the render can still report a
+/// structured diagnostic instead of unwinding Node.
+struct JsCustomRegistry<'env> {
+    env: Env,
+    entries: Vec<CustomEntry>,
+    filter: Option<Object<'env>>,
+    function: Option<Object<'env>>,
+    test: Option<Object<'env>>,
+}
+
+impl<'env> JsCustomRegistry<'env> {
+    fn from_object(env: &Env, registry: Option<Object<'env>>) -> Result<Option<Self>, Diagnostic> {
+        let Some(registry) = registry else { return Ok(None) };
+        let entries: Vec<CustomEntry> = match registry.get::<Unknown<'env>>("entries").map_err(napi_diag)? {
+            Some(value) => env
+                .from_js_value::<Vec<CustomEntry>, _>(value)
+                .map_err(|error| json_diag(format!("invalid registry entries: {}", error.reason)))?,
+            None => Vec::new(),
+        };
+        Ok(Some(Self {
+            env: *env,
+            entries,
+            filter: registry.get("filter").map_err(napi_diag)?,
+            function: registry.get("function").map_err(napi_diag)?,
+            test: registry.get("test").map_err(napi_diag)?,
+        }))
+    }
+
+    fn namespace(&self, namespace: Namespace) -> Result<&Object<'env>, CustomError> {
+        let object = match namespace {
+            Namespace::Filter => self.filter.as_ref(),
+            Namespace::Function => self.function.as_ref(),
+            Namespace::Test => self.test.as_ref(),
+        };
+        object.ok_or_else(|| {
+            CustomError::new(format!("host registry has no `{}` implementations", namespace.as_str()))
+        })
+    }
+
+    fn missing(name: &str) -> CustomError {
+        CustomError::new(format!("host registry has no `{name}` implementation"))
+    }
+
+    fn values_to_js(&self, values: &[Value]) -> Result<Unknown<'env>, CustomError> {
+        let array = Value::Array(values.to_vec());
+        self.env.to_js_value(&array).map_err(|error| CustomError::new(error.reason))
+    }
+
+    fn js_to_value(&self, value: Unknown<'env>) -> Result<Value, CustomError> {
+        self.env.from_js_value::<Value, _>(value).map_err(|error| CustomError::new(error.reason))
+    }
+
+    fn call_with_two(
+        &self,
+        namespace: Namespace,
+        name: &str,
+        first: Unknown<'env>,
+        second: Unknown<'env>,
+    ) -> Result<Unknown<'env>, CustomError> {
+        let object = self.namespace(namespace)?;
+        let function = object
+            .get::<Function<'env, FnArgs<(Unknown<'env>, Unknown<'env>)>, Unknown<'env>>>(name)
+            .map_err(|error| CustomError::new(error.reason))?
+            .ok_or_else(|| Self::missing(name))?;
+        function.call(FnArgs::from((first, second))).map_err(|error| CustomError::new(error.reason))
+    }
+
+    fn call_with_one(
+        &self,
+        namespace: Namespace,
+        name: &str,
+        argument: Unknown<'env>,
+    ) -> Result<Unknown<'env>, CustomError> {
+        let object = self.namespace(namespace)?;
+        let function = object
+            .get::<Function<'env, FnArgs<(Unknown<'env>,)>, Unknown<'env>>>(name)
+            .map_err(|error| CustomError::new(error.reason))?
+            .ok_or_else(|| Self::missing(name))?;
+        function.call(FnArgs::from((argument,))).map_err(|error| CustomError::new(error.reason))
+    }
+}
+
+impl<'env> CustomRegistry for JsCustomRegistry<'env> {
+    fn entries(&self) -> &[CustomEntry] {
+        &self.entries
+    }
+
+    fn apply_filter(&self, name: &str, value: &Value, args: &[Value]) -> Result<Value, CustomError> {
+        let first = self.env.to_js_value(value).map_err(|error| CustomError::new(error.reason))?;
+        let second = self.values_to_js(args)?;
+        self.js_to_value(self.call_with_two(Namespace::Filter, name, first, second)?)
+    }
+
+    fn call_function(&self, name: &str, args: &[Value]) -> Result<Value, CustomError> {
+        let argument = self.values_to_js(args)?;
+        self.js_to_value(self.call_with_one(Namespace::Function, name, argument)?)
+    }
+
+    fn apply_test(&self, name: &str, value: &Value, args: &[Value]) -> Result<bool, CustomError> {
+        let first = self.env.to_js_value(value).map_err(|error| CustomError::new(error.reason))?;
+        let second = self.values_to_js(args)?;
+        let result = self.call_with_two(Namespace::Test, name, first, second)?;
+        self.env.from_js_value::<bool, _>(result).map_err(|error| CustomError::new(error.reason))
+    }
+}
+
+fn napi_diag(error: napi::Error) -> Diagnostic {
+    json_diag(error.reason)
+}
+
+fn render_document(
+    document: &IrDocument,
+    context: &str,
+    options: Option<&str>,
+    catalog: Option<&str>,
+    custom: Option<&dyn CustomRegistry>,
+) -> RenderResponse {
     let context: Value = match serde_json::from_str(context) {
         Ok(value) => value,
         Err(error) => return RenderResponse { output: None, diagnostics: vec![to_js(&json_diag(error.to_string()))] },
@@ -495,7 +646,7 @@ fn render_document(document: &IrDocument, context: &str, options: Option<&str>, 
         },
         None => CapabilitySet::all(),
     };
-    let options = RenderOptions { strict_undefined: wire.strict, name: wire.name, capabilities, custom: None };
+    let options = RenderOptions { strict_undefined: wire.strict, name: wire.name, capabilities, custom };
     let mut loader_state = catalog_state.as_ref().map(dejavu_ir::CatalogLoader::new);
     let loader: Option<&mut dyn TemplateLoader> = match loader_state.as_mut() {
         Some(loader) => Some(loader),

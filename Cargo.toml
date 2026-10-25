@@ -55,7 +55,7 @@ num = "0.4.3"
 bigdecimal = "0.4.10"
 unicode-ident = "1.0.24"
 miette = "7"
-napi = { version = "3.12.1", default-features = true, features = ["napi4"] }
+napi = { version = "3.12.1", default-features = true, features = ["napi4", "serde-json"] }
 napi-derive = "3.6.3"
 
 dejavu = { path = "projects/dejavu.rs/crates/dejavu", version = "0.0.2" }
