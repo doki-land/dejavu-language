@@ -21,6 +21,25 @@ pub const PARTIAL_RECURSION_LIMIT: usize = 32;
 // RenderOptions：宿主可选渲染参数（严格模式、依赖追踪等）
 // ---------------------------------------------------------------------------
 
+/// Why a host-supplied registry implementation failed while being invoked.
+///
+/// The host owns the failure text (a JS exception message, a native error
+/// chain, …). The renderer turns it into
+/// [`codes::CUSTOM_INVOCATION`] with `namespace` / `name` / `message` args so
+/// every host reports the same code regardless of its native error type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CustomError {
+    /// Host-provided detail; never parsed by the renderer.
+    pub message: String,
+}
+
+impl CustomError {
+    /// Build a failure from a host message.
+    pub fn new(message: impl Into<String>) -> Self {
+        Self { message: message.into() }
+    }
+}
+
 /// Host-supplied registry implementations.
 ///
 /// The host owns both the description list ([`CustomRegistry::entries`]) and the
@@ -33,11 +52,11 @@ pub trait CustomRegistry {
     /// Descriptions of every entry this host supplies.
     fn entries(&self) -> &[CustomEntry];
     /// Apply a `filter` entry to `value` with already-evaluated explicit args.
-    fn apply_filter(&self, name: &str, value: &Value, args: &[Value]) -> Value;
+    fn apply_filter(&self, name: &str, value: &Value, args: &[Value]) -> Result<Value, CustomError>;
     /// Evaluate a `function` entry with already-evaluated arguments.
-    fn call_function(&self, name: &str, args: &[Value]) -> Value;
+    fn call_function(&self, name: &str, args: &[Value]) -> Result<Value, CustomError>;
     /// Evaluate a `test` entry against an already-evaluated value.
-    fn apply_test(&self, name: &str, value: &Value, args: &[Value]) -> bool;
+    fn apply_test(&self, name: &str, value: &Value, args: &[Value]) -> Result<bool, CustomError>;
 }
 
 /// 渲染选项 —— 匹配 TS `RenderOptions`。
@@ -1006,7 +1025,9 @@ fn apply_filter(
             if !capabilities.allows(entry.capability) {
                 return Err(capability_denied(&entry.name, entry.capability));
             }
-            return Ok(registry.apply_filter(&entry.name, &value, args));
+            return registry
+                .apply_filter(&entry.name, &value, args)
+                .map_err(|error| custom_failure(Namespace::Filter, &entry.name, error));
         }
         Err(FilterLookupError::Arity { spec }) => {
             return Err(diag_render(codes::FILTER_ARITY)
@@ -1075,6 +1096,14 @@ pub(crate) fn capability_denied(name: &str, capability: Capability) -> IrError {
     diag_render(codes::CAPABILITY_NOT_ALLOWED)
         .arg("name", name)
         .arg("capability", capability.as_str())
+}
+
+/// `dejavu.template.custom-invocation` for a host implementation that failed.
+pub(crate) fn custom_failure(namespace: Namespace, name: &str, error: CustomError) -> IrError {
+    diag_render(codes::CUSTOM_INVOCATION)
+        .arg("namespace", namespace.as_str())
+        .arg("name", name)
+        .arg("message", error.message)
 }
 
 /// 最小 strftime — 支持 `%Y %m %d %H %M %S %%`。

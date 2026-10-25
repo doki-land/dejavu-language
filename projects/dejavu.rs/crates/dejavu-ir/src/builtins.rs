@@ -53,7 +53,9 @@ pub fn call_function_with(
             if !capabilities.allows(entry.capability) {
                 return Err(crate::render::capability_denied(&entry.name, entry.capability));
             }
-            return Ok(registry.call_function(&entry.name, args));
+            return registry
+                .call_function(&entry.name, args)
+                .map_err(|error| crate::render::custom_failure(Namespace::Function, &entry.name, error));
         }
         Err(err) => return Err(function_lookup_error(err, args.len())),
     };
@@ -102,7 +104,10 @@ pub fn call_test_with(
             if !capabilities.allows(entry.capability) {
                 return Err(crate::render::capability_denied(&entry.name, entry.capability));
             }
-            return Ok(registry.apply_test(&entry.name, value, args) != negated);
+            return registry
+                .apply_test(&entry.name, value, args)
+                .map(|result| result != negated)
+                .map_err(|error| crate::render::custom_failure(Namespace::Test, &entry.name, error));
         }
         Err(err) => return Err(test_lookup_error(err, args.len())),
     };

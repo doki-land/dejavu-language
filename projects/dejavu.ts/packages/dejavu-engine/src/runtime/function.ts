@@ -6,6 +6,7 @@
  */
 
 import type { CustomRegistry } from "./custom.js";
+import { invokeCustom } from "./custom.js";
 import { runtimeError } from "./errors.js";
 
 export interface FunctionSpec {
@@ -42,7 +43,7 @@ export function callFunction(
         // Built-in names win; the canonical spelling emitted by the compiler is
         // the only key a host-supplied registry needs to provide.
         const implementation = custom?.function?.[name];
-        if (implementation) return implementation(args);
+        if (implementation) return invokeCustom("function", name, () => implementation(args));
         throw runtimeError("dejavu.template.unknown-function", name, { function: name });
     }
     if (args.length < spec.minArgs || args.length > spec.maxArgs) {

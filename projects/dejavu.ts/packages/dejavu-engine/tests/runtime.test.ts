@@ -444,4 +444,32 @@ describe("custom registry", () => {
             "dejavu.template.unknown-test",
         );
     });
+
+    it("宿主实现抛错统一为 custom-invocation", () => {
+        const boom = (): never => {
+            throw new Error("host exploded");
+        };
+        const failing: CustomRegistry = {
+            filter: { shout: boom },
+            function: { twice: boom },
+            test: { evenish: boom },
+        };
+        const cases = [
+            () => applyFilter("shout", "hi", [], failing),
+            () => callFunction("twice", [21], failing),
+            () => applyTest("evenish", 4, [], false, failing),
+        ];
+        const namespaces = ["filter", "function", "test"];
+        for (const [index, run] of cases.entries()) {
+            try {
+                run();
+                throw new Error("expected host failure");
+            } catch (error) {
+                const failure = error as { code: string; args: Record<string, unknown> };
+                expect(failure.code).toBe("dejavu.template.custom-invocation");
+                expect(failure.args.namespace).toBe(namespaces[index]);
+                expect(failure.args["message"]).toBe("host exploded");
+            }
+        }
+    });
 });

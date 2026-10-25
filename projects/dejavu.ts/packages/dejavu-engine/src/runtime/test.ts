@@ -7,6 +7,7 @@
  */
 
 import type { CustomRegistry } from "./custom.js";
+import { invokeCustom } from "./custom.js";
 import { runtimeError } from "./errors.js";
 import { isTruthy } from "./value.js";
 
@@ -51,7 +52,9 @@ export function applyTest(
         // Built-in names win; the compiler already resolved aliases to the
         // canonical name a host-supplied registry keys on.
         const implementation = custom?.test?.[name];
-        if (implementation) return implementation(value, args) !== negated;
+        if (implementation) {
+            return invokeCustom("test", name, () => implementation(value, args)) !== negated;
+        }
         throw runtimeError("dejavu.template.unknown-test", name, { test: name });
     }
     if (args.length < spec.minArgs || args.length > spec.maxArgs) {

@@ -14,7 +14,9 @@ export { TESTS, testSpec, applyTest } from "./test.js";
 export type {
     CustomFilter,
     CustomFunction,
+    CustomNamespace,
     CustomRegistry,
     CustomTest,
 } from "./custom.js";
+export { invokeCustom } from "./custom.js";
 export { binary, unary, exprMember, exprIndex } from "./expr.js";

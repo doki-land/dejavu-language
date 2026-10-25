@@ -1,4 +1,5 @@
 import type { CustomRegistry } from "./custom.js";
+import { invokeCustom } from "./custom.js";
 import { htmlEscape } from "./escape.js";
 import { runtimeError } from "./errors.js";
 import { valueToString } from "./value.js";
@@ -55,7 +56,7 @@ export function applyFilter(
         // host-supplied registry. The compiler already emitted the canonical
         // name, so a miss here is a genuine unknown filter.
         const implementation = custom?.filter?.[name];
-        if (implementation) return implementation(value, args);
+        if (implementation) return invokeCustom("filter", name, () => implementation(value, args));
         throw runtimeError("dejavu.template.unknown-filter", name, { filter: name });
     }
     if (args.length < spec.minArgs || args.length > spec.maxArgs) {

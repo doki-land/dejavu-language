@@ -341,6 +341,8 @@ pub mod codes {
     pub const UNKNOWN_CAPABILITY: &str = "dejavu.template.unknown-capability";
     /// A host-supplied registry entry collides with a built-in or another entry.
     pub const REGISTRY_CONFLICT: &str = "dejavu.template.registry-conflict";
+    /// A host-supplied registry implementation failed while being invoked.
+    pub const CUSTOM_INVOCATION: &str = "dejavu.template.custom-invocation";
     pub const INVALID_ITERABLE: &str = "dejavu.template.invalid-iterable";
     pub const UNDEFINED_VARIABLE: &str = "dejavu.template.undefined-variable";
     pub const SUPER_OUTSIDE_BLOCK: &str = "dejavu.template.super-outside-block";

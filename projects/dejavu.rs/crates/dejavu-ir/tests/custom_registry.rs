@@ -3,14 +3,33 @@
 
 use dejavu_ir::registry::{CustomEntry, Namespace, validate_custom_entries};
 use dejavu_ir::{
-    ArgValue, Capability, CustomRegistry, IrDocument, IrError, RenderOptions, Stage, codes, default_language,
-    render_ir_opts,
+    ArgValue, Capability, CustomError, CustomRegistry, IrDocument, IrError, RenderOptions, Stage, codes,
+    default_language, render_ir_opts,
 };
 use serde_json::{Value, json};
 
 /// A host that implements every entry it describes.
 struct Host {
     entries: Vec<CustomEntry>,
+    /// When set, every invocation fails with this message.
+    fail: Option<String>,
+}
+
+impl Host {
+    fn new(entries: Vec<CustomEntry>) -> Self {
+        Self { entries, fail: None }
+    }
+
+    fn failing(entries: Vec<CustomEntry>, message: &str) -> Self {
+        Self { entries, fail: Some(message.to_string()) }
+    }
+
+    fn outcome<T>(&self, value: T) -> Result<T, CustomError> {
+        match &self.fail {
+            Some(message) => Err(CustomError::new(message.clone())),
+            None => Ok(value),
+        }
+    }
 }
 
 impl CustomRegistry for Host {
@@ -18,27 +37,27 @@ impl CustomRegistry for Host {
         &self.entries
     }
 
-    fn apply_filter(&self, name: &str, value: &Value, _args: &[Value]) -> Value {
+    fn apply_filter(&self, name: &str, value: &Value, _args: &[Value]) -> Result<Value, CustomError> {
         let text = value.as_str().unwrap_or_default();
-        match name {
+        self.outcome(match name {
             "shout" => Value::String(format!("{text}!")),
             "bolder" => Value::String(format!("<b>{text}</b>")),
             other => panic!("unexpected filter dispatch: {other}"),
-        }
+        })
     }
 
-    fn call_function(&self, name: &str, args: &[Value]) -> Value {
-        match name {
+    fn call_function(&self, name: &str, args: &[Value]) -> Result<Value, CustomError> {
+        self.outcome(match name {
             "twice" => json!(args[0].as_i64().unwrap_or_default() * 2),
             other => panic!("unexpected function dispatch: {other}"),
-        }
+        })
     }
 
-    fn apply_test(&self, name: &str, value: &Value, _args: &[Value]) -> bool {
-        match name {
+    fn apply_test(&self, name: &str, value: &Value, _args: &[Value]) -> Result<bool, CustomError> {
+        self.outcome(match name {
             "evenish" => value.as_i64().is_some_and(|n| n % 2 == 0),
             other => panic!("unexpected test dispatch: {other}"),
-        }
+        })
     }
 }
 
@@ -103,14 +122,12 @@ fn test_doc(name: &str, negated: bool) -> IrDocument {
 }
 
 fn host() -> Host {
-    Host {
-        entries: vec![
-            entry(Namespace::Filter, "shout", &["loud"], 0, 0, Capability::Pure),
-            entry(Namespace::Filter, "bolder", &[], 0, 0, Capability::SafeOutput),
-            entry(Namespace::Function, "twice", &[], 1, 1, Capability::Pure),
-            entry(Namespace::Test, "evenish", &[], 0, 0, Capability::Pure),
-        ],
-    }
+    Host::new(vec![
+        entry(Namespace::Filter, "shout", &["loud"], 0, 0, Capability::Pure),
+        entry(Namespace::Filter, "bolder", &[], 0, 0, Capability::SafeOutput),
+        entry(Namespace::Function, "twice", &[], 1, 1, Capability::Pure),
+        entry(Namespace::Test, "evenish", &[], 0, 0, Capability::Pure),
+    ])
 }
 
 fn render(doc: &IrDocument, custom: &dyn CustomRegistry, capabilities: dejavu_ir::CapabilitySet) -> Result<String, IrError> {
@@ -162,7 +179,7 @@ fn custom_function_and_test_run_end_to_end() {
 
 #[test]
 fn custom_arity_and_unknown_names_keep_builtin_codes() {
-    let host = Host { entries: vec![entry(Namespace::Function, "twice", &[], 1, 1, Capability::Pure)] };
+    let host = Host::new(vec![entry(Namespace::Function, "twice", &[], 1, 1, Capability::Pure)]);
     let doc = call_doc("twice", vec![]);
     assert_eq!(code(render(&doc, &host, dejavu_ir::CapabilitySet::all()).expect_err("arity")), codes::FUNCTION_ARITY);
 
@@ -171,8 +188,31 @@ fn custom_arity_and_unknown_names_keep_builtin_codes() {
 }
 
 #[test]
+fn host_failures_surface_as_custom_invocation_for_every_namespace() {
+    let entries = vec![
+        entry(Namespace::Filter, "shout", &[], 0, 0, Capability::Pure),
+        entry(Namespace::Function, "twice", &[], 1, 1, Capability::Pure),
+        entry(Namespace::Test, "evenish", &[], 0, 0, Capability::Pure),
+    ];
+    let host = Host::failing(entries, "host exploded");
+
+    let cases: [(&str, IrDocument); 3] = [
+        ("filter", pipe_doc("shout", "hi", vec![])),
+        ("function", call_doc("twice", vec![json!(21)])),
+        ("test", test_doc("evenish", false)),
+    ];
+    for (namespace, doc) in cases {
+        let err = render(&doc, &host, dejavu_ir::CapabilitySet::all()).expect_err("host failure");
+        let IrError::Diagnostic(diagnostic) = err else { panic!("expected diagnostic") };
+        assert_eq!(diagnostic.code, codes::CUSTOM_INVOCATION, "{namespace}");
+        assert_eq!(arg_string(&diagnostic, "namespace"), namespace);
+        assert_eq!(arg_string(&diagnostic, "message"), "host exploded");
+    }
+}
+
+#[test]
 fn conflicting_registration_is_rejected_before_rendering() {
-    let host = Host { entries: vec![entry(Namespace::Filter, "uppercase", &[], 0, 0, Capability::Pure)] };
+    let host = Host::new(vec![entry(Namespace::Filter, "uppercase", &[], 0, 0, Capability::Pure)]);
     let doc = pipe_doc("uppercase", "x", vec![]);
     let err = render(&doc, &host, dejavu_ir::CapabilitySet::all()).expect_err("conflict");
     let IrError::Diagnostic(diagnostic) = err else { panic!("expected diagnostic") };
