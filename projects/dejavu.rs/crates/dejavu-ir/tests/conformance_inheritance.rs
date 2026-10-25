@@ -678,6 +678,54 @@ fn include_template_that_has_extends() {
     assert_eq!(out, "INCLUDED_CHILD");
 }
 
+/// `include` 的目标必须是字符串字面量：动态路径一律拒绝，即使该模板在 catalog 中可解析。
+#[test]
+fn dynamic_include_path_is_rejected() {
+    let partial = tpl_ir(vec![text_node("partial")]);
+    let main = tpl_ir(vec![serde_json::json!({
+        "type": "Stmt.Include",
+        "path": identifier_node("target"),
+        "trim": "none",
+    })]);
+
+    let mut loader = InMemoryLoader::new()
+        .insert("partial.dejavu", partial)
+        .insert("main.dejavu", main);
+    let entry = loader.resolve("main.dejavu", None).unwrap().document;
+    let mut ctx = serde_json::Map::new();
+    ctx.insert("target".into(), Value::String("partial.dejavu".into()));
+
+    let err = render_ir_with_loader(&entry, &Value::Object(ctx), &mut loader)
+        .expect_err("dynamic include must be rejected");
+    let IrError::Diagnostic(diag) = err else { panic!("expected structured diagnostic, got {err:?}") };
+    assert_eq!(diag.code, codes::INCLUDE_PATH_NOT_LITERAL);
+    assert_eq!(diag.stage, dejavu_ir::Stage::Load);
+}
+
+/// `extends` 的目标必须是字符串字面量：动态路径一律拒绝，即使该模板在 catalog 中可解析。
+#[test]
+fn dynamic_extends_path_is_rejected() {
+    let base = tpl_ir(vec![text_node("base")]);
+    let child = tpl_ir(vec![serde_json::json!({
+        "type": "Stmt.Extends",
+        "parent": identifier_node("parent"),
+        "trim": "none",
+    })]);
+
+    let mut loader = InMemoryLoader::new()
+        .insert("base.dejavu", base)
+        .insert("child.dejavu", child);
+    let entry = loader.resolve("child.dejavu", None).unwrap().document;
+    let mut ctx = serde_json::Map::new();
+    ctx.insert("parent".into(), Value::String("base.dejavu".into()));
+
+    let err = render_ir_with_loader(&entry, &Value::Object(ctx), &mut loader)
+        .expect_err("dynamic extends must be rejected");
+    let IrError::Diagnostic(diag) = err else { panic!("expected structured diagnostic, got {err:?}") };
+    assert_eq!(diag.code, codes::EXTENDS_PATH_NOT_LITERAL);
+    assert_eq!(diag.stage, dejavu_ir::Stage::Load);
+}
+
 /// slug 的 NFKD 规范化：连字 `ﬃ` → `ffi`、全角 `ＡＢＣ` → `abc`。
 /// 修复前用 NFD（canonical decomposition），不会分解连字和全角字符。
 #[test]

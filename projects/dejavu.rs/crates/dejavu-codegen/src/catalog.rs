@@ -360,7 +360,11 @@ pub fn collect_blocks(
     let mut cur = entry_id.to_string();
     let mut topmost = entry_id.to_string();
     loop {
-        let Some(parent_ref) = doc_extends_ref(catalog, &cur) else { break };
+        let parent_ref = match doc_extends_ref(catalog, &cur) {
+            ExtendsRef::None => break,
+            ExtendsRef::Dynamic => return Err(extends_path_not_literal(&cur)),
+            ExtendsRef::Literal(lit) => lit,
+        };
         let hit = catalog
             .resolve_ref(&parent_ref, Some(&cur))
             .map_err(|d| d.template_id(&cur))?;
@@ -383,7 +387,11 @@ pub fn collect_block_chains(
     let mut chain: Vec<String> = vec![entry_id.to_string()];
     let mut cur = entry_id.to_string();
     loop {
-        let Some(r) = doc_extends_ref(catalog, &cur) else { break };
+        let r = match doc_extends_ref(catalog, &cur) {
+            ExtendsRef::None => break,
+            ExtendsRef::Dynamic => return Err(extends_path_not_literal(&cur)),
+            ExtendsRef::Literal(lit) => lit,
+        };
         let hit = catalog.resolve_ref(&r, Some(&cur))
             .map_err(|d| d.template_id(&cur))?;
         let Some(id) = catalog.canonical_id(&hit) else { break };
@@ -409,18 +417,38 @@ pub fn collect_block_chains(
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Returns the `Stmt.Extends.parent` literal for a template, if any.
-fn doc_extends_ref(catalog: &TemplateCatalog, id: &str) -> Option<String> {
-    let (root_name, path) = split_canonical(id)?;
-    let doc = catalog_document(catalog, root_name, path)?;
+/// The top-level `Stmt.Extends` of a template, classified by its target.
+enum ExtendsRef {
+    None,
+    /// Literal template path — resolvable inside the catalog.
+    Literal(String),
+    /// Dynamic target — the renderer and AOT both reject it.
+    Dynamic,
+}
+
+/// Classify the `Stmt.Extends.parent` of a template.
+fn doc_extends_ref(catalog: &TemplateCatalog, id: &str) -> ExtendsRef {
+    let Some((root_name, path)) = split_canonical(id) else { return ExtendsRef::None };
+    let Some(doc) = catalog_document(catalog, root_name, path) else { return ExtendsRef::None };
     if let IrNode::Template { children, .. } = &doc.body {
         for c in children {
             if let IrNode::StmtExtends { parent, .. } = c {
-                return extract_path_literal(parent);
+                return match extract_path_literal(parent) {
+                    Some(lit) => ExtendsRef::Literal(lit),
+                    None => ExtendsRef::Dynamic,
+                };
             }
         }
     }
-    None
+    ExtendsRef::None
+}
+
+/// `extends` targets must be literal paths; the renderer raises the same code
+/// at load time.
+fn extends_path_not_literal(id: &str) -> Diagnostic {
+    Diagnostic::new(Severity::Error, codes::EXTENDS_PATH_NOT_LITERAL, Stage::Compile)
+        .template_id(id)
+        .message("`extends` requires a literal template path")
 }
 
 pub fn split_canonical(id: &str) -> Option<(&str, &str)> {

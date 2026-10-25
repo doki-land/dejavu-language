@@ -1,0 +1,6 @@
+[
+    {
+        "code": "dejavu.template.extends-path-not-literal",
+        "stages": ["load", "compile"]
+    }
+]

@@ -634,6 +634,36 @@ fn from_import_requires_a_literal_path() {
     );
 }
 
+#[test]
+fn include_requires_a_literal_path() {
+    let entry = doc(vec![stmt_include(ident("target"))]);
+    let partial = doc(vec![text("partial")]);
+    let res = compile_catalog(
+        &[("index.dejavu", entry), ("partial.dejavu", partial)],
+        "index.dejavu",
+    );
+    let diag = errors(&res)
+        .into_iter()
+        .find(|d| d.code == dejavu_diagnostic::codes::INCLUDE_PATH_NOT_LITERAL)
+        .unwrap_or_else(|| panic!("errors: {:?}", errors(&res)));
+    assert_eq!(diag.stage, dejavu_diagnostic::Stage::Compile);
+}
+
+#[test]
+fn extends_requires_a_literal_path() {
+    let entry = doc(vec![stmt_extends(ident("parent"))]);
+    let base = doc(vec![text("base")]);
+    let res = compile_catalog(
+        &[("index.dejavu", entry), ("base.dejavu", base)],
+        "index.dejavu",
+    );
+    let diag = errors(&res)
+        .into_iter()
+        .find(|d| d.code == dejavu_diagnostic::codes::EXTENDS_PATH_NOT_LITERAL)
+        .unwrap_or_else(|| panic!("errors: {:?}", errors(&res)));
+    assert_eq!(diag.stage, dejavu_diagnostic::Stage::Compile);
+}
+
 // ---------------------------------------------------------------------------
 // 10. Cross-module macro tree-shaking
 // ---------------------------------------------------------------------------

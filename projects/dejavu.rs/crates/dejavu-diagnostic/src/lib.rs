@@ -360,6 +360,10 @@ pub mod codes {
     pub const MACRO_CONFLICT: &str = "dejavu.template.macro-conflict";
     /// `from ... import` requires a literal template path.
     pub const IMPORT_PATH_NOT_LITERAL: &str = "dejavu.template.import-path-not-literal";
+    /// `include` requires a literal template path.
+    pub const INCLUDE_PATH_NOT_LITERAL: &str = "dejavu.template.include-path-not-literal";
+    /// `extends` requires a literal template path.
+    pub const EXTENDS_PATH_NOT_LITERAL: &str = "dejavu.template.extends-path-not-literal";
     /// The imported template does not declare the requested macro.
     pub const UNKNOWN_IMPORT: &str = "dejavu.template.unknown-import";
     /// `caller()` was used outside a `call` block.

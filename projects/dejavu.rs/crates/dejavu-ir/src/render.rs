@@ -325,7 +325,11 @@ impl<'a> Renderer<'a> {
             for c in children {
                 match c {
                     IrNode::StmtExtends { parent, .. } => {
-                        extends_path = Some(value_to_string(&self.eval(parent)?));
+                        let Some(parent_str) = literal_path(parent) else {
+                            return Err(diag_load(codes::EXTENDS_PATH_NOT_LITERAL)
+                                .template_id(self.current_id.clone()));
+                        };
+                        extends_path = Some(parent_str.to_string());
                     }
                     IrNode::StmtBlock { name, body, .. } => {
                         own_blocks.entry(name.clone()).or_insert_with(|| body.clone());
@@ -563,13 +567,15 @@ impl<'a> Renderer<'a> {
 
             // include：加载并内联渲染。
             IrNode::StmtInclude { path, with, only, .. } => {
-                let p = self.eval(path)?;
-                let path_str = value_to_string(&p);
+                let Some(path_str) = literal_path(path) else {
+                    return Err(diag_load(codes::INCLUDE_PATH_NOT_LITERAL)
+                        .template_id(self.current_id.clone()));
+                };
                 let explicit = match with {
                     Some(expr) => Some(self.eval(expr)?),
                     None => None,
                 };
-                self.render_loaded(&path_str, "include", explicit.as_ref(), *only)
+                self.render_loaded(path_str, "include", explicit.as_ref(), *only)
             }
 
             // extends：由 render_doc 集中处理，这里不应单独出现。
@@ -712,6 +718,15 @@ fn json_kind(v: &Value) -> &'static str {
         Value::String(_) => "string",
         Value::Array(_) => "array",
         Value::Object(_) => "object",
+    }
+}
+
+/// `include` / `extends` targets must be string literals: the loader only
+/// resolves build-time catalog entries, never any dynamic path.
+fn literal_path(node: &IrNode) -> Option<&str> {
+    match node {
+        IrNode::ExprLiteral { value: Value::String(s), .. } => Some(s),
+        _ => None,
     }
 }
 

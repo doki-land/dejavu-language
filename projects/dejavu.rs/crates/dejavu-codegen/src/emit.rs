@@ -829,8 +829,8 @@ fn emit_include(
     let Some(literal) = crate::catalog::extract_path_literal(path_node) else {
         ctx.diagnostic(
             Severity::Error,
-            "dejavu.compile.dynamic-include",
-            "dynamic include paths are not supported in AOT catalog mode",
+            codes::INCLUDE_PATH_NOT_LITERAL,
+            "`include` requires a literal template path",
         );
         return;
     };
