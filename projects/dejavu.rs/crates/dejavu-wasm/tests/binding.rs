@@ -21,7 +21,7 @@ fn diagnostics(response: &Value) -> &Vec<Value> {
 
 #[test]
 fn binding_contract_version_is_stable() {
-    assert_eq!(binding_contract_version(), "dejavu.wasm/1");
+    assert_eq!(binding_contract_version(), "dejavu.wasm/2");
 }
 
 #[test]
@@ -35,7 +35,7 @@ fn parse_and_render_if_and_loop() {
         r#"{{"ir":{},"context":{}}}"#,
         q(&ir),
         q(r#"{"name":"Ada","ok":true,"items":["a","b"]}"#),
-    )));
+    ), None));
     assert!(diagnostics(&rendered).is_empty(), "render diagnostics: {rendered}");
     assert_eq!(rendered["output"].as_str(), Some("Hello Ada! ON[a][b]"));
 }
@@ -47,7 +47,7 @@ fn strict_undefined_reports_error_with_variable_arg() {
         q("<% missing %>"),
         q("{}"),
         q(r#"{"strict":true}"#),
-    )));
+    ), None));
     assert!(rendered["output"].is_null());
     let diags = diagnostics(&rendered);
     assert_eq!(diags.len(), 1, "diagnostics: {rendered}");
@@ -109,7 +109,7 @@ fn render_source_with_catalog_include() {
         q(r#"hello <% include "footer" %>"#),
         q("{}"),
         q(&catalog),
-    )));
+    ), None));
     assert!(diagnostics(&rendered).is_empty(), "diagnostics: {rendered}");
     assert_eq!(rendered["output"].as_str(), Some("hello  world!"));
 }
