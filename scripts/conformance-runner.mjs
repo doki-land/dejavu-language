@@ -34,11 +34,17 @@ const DIAGNOSTIC_SUITES = [join(BASE, "diagnostics")];
 /** Catalog diagnostic suites: templates + entry.txt + expected.diagnostics.json. */
 const CATALOG_DIAGNOSTIC_SUITES = [join(BASE, "catalog-diagnostics")];
 /**
- * Custom registry suites: template.ir.json + context.json + meta.json +
- * registry.mjs + expected.out.txt. Only the AOT adapter can supply host
- * implementations; JIT / WASM callback injection is a later slice.
+ * Custom registry suites: template.ir.json + context.json + meta.json
+ * (`customRegistry` descriptions) + optional registry.mjs (implementations) +
+ * expected.out.txt. Every JS host dispatches through the same descriptions.
+ * `registry/diagnostics/*` validates registration rules on all four hosts.
  */
-const REGISTRY_SUITES = [join(BASE, "registry")];
+const REGISTRY_SUITE = join(BASE, "registry");
+const REGISTRY_DIAGNOSTIC_SUITE = join(REGISTRY_SUITE, "diagnostics");
+/** Rust JIT has no JS callbacks: registry dispatch is covered by
+ * `cargo test -p dejavu-ir --test custom_registry`, while registration rules
+ * stay in the cross-host diagnostic fixtures below. */
+const REGISTRY_RENDER_ADAPTERS = ["ts", "aot", "wasm"];
 const TMP = join(ROOT, ".conformance-tmp");
 
 function suiteCases(suite) {
@@ -112,18 +118,36 @@ function catalogDiagnosticCases() {
 }
 
 function registryCases() {
-    return REGISTRY_SUITES.flatMap((suite) =>
-        suiteCases(suite).map((name) => {
-            const dir = join(suite, name);
+    return suiteCases(REGISTRY_SUITE)
+        .map((name) => join(REGISTRY_SUITE, name))
+        .filter((dir) => existsSync(join(dir, "template.ir.json")))
+        .map((dir) => ({
+            name: relative(BASE, dir),
+            dir,
+            irPath: join(dir, "template.ir.json"),
+            ctxPath: join(dir, "context.json"),
+            out: readFileSync(join(dir, "expected.out.txt"), "utf8"),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function registryDiagnosticCases() {
+    return suiteCases(REGISTRY_DIAGNOSTIC_SUITE)
+        .map((name) => join(REGISTRY_DIAGNOSTIC_SUITE, name))
+        .map((dir) => {
+            const optionsPath = join(dir, "options.render.json");
+            const metaPath = join(dir, "meta.json");
             return {
                 name: relative(BASE, dir),
                 dir,
                 irPath: join(dir, "template.ir.json"),
                 ctxPath: join(dir, "context.json"),
-                out: readFileSync(join(dir, "expected.out.txt"), "utf8"),
+                optionsPath: existsSync(optionsPath) ? optionsPath : undefined,
+                metaPath: existsSync(metaPath) ? metaPath : undefined,
+                expected: JSON.parse(readFileSync(join(dir, "expected.diagnostics.json"), "utf8")),
             };
-        }),
-    ).sort((a, b) => a.name.localeCompare(b.name));
+        })
+        .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function run(cmd, args, cwd = ROOT) {
@@ -475,7 +499,8 @@ const diagnosticAdapters = {
                 c.irPath,
                 c.ctxPath,
             ];
-            if (c.optionsPath) args.push(c.optionsPath);
+            if (c.optionsPath) args.push("--options", c.optionsPath);
+            if (c.metaPath) args.push("--meta", c.metaPath);
             const r = run("cargo", args);
             return r.ok ? r.stdout : null;
         },
@@ -719,27 +744,71 @@ function main() {
     }
     console.log("");
 
-    // ---- custom registry fixtures (AOT only; JIT / WASM injection is a later slice) ----
-    console.log("## custom registry fixtures (AOT path only)");
+    // ---- custom registry fixtures (dispatch parity across JS hosts) ----
+    console.log("## custom registry fixtures (TypeScript / AOT / WASM)");
     for (const c of registryCases()) {
         process.stdout.write(`  ${c.name}: `);
-        // `meta.json#customRegistry` + `registry.mjs` are picked up by the AOT
-        // adapter, which feeds implementations to `render(ctx, { custom })`.
-        const out = adapters.aot.render(c);
-        if (out === null) {
-            failed++;
-            console.log("[AOT=MISSING]");
-            continue;
+        const outputs = {};
+        let failedAny = false;
+        for (const key of REGISTRY_RENDER_ADAPTERS) {
+            const adapter = adapters[key];
+            const out = adapter.render(c);
+            if (out === null) {
+                failedAny = true;
+                process.stdout.write(`[${adapter.label}=MISSING] `);
+                continue;
+            }
+            outputs[adapter.label] = out;
+            const ok = normalize(out) === normalize(c.out);
+            if (!ok) {
+                failedAny = true;
+                process.stdout.write(`[${adapter.label}=FAIL] `);
+                console.log(`\n    expected ${JSON.stringify(c.out)}`);
+                console.log(`    actual   ${JSON.stringify(out)}`);
+            } else {
+                process.stdout.write(`[${adapter.label}=OK] `);
+            }
         }
-        const ok = normalize(out) === normalize(c.out);
-        if (ok) {
-            console.log("[AOT=OK]");
-        } else {
-            failed++;
-            console.log("[AOT=FAIL]");
-            console.log(`    expected ${JSON.stringify(c.out)}`);
-            console.log(`    actual   ${JSON.stringify(out)}`);
+        const labels = Object.keys(outputs);
+        if (labels.length >= 2 && !labels.every((label) => normalize(outputs[label]) === normalize(outputs[labels[0]]))) {
+            failedAny = true;
+            process.stdout.write("[CROSS-FAIL] ");
         }
+        if (failedAny) failed++;
+        console.log("");
+    }
+    console.log("");
+
+    // ---- custom registry diagnostics (registration rules on every host) ----
+    console.log("## custom registry diagnostics (code + stage + args)");
+    for (const c of registryDiagnosticCases()) {
+        process.stdout.write(`  ${c.name}: `);
+        let failedAny = false;
+        const keys = {};
+        for (const [lang, adapter] of Object.entries(diagnosticAdapters)) {
+            const payload = adapter.run(c);
+            if (payload === null) {
+                if (adapter.required) {
+                    failedAny = true;
+                    process.stdout.write(`[${adapter.label}=MISSING] `);
+                } else {
+                    process.stdout.write(`[${adapter.label}=SKIP] `);
+                }
+                continue;
+            }
+            const pairs = diagnosticPairs(payload);
+            keys[adapter.label] = codeKey(pairs);
+            const ok = matchesExpected(pairs, c.expected);
+            if (!ok) failedAny = true;
+            process.stdout.write(`[${adapter.label}=${ok ? "OK" : "FAIL"}] `);
+        }
+        const labels = Object.keys(keys);
+        if (labels.length >= 2 && !labels.every((label) => keys[label] === keys[labels[0]])) {
+            failedAny = true;
+            process.stdout.write("[CROSS-FAIL] ");
+        }
+        if (failedAny) failed++;
+        console.log("");
     }
     console.log("");
 

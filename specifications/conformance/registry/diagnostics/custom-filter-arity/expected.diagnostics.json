@@ -1,0 +1,7 @@
+[
+    {
+        "code": "dejavu.template.filter-arity",
+        "stages": ["compile", "render"],
+        "args": { "filter": "shout", "minArgs": 0, "maxArgs": 0, "got": 1 }
+    }
+]

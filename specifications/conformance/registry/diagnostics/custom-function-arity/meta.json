@@ -1,0 +1,10 @@
+{
+    "customRegistry": [
+        {
+            "namespace": "function",
+            "name": "twice",
+            "minArgs": 1,
+            "maxArgs": 1
+        }
+    ]
+}

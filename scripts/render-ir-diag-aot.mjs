@@ -7,8 +7,9 @@
  * Requires the same artifacts as `scripts/render-ir-aot.mjs`.
  */
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { loadFixtureRegistry } from "./registry-fixture.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const facadeDist = join(root, "projects", "dejavu.ts", "packages", "dejavu", "dist");
@@ -39,6 +40,11 @@ if (!existsSync(nativePath)) {
 const irJson = readFileSync(process.argv[2], "utf8");
 const ctx = JSON.parse(readFileSync(process.argv[3], "utf8"));
 const options = process.argv[4] ? JSON.parse(readFileSync(process.argv[4], "utf8")) : {};
+const fixture = join(dirname(resolve(process.argv[2])), "meta.json");
+if (existsSync(fixture) && options.customRegistry === undefined) {
+    const meta = JSON.parse(readFileSync(fixture, "utf8"));
+    if (meta.customRegistry) options.customRegistry = meta.customRegistry;
+}
 
 const result = precompileIrSingle(irJson, options);
 if (result.diagnostics.some((d) => d.severity === "error")) {

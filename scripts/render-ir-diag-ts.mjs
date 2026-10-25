@@ -5,8 +5,9 @@
  * Usage: node scripts/render-ir-diag-ts.mjs <ir.json> <ctx.json> [options.render.json]
  */
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { loadFixtureRegistry } from "./registry-fixture.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const facadeDist = join(root, "projects", "dejavu.ts", "packages", "dejavu", "dist", "index.js");
@@ -20,6 +21,8 @@ const { renderIr, DejavuError } = await import(pathToFileURL(facadeDist).href);
 const irJson = readFileSync(process.argv[2], "utf8");
 const ctx = JSON.parse(readFileSync(process.argv[3], "utf8"));
 const options = process.argv[4] ? JSON.parse(readFileSync(process.argv[4], "utf8")) : {};
+const registry = await loadFixtureRegistry(dirname(resolve(process.argv[2])));
+if (registry) options.custom = registry;
 
 try {
     const output = renderIr(irJson, ctx, options);

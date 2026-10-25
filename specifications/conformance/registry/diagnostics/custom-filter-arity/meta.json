@@ -1,0 +1,10 @@
+{
+    "customRegistry": [
+        {
+            "namespace": "filter",
+            "name": "shout",
+            "minArgs": 0,
+            "maxArgs": 0
+        }
+    ]
+}

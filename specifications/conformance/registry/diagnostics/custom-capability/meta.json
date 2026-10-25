@@ -1,0 +1,9 @@
+{
+    "customRegistry": [
+        {
+            "namespace": "filter",
+            "name": "bolder",
+            "capability": "safe-output"
+        }
+    ]
+}

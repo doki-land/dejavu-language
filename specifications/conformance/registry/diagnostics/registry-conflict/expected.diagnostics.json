@@ -1,0 +1,7 @@
+[
+    {
+        "code": "dejavu.template.registry-conflict",
+        "stages": ["host", "compile"],
+        "args": { "namespace": "filter", "name": "upper" }
+    }
+]

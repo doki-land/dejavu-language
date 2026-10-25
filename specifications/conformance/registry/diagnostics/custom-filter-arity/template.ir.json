@@ -1,0 +1,29 @@
+{
+    "irVersion": "1.0",
+    "language": {
+        "syntaxMode": "template",
+        "template": {
+            "codeStart": "<%",
+            "codeEnd": "%>",
+            "commentStart": "<#",
+            "commentEnd": "#>",
+            "supportFilterPipe": true,
+            "legacyFor": false
+        }
+    },
+    "body": {
+        "type": "Template",
+        "children": [
+            {
+                "type": "Interpolation",
+                "trim": "none",
+                "expression": {
+                    "type": "Expr.Pipe",
+                    "expression": { "type": "Expr.Identifier", "name": "value" },
+                    "filter": "shout",
+                    "arguments": [{ "type": "Expr.Literal", "value": 1 }]
+                }
+            }
+        ]
+    }
+}

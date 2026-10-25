@@ -1,0 +1,8 @@
+{
+    "customRegistry": [
+        {
+            "namespace": "filter",
+            "name": "upper"
+        }
+    ]
+}
