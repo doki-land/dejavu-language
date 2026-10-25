@@ -34,6 +34,7 @@
         "wasm:build:release": "node scripts/build/wasm.mjs --release",
         "conformance": "node scripts/conformance-runner.mjs",
         "conformance:ir": "node scripts/conformance-runner.mjs",
+        "check:packed": "node scripts/check-packed-closure.mjs",
         "test": "node scripts/test.mjs",
         "placeholder:trust": "nifty trust"
     },
