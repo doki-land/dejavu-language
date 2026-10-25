@@ -237,20 +237,26 @@ impl Parser<'_> {
         Ok((NativeNode::new(kind, Some(Span { start: open, end: i })), i))
     }
 
-    /// Parse `call name(args)` … `end call`.
+    /// Parse `call name(args)` or `call(a, b) name(args)` … `end call`.
     ///
     /// The argument list is parsed as a normal bare-identifier call so arity
-    /// and expression errors match inline macro calls.
+    /// and expression errors match inline macro calls. Caller parameters are
+    /// bare identifiers without defaults.
     pub(crate) fn parse_call(
         &self,
         open: usize,
         mut i: usize,
         src: &str,
         base: usize,
+        params_src: Option<(&str, usize)>,
         trim: TrimMode,
         trim_end: TrimMode,
         pending: Option<&str>,
     ) -> Result<(NativeNode, usize), ParseError> {
+        let params = match params_src {
+            Some((src, base)) => parse_caller_params(self.source, self.file, src, base)?,
+            None => Vec::new(),
+        };
         let call_err = |message: &str| {
             ParseError::at(self.source, self.file, base, src.len().max(1), message, "expected macro call")
                 .with_code(codes::PARSE_UNEXPECTED_TOKEN)
@@ -293,7 +299,7 @@ impl Parser<'_> {
             }
         }
 
-        let mut kind = NativeKind::Call { name, arguments, body, trim: trim.as_str().into() };
+        let mut kind = NativeKind::Call { name, arguments, params, body, trim: trim.as_str().into() };
         apply_open_trim(&mut kind, pending, trim_end);
         Ok((NativeNode::new(kind, Some(Span { start: open, end: i })), i))
     }
@@ -497,6 +503,112 @@ pub(crate) fn parse_params(
             Some(expr)
         };
         params.push(NativeParam { name: name.clone(), default });
+    }
+    Ok(params)
+}
+
+/// Parse a `call(...)` parameter list: bare identifiers, no defaults.
+fn parse_caller_params(
+    source: &str,
+    file: &str,
+    params_src: &str,
+    params_base: usize,
+) -> Result<Vec<NativeParam>, ParseError> {
+    let mut tokens: Vec<(CodeToken, std::ops::Range<usize>)> = Vec::new();
+    let mut lex = CodeToken::lexer(params_src);
+    while let Some(tok) = lex.next() {
+        let span = lex.span();
+        match tok {
+            Ok(CodeToken::CodeEnd) => {
+                return Err(ParseError::at(
+                    source,
+                    file,
+                    params_base + span.start,
+                    span.len(),
+                    "unexpected expression terminator in call parameters",
+                    "here",
+                )
+                .with_code(codes::PARSE_UNEXPECTED_TOKEN));
+            }
+            Ok(t) => tokens.push((t, span)),
+            Err(()) => {
+                return Err(ParseError::at(
+                    source,
+                    file,
+                    params_base + span.start,
+                    span.len().max(1),
+                    "invalid token in call parameters",
+                    "bad token",
+                )
+                .with_code(codes::PARSE_UNEXPECTED_TOKEN));
+            }
+        }
+    }
+    if tokens.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut params: Vec<NativeParam> = Vec::new();
+    let mut expect_name = true;
+    for (tok, span) in &tokens {
+        if expect_name {
+            let CodeToken::Ident(name) = tok else {
+                return Err(ParseError::at(
+                    source,
+                    file,
+                    params_base + span.start,
+                    span.len().max(1),
+                    "call parameter must be an identifier",
+                    "expected ident",
+                )
+                .with_code(codes::PARSE_UNEXPECTED_TOKEN));
+            };
+            if name == "caller" {
+                return Err(ParseError::at(
+                    source,
+                    file,
+                    params_base + span.start,
+                    span.len().max(1),
+                    "`caller` is reserved and cannot be a call parameter",
+                    "reserved parameter",
+                )
+                .with_code(codes::PARSE_UNEXPECTED_TOKEN));
+            }
+            if params.iter().any(|p| &p.name == name) {
+                return Err(ParseError::at(
+                    source,
+                    file,
+                    params_base + span.start,
+                    span.len().max(1),
+                    format!("duplicate call parameter `{name}`"),
+                    "duplicate parameter",
+                )
+                .with_code(codes::PARSE_UNEXPECTED_TOKEN));
+            }
+            params.push(NativeParam { name: name.clone(), default: None });
+        } else if !matches!(tok, CodeToken::Comma) {
+            return Err(ParseError::at(
+                source,
+                file,
+                params_base + span.start,
+                span.len().max(1),
+                "call parameters must be comma separated identifiers",
+                "expected `,`",
+            )
+            .with_code(codes::PARSE_UNEXPECTED_TOKEN));
+        }
+        expect_name = !expect_name;
+    }
+    if expect_name {
+        return Err(ParseError::at(
+            source,
+            file,
+            params_base + params_src.trim_end().len().max(1),
+            1,
+            "trailing comma in call parameters",
+            "expected ident",
+        )
+        .with_code(codes::PARSE_UNEXPECTED_TOKEN));
     }
     Ok(params)
 }

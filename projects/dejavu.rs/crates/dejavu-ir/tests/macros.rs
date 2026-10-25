@@ -293,6 +293,76 @@ fn call_block(name: &str, arguments: Vec<Value>, body: Vec<Value>) -> Value {
     })
 }
 
+fn call_block_params(name: &str, arguments: Vec<Value>, params: &[&str], body: Vec<Value>) -> Value {
+    serde_json::json!({
+        "type": "Stmt.Call",
+        "name": name,
+        "arguments": arguments,
+        "params": params.iter().map(|p| param(p, None)).collect::<Vec<_>>(),
+        "body": body,
+        "trim": "none",
+    })
+}
+
+#[test]
+fn caller_block_parameters_bind_arguments_and_keep_the_calling_scope() {
+    let list = macro_node(
+        "list",
+        vec![],
+        vec![
+            text("<ul>"),
+            interp(call("caller", vec![literal(serde_json::json!("first")), literal(serde_json::json!(7))])),
+            text("</ul>"),
+        ],
+    );
+    let doc = tpl(vec![
+        list,
+        call_block_params(
+            "list",
+            vec![],
+            &["label", "n"],
+            vec![
+                text("<li>"),
+                interp(ident("label")),
+                text(":"),
+                interp(ident("n")),
+                text("/"),
+                interp(ident("title")),
+                text("</li>"),
+            ],
+        ),
+    ]);
+    let out = render_ir(&doc, &serde_json::json!({ "title": "T" })).expect("render");
+    assert_eq!(out, "<ul><li>first:7/T</li></ul>");
+}
+
+#[test]
+fn caller_arguments_must_match_the_declared_parameters() {
+    let wrap = macro_node("wrap", vec![], vec![interp(call("caller", vec![]))]);
+    let doc = tpl(vec![
+        wrap,
+        call_block_params("wrap", vec![], &["label"], vec![interp(ident("label"))]),
+    ]);
+    let err = render_ir(&doc, &serde_json::json!({})).expect_err("caller arity");
+    assert_eq!(error_code(err), "dejavu.template.caller-arity");
+}
+
+#[test]
+fn caller_parameters_are_scoped_to_one_render_and_do_not_leak() {
+    let wrap = macro_node(
+        "wrap",
+        vec![],
+        vec![interp(call("caller", vec![literal(serde_json::json!("in"))])), text("|")],
+    );
+    let doc = tpl(vec![
+        wrap,
+        call_block_params("wrap", vec![], &["label"], vec![interp(ident("label"))]),
+        interp(ident("label")),
+    ]);
+    let out = render_ir(&doc, &serde_json::json!({})).expect("render");
+    assert_eq!(out, "in|");
+}
+
 #[test]
 fn caller_block_renders_inline_and_sees_the_calling_scope() {
     let wrap = macro_node(

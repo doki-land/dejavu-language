@@ -118,11 +118,14 @@ pub enum IrNode {
     /// `call name(args)` … `end call` — invokes a macro with a caller block.
     ///
     /// The block is exposed to the macro body as `caller()` and renders in the
-    /// calling template's scope, not the macro's.
+    /// calling template's scope, not the macro's. `params` are the caller
+    /// block's formal parameters, declared as `call(a, b) name(args)`.
     #[serde(rename = "Stmt.Call")]
     StmtCall {
         name: String,
         arguments: Vec<IrNode>,
+        #[serde(default)]
+        params: Vec<PartialParam>,
         body: Vec<IrNode>,
         trim: String,
         #[serde(skip_serializing_if = "Option::is_none")]

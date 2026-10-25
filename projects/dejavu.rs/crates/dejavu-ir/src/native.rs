@@ -1,6 +1,6 @@
 //! Host-native T1 AST (Rust side) that round-trips with IR.
 
-use crate::types::{IrNode, Span};
+use crate::types::{IrNode, PartialParam, Span};
 use serde_json::Value;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -71,6 +71,7 @@ pub enum NativeKind {
     Call {
         name: String,
         arguments: Vec<NativeExpr>,
+        params: Vec<NativeParam>,
         body: Vec<NativeNode>,
         trim: String,
     },
@@ -210,9 +211,16 @@ fn encode_node(n: &NativeNode) -> IrNode {
             trim: trim.clone(),
             span,
         },
-        NativeKind::Call { name, arguments, body, trim } => IrNode::StmtCall {
+        NativeKind::Call { name, arguments, params, body, trim } => IrNode::StmtCall {
             name: name.clone(),
             arguments: arguments.iter().map(encode_expr).collect(),
+            params: params
+                .iter()
+                .map(|p| PartialParam {
+                    name: p.name.clone(),
+                    default: p.default.as_ref().map(encode_expr),
+                })
+                .collect(),
             body: body.iter().map(encode_node).collect(),
             trim: trim.clone(),
             span,
@@ -371,10 +379,14 @@ fn decode_node(n: &IrNode) -> NativeNode {
             },
             span.clone(),
         ),
-        IrNode::StmtCall { name, arguments, body, trim, span } => NativeNode::new(
+        IrNode::StmtCall { name, arguments, params, body, trim, span } => NativeNode::new(
             NativeKind::Call {
                 name: name.clone(),
                 arguments: arguments.iter().map(decode_expr).collect(),
+                params: params
+                    .iter()
+                    .map(|p| NativeParam { name: p.name.clone(), default: p.default.as_ref().map(decode_expr) })
+                    .collect(),
                 body: body.iter().map(decode_node).collect(),
                 trim: trim.clone(),
             },

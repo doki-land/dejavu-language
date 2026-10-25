@@ -142,6 +142,36 @@ fn call_block_parses_name_arguments_and_body() {
 }
 
 #[test]
+fn call_block_parses_caller_parameters() {
+    let doc: IrDocument = parse(
+        r#"<% macro wrap() %><% caller("x", 1) %><% end macro %><% call(label, n) wrap() %>body<% end call %>"#,
+    )
+    .expect("parse");
+    let IrNode::Template { children, .. } = doc.body else {
+        panic!("expected Template body");
+    };
+    let IrNode::StmtCall { params, .. } = &children[1] else {
+        panic!("expected Stmt.Call, got {:?}", children[1]);
+    };
+    let names: Vec<_> = params.iter().map(|p| p.name.as_str()).collect();
+    assert_eq!(names, ["label", "n"]);
+    assert!(params.iter().all(|p| p.default.is_none()));
+}
+
+#[test]
+fn call_block_params_reject_defaults_and_duplicates() {
+    let err = parse(r#"<% macro wrap() %>x<% end macro %><% call(a = 1) wrap() %>body<% end call %>"#)
+        .expect_err("caller defaults");
+    assert!(err.message.contains("comma separated"), "message: {}", err.message);
+    let err = parse(r#"<% macro wrap() %>x<% end macro %><% call(a, a) wrap() %>body<% end call %>"#)
+        .expect_err("duplicate caller parameter");
+    assert!(err.message.contains("duplicate"), "message: {}", err.message);
+    let err = parse(r#"<% macro wrap() %>x<% end macro %><% call(caller) wrap() %>body<% end call %>"#)
+        .expect_err("reserved caller parameter");
+    assert!(err.message.contains("reserved"), "message: {}", err.message);
+}
+
+#[test]
 fn call_block_requires_end_call() {
     let err = parse(r#"<% call wrap() %>body"#).expect_err("unclosed call");
     assert!(err.message.contains("end call") || err.message.contains("EndCall"), "message: {}", err.message);

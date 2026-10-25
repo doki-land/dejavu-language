@@ -218,13 +218,15 @@ struct MacroDef {
     module: String,
 }
 
-/// Caller block captured by `call`: the body plus the lexical scope and
-/// module it was written in. `caller()` renders it back in that scope.
+/// Caller block captured by `call`: the body, the lexical scope and module it
+/// was written in, and its declared parameters. `caller()` renders it back in
+/// that scope with the arguments bound to the parameters.
 #[derive(Debug, Clone)]
 struct CallerBlock {
     body: Vec<IrNode>,
     scope: HashMap<String, Value>,
     module: String,
+    params: Vec<String>,
 }
 
 impl<'a> Renderer<'a> {
@@ -374,13 +376,23 @@ impl<'a> Renderer<'a> {
     /// The block is temporarily removed from the stack so a `caller()` inside
     /// the block cannot recurse into itself, then restored so a macro may
     /// invoke `caller()` more than once.
-    fn render_caller_block(&mut self) -> Result<Value, IrError> {
+    fn render_caller_block(&mut self, args: &[Value]) -> Result<Value, IrError> {
         let Some(block) = self.caller_stack.pop() else {
             return Err(diag_render(codes::CALLER_UNAVAILABLE));
         };
+        if args.len() != block.params.len() {
+            let expected = block.params.len();
+            self.caller_stack.push(block);
+            return Err(diag_render(codes::CALLER_ARITY)
+                .arg("got", args.len())
+                .arg("maxArgs", expected));
+        }
         let saved_scope = std::mem::take(&mut self.scope);
         let saved_id = std::mem::replace(&mut self.current_id, block.module.clone());
         self.scope = block.scope.clone();
+        for (param, value) in block.params.iter().zip(args) {
+            self.scope.insert(param.clone(), value.clone());
+        }
         let rendered = self.render_list(&block.body).map(Value::String);
         self.scope = saved_scope;
         self.current_id = saved_id;
@@ -645,7 +657,7 @@ impl<'a> Renderer<'a> {
 
             // `call name(args)` … `end call`: invoke the macro with a caller
             // block captured in the current scope.
-            IrNode::StmtCall { name, arguments, body, .. } => {
+            IrNode::StmtCall { name, arguments, params, body, .. } => {
                 let Some(mac) = self.lookup_macro(name) else {
                     return Err(diag_render(codes::UNKNOWN_FUNCTION).arg("name", name.clone()));
                 };
@@ -654,6 +666,7 @@ impl<'a> Renderer<'a> {
                     body: body.clone(),
                     scope: self.scope.clone(),
                     module: self.current_id.clone(),
+                    params: params.iter().map(|p| p.name.clone()).collect(),
                 };
                 self.call_macro(&mac, &args?, Some(caller)).map(|v| value_to_string(&v))
             }
@@ -777,10 +790,8 @@ impl<'a> Renderer<'a> {
                     return Err(diag_render(codes::CALLS_NOT_SUPPORTED));
                 };
                 if name == "caller" {
-                    if !arguments.is_empty() {
-                        return Err(diag_render(codes::CALLER_ARITY).arg("got", arguments.len()));
-                    }
-                    return self.render_caller_block();
+                    let args: Result<Vec<_>, _> = arguments.iter().map(|a| self.eval(a)).collect();
+                    return self.render_caller_block(&args?);
                 }
                 if let Some(mac) = self.lookup_macro(name) {
                     let args: Result<Vec<_>, _> = arguments.iter().map(|a| self.eval(a)).collect();

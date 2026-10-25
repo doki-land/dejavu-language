@@ -457,18 +457,11 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
                     ctx.macro_depth_expr
                 );
             }
-            // `caller()` renders the block supplied by the enclosing `call`.
+            // `caller(args)` renders the block supplied by the enclosing
+            // `call`. Arity is checked by the emitted closure, because one
+            // macro may be reached through `call` sites declaring different
+            // caller parameters.
             if name == "caller" {
-                if !arguments.is_empty() {
-                    ctx.diagnostic_arg(
-                        Severity::Error,
-                        codes::CALLER_ARITY,
-                        "`caller()` takes no arguments",
-                        "got",
-                        arguments.len() as i64,
-                    );
-                    return "null".into();
-                }
                 if !ctx.in_macro {
                     ctx.diagnostic(
                         Severity::Error,
@@ -477,7 +470,10 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
                     );
                     return "null".into();
                 }
-                return "__caller()".into();
+                if arguments.is_empty() {
+                    return "__caller()".into();
+                }
+                return format!("__caller([{}])", emit_expr_list(arguments, ctx));
             }
             let args_s = emit_expr_list(arguments, ctx);
             match validate_function(name, arguments.len(), ctx.capabilities) {
@@ -778,8 +774,9 @@ pub fn emit_stmt(
         // Macro imports become ESM imports in `build_module`.
         IrNode::StmtImport { .. } => {}
         // `call name(args)` … `end call`: pass the caller block as a closure
-        // so it renders in the calling scope, not the macro's.
-        IrNode::StmtCall { name, arguments, body, .. } => {
+        // so it renders in the calling scope, not the macro's. Declared caller
+        // parameters are bound onto a copy of that scope.
+        IrNode::StmtCall { name, arguments, params, body, .. } => {
             let Some(js_fn) = ctx.macro_ref(name).map(str::to_string) else {
                 ctx.diagnostic_arg(
                     Severity::Error,
@@ -794,12 +791,32 @@ pub fn emit_stmt(
             let mut caller_body = String::new();
             emit_body(body, ctx, &mut caller_body, catalog);
             let depth = ctx.macro_depth_expr.clone();
+            let count = params.len();
+            let guard = format!(
+                "if ((__callerArgs == null ? 0 : __callerArgs.length) !== {count}) {{ const __got = __callerArgs == null ? 0 : __callerArgs.length; throw runtimeError(\"dejavu.template.caller-arity\", \"`caller()` expects {count} argument(s), got \" + __got, {{ got: __got, maxArgs: {count} }}); }}\n"
+            );
             out.push_str(&format!(
-                "__out.push({js_fn}(ctx, [{args_s}], {depth}, __strict, function () {{\n"
+                "__out.push({js_fn}(ctx, [{args_s}], {depth}, __strict, function (__callerArgs) {{\n{guard}"
             ));
-            out.push_str("const __out = [];\n");
-            out.push_str(&caller_body);
-            out.push_str("return __out.join(\"\");\n}, __custom));\n");
+            if count == 0 {
+                out.push_str("const __out = [];\n");
+                out.push_str(&caller_body);
+                out.push_str("return __out.join(\"\");\n}, __custom));\n");
+            } else {
+                let bindings = params
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, param)| format!("{}: __callerArgs[{idx}]", json_string(&param.name)))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                out.push_str(&format!(
+                    "return (function (ctx) {{\nconst __out = [];\n"
+                ));
+                out.push_str(&caller_body);
+                out.push_str(&format!(
+                    "return __out.join(\"\");\n}})(Object.assign({{}}, ctx, {{ {bindings} }}));\n}}, __custom));\n"
+                ));
+            }
         }
         IrNode::StmtExtends { .. } => {
             // In catalog mode the extends chain is flattened before we reach

@@ -19,8 +19,14 @@ pub(crate) enum CodeHead<'a> {
     EndPartial,
     Macro { name: String, params_src: &'a str, params_base: usize },
     EndMacro,
-    /// `call name(args)` … `end call`
-    Call { src: &'a str, base: usize },
+    /// `call name(args)` … `end call`, or `call(a, b) name(args)` when the
+    /// caller block declares parameters. `params` is `None` when no
+    /// parenthesised list appeared between `call` and the macro call.
+    Call {
+        src: &'a str,
+        base: usize,
+        params: Option<(&'a str, usize)>,
+    },
     EndCall,
     /// `from "<path>" import a, b as c`
     From { path: String, names: Vec<(String, Option<String>)> },
@@ -247,19 +253,54 @@ pub(crate) fn classify_code<'a>(
             })
         }
         CodeToken::Ident(name) if name == "call" => {
-            let (src, base) = slice(1);
-            if src.is_empty() {
-                return Err(ParseError::at(
-                    source,
-                    file,
-                    content_base + spans[0].start,
-                    (spans[0].end - spans[0].start).max(1),
+            let call_diag = |message: &str, label: &str, idx: usize| {
+                let span = spans.get(idx).map(|s| (s.start, (s.end - s.start).max(1))).unwrap_or((spans[0].start, 1));
+                ParseError::at(source, file, content_base + span.0, span.1, message, label)
+                    .with_code(codes::PARSE_UNEXPECTED_TOKEN)
+            };
+            let mut next = 1;
+            let mut params = None;
+            if matches!(spans.get(1).map(|s| &s.tok), Some(CodeToken::LParen)) {
+                let open = &spans[1];
+                let mut depth = 0i32;
+                let mut close = None;
+                for (idx, span) in spans.iter().enumerate().skip(1) {
+                    match span.tok {
+                        CodeToken::LParen => depth += 1,
+                        CodeToken::RParen => {
+                            depth -= 1;
+                            if depth == 0 {
+                                close = Some(idx);
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                let Some(close) = close else {
+                    return Err(call_diag(
+                        "call parameter list must end with `)`",
+                        "expected `)`",
+                        spans.len() - 1,
+                    ));
+                };
+                params = Some((&content[open.end..spans[close].start], content_base + open.end));
+                next = close + 1;
+            }
+            if next >= spans.len() {
+                return Err(call_diag(
                     "call requires `macro(args)`",
                     "expected `call name(...)`",
-                )
-                .with_code(codes::PARSE_UNEXPECTED_TOKEN));
+                    0,
+                ));
             }
-            Ok(CodeHead::Call { src, base })
+            let start = spans[next].start;
+            let end = spans.last().map(|s| s.end).unwrap_or(start);
+            Ok(CodeHead::Call {
+                src: &content[start..end],
+                base: content_base + start,
+                params,
+            })
         }
         CodeToken::Ident(name) if name == "block" => {
             if spans.len() != 2 {

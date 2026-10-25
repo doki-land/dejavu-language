@@ -1,0 +1,45 @@
+{
+    "irVersion": "1.0",
+    "language": {
+        "syntaxMode": "template",
+        "template": {
+            "codeStart": "<%",
+            "codeEnd": "%>",
+            "commentStart": "<#",
+            "commentEnd": "#>",
+            "supportFilterPipe": true,
+            "legacyFor": false
+        }
+    },
+    "body": {
+        "type": "Template",
+        "children": [
+            {
+                "type": "Stmt.Macro",
+                "name": "wrap",
+                "params": [],
+                "body": [
+                    {
+                        "type": "Interpolation",
+                        "expression": {
+                            "type": "Expr.Call",
+                            "callee": { "type": "Expr.Identifier", "name": "caller" },
+                            "arguments": []
+                        },
+                        "trim": "none",
+                        "raw": false
+                    }
+                ],
+                "trim": "none"
+            },
+            {
+                "type": "Stmt.Call",
+                "name": "wrap",
+                "arguments": [],
+                "params": [{ "name": "label" }],
+                "body": [{ "type": "Text", "value": "x" }],
+                "trim": "none"
+            }
+        ]
+    }
+}

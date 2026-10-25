@@ -461,12 +461,13 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
                         children.push(node);
                         i = new_i;
                     }
-                    CodeHead::Call { src, base } => {
+                    CodeHead::Call { src, base, params } => {
                         let (node, new_i) = self.parse_call(
                             open,
                             next_i,
                             src,
                             base,
+                            params,
                             tag.trim_left,
                             tag.trim_right,
                             pending.take(),

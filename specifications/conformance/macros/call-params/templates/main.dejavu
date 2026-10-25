@@ -1,0 +1,1 @@
+<% macro rows() %><ul><% caller("first", 7) %><% caller("second", 8) %></ul><% end macro %><% call(label, n) rows() %><li><% label %>:<% n %>/<% title %></li><% end call %>
