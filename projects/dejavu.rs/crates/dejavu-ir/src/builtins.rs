@@ -15,7 +15,11 @@ use serde_json::Value;
 use crate::IrError;
 use crate::codes;
 use crate::diag_render;
-use crate::registry::{CapabilitySet, FunctionLookupError, TestLookupError, validate_function, validate_test};
+use crate::registry::{
+    CapabilitySet, CustomEntry, FunctionLookupError, Namespace, TestLookupError, custom_entry, validate_function,
+    validate_test,
+};
+use crate::render::CustomRegistry;
 
 /// Maximum number of elements `range` may produce.
 ///
@@ -25,19 +29,34 @@ const RANGE_LIMIT: usize = 10_000;
 
 /// Evaluate a built-in function call.
 pub fn call_function(name: &str, args: &[Value], capabilities: CapabilitySet) -> Result<Value, IrError> {
-    let spec = validate_function(name, args.len(), capabilities).map_err(|err| match err {
-        FunctionLookupError::Unknown => {
-            diag_render(codes::UNKNOWN_FUNCTION).arg("function", name)
+    call_function_with(name, args, capabilities, None)
+}
+
+/// Evaluate a function call, consulting host-supplied entries when the name is
+/// not a built-in.
+pub fn call_function_with(
+    name: &str,
+    args: &[Value],
+    capabilities: CapabilitySet,
+    custom: Option<&dyn CustomRegistry>,
+) -> Result<Value, IrError> {
+    let spec = match validate_function(name, args.len(), capabilities) {
+        Ok(spec) => spec,
+        Err(FunctionLookupError::Unknown) => {
+            let Some(registry) = custom else {
+                return Err(diag_render(codes::UNKNOWN_FUNCTION).arg("function", name));
+            };
+            let Some(entry) = custom_entry(registry.entries(), Namespace::Function, name) else {
+                return Err(diag_render(codes::UNKNOWN_FUNCTION).arg("function", name));
+            };
+            validate_custom_arity(entry, args.len(), codes::FUNCTION_ARITY, "function")?;
+            if !capabilities.allows(entry.capability) {
+                return Err(crate::render::capability_denied(&entry.name, entry.capability));
+            }
+            return Ok(registry.call_function(&entry.name, args));
         }
-        FunctionLookupError::Arity { spec } => diag_render(codes::FUNCTION_ARITY)
-            .arg("function", spec.name)
-            .arg("minArgs", spec.min_args)
-            .arg("maxArgs", spec.max_args)
-            .arg("got", args.len()),
-        FunctionLookupError::NotAllowed { spec } => {
-            crate::render::capability_denied(spec.name, spec.capability)
-        }
-    })?;
+        Err(err) => return Err(function_lookup_error(err, args.len())),
+    };
     Ok(match spec.name {
         "range" => range(args),
         "min" => numeric_pair(args, true),
@@ -57,15 +76,36 @@ pub fn call_test(
     negated: bool,
     capabilities: CapabilitySet,
 ) -> Result<bool, IrError> {
-    let spec = validate_test(name, args.len(), capabilities).map_err(|err| match err {
-        TestLookupError::Unknown => diag_render(codes::UNKNOWN_TEST).arg("test", name),
-        TestLookupError::Arity { spec } => diag_render(codes::TEST_ARITY)
-            .arg("test", spec.name)
-            .arg("minArgs", spec.min_args)
-            .arg("maxArgs", spec.max_args)
-            .arg("got", args.len()),
-        TestLookupError::NotAllowed { spec } => crate::render::capability_denied(spec.name, spec.capability),
-    })?;
+    call_test_with(name, value, args, negated, capabilities, None)
+}
+
+/// Evaluate a test, consulting host-supplied entries when the name is not a
+/// built-in. The host implementation returns the un-negated predicate result.
+pub fn call_test_with(
+    name: &str,
+    value: &Value,
+    args: &[Value],
+    negated: bool,
+    capabilities: CapabilitySet,
+    custom: Option<&dyn CustomRegistry>,
+) -> Result<bool, IrError> {
+    let spec = match validate_test(name, args.len(), capabilities) {
+        Ok(spec) => spec,
+        Err(TestLookupError::Unknown) => {
+            let Some(registry) = custom else {
+                return Err(diag_render(codes::UNKNOWN_TEST).arg("test", name));
+            };
+            let Some(entry) = custom_entry(registry.entries(), Namespace::Test, name) else {
+                return Err(diag_render(codes::UNKNOWN_TEST).arg("test", name));
+            };
+            validate_custom_arity(entry, args.len(), codes::TEST_ARITY, "test")?;
+            if !capabilities.allows(entry.capability) {
+                return Err(crate::render::capability_denied(&entry.name, entry.capability));
+            }
+            return Ok(registry.apply_test(&entry.name, value, args) != negated);
+        }
+        Err(err) => return Err(test_lookup_error(err, args.len())),
+    };
     let result = match spec.name {
         "null" => value.is_null(),
         "truthy" => is_truthy(value),
@@ -85,6 +125,41 @@ pub fn call_test(
         _ => false,
     };
     Ok(result != negated)
+}
+
+fn validate_custom_arity(entry: &CustomEntry, got: usize, code: &str, key: &str) -> Result<(), IrError> {
+    if got < entry.min_args || got > entry.max_args {
+        return Err(diag_render(code)
+            .arg(key, entry.name.clone())
+            .arg("minArgs", entry.min_args)
+            .arg("maxArgs", entry.max_args)
+            .arg("got", got));
+    }
+    Ok(())
+}
+
+fn function_lookup_error(err: FunctionLookupError, got: usize) -> IrError {
+    match err {
+        FunctionLookupError::Unknown => diag_render(codes::UNKNOWN_FUNCTION),
+        FunctionLookupError::Arity { spec } => diag_render(codes::FUNCTION_ARITY)
+            .arg("function", spec.name)
+            .arg("minArgs", spec.min_args)
+            .arg("maxArgs", spec.max_args)
+            .arg("got", got),
+        FunctionLookupError::NotAllowed { spec } => crate::render::capability_denied(spec.name, spec.capability),
+    }
+}
+
+fn test_lookup_error(err: TestLookupError, got: usize) -> IrError {
+    match err {
+        TestLookupError::Unknown => diag_render(codes::UNKNOWN_TEST),
+        TestLookupError::Arity { spec } => diag_render(codes::TEST_ARITY)
+            .arg("test", spec.name)
+            .arg("minArgs", spec.min_args)
+            .arg("maxArgs", spec.max_args)
+            .arg("got", got),
+        TestLookupError::NotAllowed { spec } => crate::render::capability_denied(spec.name, spec.capability),
+    }
 }
 
 /// `range(start, stop, step=1)` over integers.

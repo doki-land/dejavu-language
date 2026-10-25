@@ -2,7 +2,185 @@
 //! merged cross-host dump.
 
 use dejavu_ir::registry::{CustomEntry, Namespace, validate_custom_entries};
-use dejavu_ir::{ArgValue, Capability, Stage, codes};
+use dejavu_ir::{
+    ArgValue, Capability, CustomRegistry, IrDocument, IrError, RenderOptions, Stage, codes, default_language,
+    render_ir_opts,
+};
+use serde_json::{Value, json};
+
+/// A host that implements every entry it describes.
+struct Host {
+    entries: Vec<CustomEntry>,
+}
+
+impl CustomRegistry for Host {
+    fn entries(&self) -> &[CustomEntry] {
+        &self.entries
+    }
+
+    fn apply_filter(&self, name: &str, value: &Value, _args: &[Value]) -> Value {
+        let text = value.as_str().unwrap_or_default();
+        match name {
+            "shout" => Value::String(format!("{text}!")),
+            "bolder" => Value::String(format!("<b>{text}</b>")),
+            other => panic!("unexpected filter dispatch: {other}"),
+        }
+    }
+
+    fn call_function(&self, name: &str, args: &[Value]) -> Value {
+        match name {
+            "twice" => json!(args[0].as_i64().unwrap_or_default() * 2),
+            other => panic!("unexpected function dispatch: {other}"),
+        }
+    }
+
+    fn apply_test(&self, name: &str, value: &Value, _args: &[Value]) -> bool {
+        match name {
+            "evenish" => value.as_i64().is_some_and(|n| n % 2 == 0),
+            other => panic!("unexpected test dispatch: {other}"),
+        }
+    }
+}
+
+fn literals(args: Vec<Value>) -> Vec<Value> {
+    args.into_iter().map(|value| json!({ "type": "Expr.Literal", "value": value })).collect()
+}
+
+fn pipe_doc(filter: &str, value: &str, args: Vec<Value>) -> IrDocument {
+    let doc = json!({
+        "irVersion": "1.0",
+        "language": default_language(),
+        "body": { "type": "Template", "children": [{
+            "type": "Interpolation",
+            "trim": "none",
+            "expression": {
+                "type": "Expr.Pipe",
+                "expression": { "type": "Expr.Literal", "value": value },
+                "filter": filter,
+                "arguments": literals(args),
+            }
+        }]}
+    });
+    serde_json::from_value(doc).expect("parse ir json")
+}
+
+fn call_doc(name: &str, args: Vec<Value>) -> IrDocument {
+    let doc = json!({
+        "irVersion": "1.0",
+        "language": default_language(),
+        "body": { "type": "Template", "children": [{
+            "type": "Interpolation",
+            "trim": "none",
+            "expression": {
+                "type": "Expr.Call",
+                "callee": { "type": "Expr.Identifier", "name": name },
+                "arguments": literals(args),
+            }
+        }]}
+    });
+    serde_json::from_value(doc).expect("parse ir json")
+}
+
+fn test_doc(name: &str, negated: bool) -> IrDocument {
+    let doc = json!({
+        "irVersion": "1.0",
+        "language": default_language(),
+        "body": { "type": "Template", "children": [{
+            "type": "Stmt.If",
+            "test": {
+                "type": "Expr.Test",
+                "expression": { "type": "Expr.Literal", "value": 4 },
+                "test": name,
+                "negated": negated,
+            },
+            "consequent": [{ "type": "Text", "value": "yes", "trim": "none" }],
+            "elseIfs": [],
+            "alternate": [],
+            "trim": "none"
+        }]}
+    });
+    serde_json::from_value(doc).expect("parse ir json")
+}
+
+fn host() -> Host {
+    Host {
+        entries: vec![
+            entry(Namespace::Filter, "shout", &["loud"], 0, 0, Capability::Pure),
+            entry(Namespace::Filter, "bolder", &[], 0, 0, Capability::SafeOutput),
+            entry(Namespace::Function, "twice", &[], 1, 1, Capability::Pure),
+            entry(Namespace::Test, "evenish", &[], 0, 0, Capability::Pure),
+        ],
+    }
+}
+
+fn render(doc: &IrDocument, custom: &dyn CustomRegistry, capabilities: dejavu_ir::CapabilitySet) -> Result<String, IrError> {
+    render_ir_opts(
+        doc,
+        &json!({}),
+        RenderOptions { capabilities, custom: Some(custom), ..Default::default() },
+        None,
+    )
+}
+
+fn code(err: IrError) -> String {
+    match err {
+        IrError::Diagnostic(diagnostic) => diagnostic.code,
+        other => panic!("expected diagnostic, got {other:?}"),
+    }
+}
+
+#[test]
+fn custom_filter_dispatches_by_canonical_name_for_aliases() {
+    let host = host();
+    let doc = pipe_doc("loud", "hi", vec![]);
+    assert_eq!(render(&doc, &host, dejavu_ir::CapabilitySet::all()).unwrap(), "hi!");
+}
+
+#[test]
+fn custom_safe_output_filter_skips_escaping() {
+    let host = host();
+    let doc = pipe_doc("bolder", "hi", vec![]);
+    assert_eq!(render(&doc, &host, dejavu_ir::CapabilitySet::all()).unwrap(), "<b>hi</b>");
+
+    // Without the capability grant the same render is rejected.
+    let pure = dejavu_ir::CapabilitySet::from_names(&["pure".to_string()]).unwrap();
+    let err = render(&doc, &host, pure).expect_err("safe-output not granted");
+    assert_eq!(code(err), codes::CAPABILITY_NOT_ALLOWED);
+}
+
+#[test]
+fn custom_function_and_test_run_end_to_end() {
+    let host = host();
+    let doc = call_doc("twice", vec![json!(21)]);
+    assert_eq!(render(&doc, &host, dejavu_ir::CapabilitySet::all()).unwrap(), "42");
+
+    let doc = test_doc("evenish", false);
+    assert_eq!(render(&doc, &host, dejavu_ir::CapabilitySet::all()).unwrap(), "yes");
+    let doc = test_doc("evenish", true);
+    assert_eq!(render(&doc, &host, dejavu_ir::CapabilitySet::all()).unwrap(), "");
+}
+
+#[test]
+fn custom_arity_and_unknown_names_keep_builtin_codes() {
+    let host = Host { entries: vec![entry(Namespace::Function, "twice", &[], 1, 1, Capability::Pure)] };
+    let doc = call_doc("twice", vec![]);
+    assert_eq!(code(render(&doc, &host, dejavu_ir::CapabilitySet::all()).expect_err("arity")), codes::FUNCTION_ARITY);
+
+    let doc = call_doc("nope", vec![]);
+    assert_eq!(code(render(&doc, &host, dejavu_ir::CapabilitySet::all()).expect_err("unknown")), codes::UNKNOWN_FUNCTION);
+}
+
+#[test]
+fn conflicting_registration_is_rejected_before_rendering() {
+    let host = Host { entries: vec![entry(Namespace::Filter, "uppercase", &[], 0, 0, Capability::Pure)] };
+    let doc = pipe_doc("uppercase", "x", vec![]);
+    let err = render(&doc, &host, dejavu_ir::CapabilitySet::all()).expect_err("conflict");
+    let IrError::Diagnostic(diagnostic) = err else { panic!("expected diagnostic") };
+    assert_eq!(diagnostic.code, codes::REGISTRY_CONFLICT);
+    assert_eq!(diagnostic.stage, Stage::Host);
+    assert_eq!(arg_string(&diagnostic, "namespace"), "filter");
+}
+
 
 fn arg_string(diagnostic: &dejavu_ir::Diagnostic, key: &str) -> String {
     match diagnostic.args.get(key) {

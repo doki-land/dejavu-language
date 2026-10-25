@@ -495,7 +495,7 @@ fn render_document(document: &IrDocument, context: &str, options: Option<&str>, 
         },
         None => CapabilitySet::all(),
     };
-    let options = RenderOptions { strict_undefined: wire.strict, name: wire.name, capabilities };
+    let options = RenderOptions { strict_undefined: wire.strict, name: wire.name, capabilities, custom: None };
     let mut loader_state = catalog_state.as_ref().map(dejavu_ir::CatalogLoader::new);
     let loader: Option<&mut dyn TemplateLoader> = match loader_state.as_mut() {
         Some(loader) => Some(loader),

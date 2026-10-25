@@ -431,6 +431,17 @@ pub fn validate_custom_entries(entries: &[CustomEntry]) -> Result<(), Diagnostic
     Ok(())
 }
 
+/// Look up a custom entry by canonical name or alias inside one namespace.
+pub fn custom_entry<'a>(
+    entries: &'a [CustomEntry],
+    namespace: Namespace,
+    name: &str,
+) -> Option<&'a CustomEntry> {
+    entries
+        .iter()
+        .find(|entry| entry.namespace == namespace && (entry.name == name || entry.aliases.iter().any(|alias| alias == name)))
+}
+
 // ---------------------------------------------------------------------------
 // Cross-host dump
 // ---------------------------------------------------------------------------
