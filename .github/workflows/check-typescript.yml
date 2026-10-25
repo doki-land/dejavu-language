@@ -78,5 +78,8 @@ jobs:
       - name: Build WASM bridge (@doki-land/dejavu-language)
         run: node scripts/build/wasm.mjs
 
+      - name: Build WASM host package (@doki-land/dejavu-language)
+        run: pnpm --filter @doki-land/dejavu-language build
+
       - name: IR conformance
         run: pnpm conformance
