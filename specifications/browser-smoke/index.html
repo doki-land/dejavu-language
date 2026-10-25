@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>DEJAVU_BROWSER_PENDING</title>
+<script type="importmap">
+{
+    "imports": {
+        "@doki-land/dejavu-unknown-wasm32": "/projects/dejavu.ts/platforms/dejavu-unknown-wasm32/src/lib/dejavu_wasm.js"
+    }
+}
+</script>
+</head>
+<body>
+<img id="gate" src="/__browser-gate" alt="" width="1" height="1" style="display:none" />
+<pre id="result">pending</pre>
+<script>
+    window.__dejavuPublish = function (payload) {
+        if (window.__dejavuPublished) return;
+        window.__dejavuPublished = true;
+        const json = JSON.stringify(payload);
+        document.title = "DEJAVU_BROWSER_RESULT " + json;
+        document.getElementById("result").textContent = json;
+        // The gate image keeps the load event pending so `--dump-dom` cannot
+        // capture the page before the asynchronous wasm work finishes.
+        fetch("/__browser-done", { method: "POST", body: json }).catch(() => {});
+    };
+    const alreadyPublished = () => document.title.startsWith("DEJAVU_BROWSER_RESULT ");
+    window.addEventListener("error", (event) => {
+        if (alreadyPublished()) return;
+        window.__dejavuPublish({
+            mainThread: { status: "failed", mode: "import-map", error: String(event.message || "script error") },
+            worker: { status: "failed", mode: "unknown", error: "not started" },
+        });
+    });
+    window.addEventListener("unhandledrejection", (event) => {
+        if (alreadyPublished()) return;
+        window.__dejavuPublish({
+            mainThread: { status: "failed", mode: "import-map", error: String(event.reason) },
+            worker: { status: "failed", mode: "unknown", error: "not started" },
+        });
+    });
+</script>
+<script type="module">
+    import { initWasm, renderSource, renderIr } from "/projects/dejavu.ts/packages/dejavu-language/dist/index.js";
+    import { fetchText, runFixtures } from "/specifications/browser-smoke/runner.mjs";
+
+    const WORKER_TIMEOUT_MS = 15000;
+
+    function runInWorker(config) {
+        return new Promise((resolve) => {
+            const worker = new Worker(config.workerUrl, { type: "module" });
+            const timer = setTimeout(() => {
+                worker.terminate();
+                resolve({ type: "error", mode: "unknown", error: `worker timeout (${WORKER_TIMEOUT_MS}ms)` });
+            }, WORKER_TIMEOUT_MS);
+            worker.onmessage = (event) => {
+                clearTimeout(timer);
+                worker.terminate();
+                resolve(event.data);
+            };
+            worker.onerror = (event) => {
+                clearTimeout(timer);
+                worker.terminate();
+                resolve({ type: "error", mode: "unknown", error: event.message || "worker script error" });
+            };
+            worker.postMessage({ type: "run", fixtures: config.fixtures, wasmUrl: config.wasmUrl });
+        });
+    }
+
+    async function main() {
+        const config = JSON.parse(await fetchText("/__browser-fixtures.json"));
+        await initWasm({ url: config.wasmUrl });
+
+        const mainResults = await runFixtures(config.fixtures, { renderSource, renderIr });
+        const workerSide = await runInWorker(config);
+        const workerResults = workerSide.results ?? [];
+
+        window.__dejavuPublish({
+            mainThread: {
+                status: mainResults.every((result) => result.ok) ? "ok" : "failed",
+                mode: "import-map",
+                results: mainResults,
+            },
+            worker: {
+                status: workerSide.type === "done" && workerResults.every((result) => result.ok) ? "ok" : "failed",
+                mode: workerSide.mode ?? "unknown",
+                results: workerResults,
+                error: workerSide.error,
+            },
+        });
+    }
+
+    main().catch((error) => {
+        window.__dejavuPublish({
+            mainThread: { status: "failed", mode: "import-map", error: String((error && error.stack) || error) },
+            worker: { status: "failed", mode: "unknown", error: "not started" },
+        });
+    });
+</script>
+</body>
+</html>
