@@ -317,9 +317,32 @@ fn cycle_detected_include_ab_ba() {
         "index.dejavu",
     );
     assert!(res.modules.is_empty(), "cycle → no modules, got {:?}", res.modules.len());
-    assert!(res.diagnostics.iter().any(|d| {
-        d.code.contains("circular") && d.severity == dejavu_diagnostic::Severity::Error
-    }));
+    let diag = errors(&res).into_iter().next().expect("cycle diagnostic");
+    assert_eq!(diag.code, dejavu_diagnostic::codes::CIRCULAR_INCLUDE);
+    assert_eq!(diag.stage, dejavu_diagnostic::Stage::Load);
+    assert_eq!(chain_arg(diag), "main:index.dejavu -> main:b.dejavu -> main:index.dejavu");
+}
+
+#[test]
+fn cycle_detected_extends_ab_ba() {
+    let a = doc(vec![text("A"), stmt_extends(lit(json!("b.dejavu")))]);
+    let b = doc(vec![text("B"), stmt_extends(lit(json!("index.dejavu")))]);
+    let res = compile_catalog(
+        &[("index.dejavu", a), ("b.dejavu", b)],
+        "index.dejavu",
+    );
+    assert!(res.modules.is_empty(), "cycle → no modules, got {:?}", res.modules.len());
+    let diag = errors(&res).into_iter().next().expect("cycle diagnostic");
+    assert_eq!(diag.code, dejavu_diagnostic::codes::CIRCULAR_EXTENDS);
+    assert_eq!(diag.stage, dejavu_diagnostic::Stage::Load);
+    assert_eq!(chain_arg(diag), "main:index.dejavu");
+}
+
+fn chain_arg(diag: &dejavu_diagnostic::Diagnostic) -> String {
+    match diag.args.get("chain") {
+        Some(dejavu_diagnostic::ArgValue::String(s)) => s.clone(),
+        other => panic!("expected string `chain` arg, got {other:?}"),
+    }
 }
 
 // ---------------------------------------------------------------------------

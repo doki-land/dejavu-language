@@ -9,7 +9,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use dejavu_diagnostic::{Diagnostic, Severity, Stage};
+use dejavu_diagnostic::{codes, Diagnostic, Severity, Stage};
 use dejavu_ir::{CatalogRoot, IrDocument, IrNode, TemplateCatalog};
 
 // ---------------------------------------------------------------------------
@@ -154,15 +154,18 @@ pub fn extract_path_literal(node: &IrNode) -> Option<String> {
 
 /// DFS through include + extends edges starting from `entry_id`.
 ///
-/// Returns the canonical id of the first node that was already on the
-/// current DFS stack, so callers can build a diagnostic message with the
-/// cycle participant. `Ok(())` when no cycle is present.
+/// The closing edge decides the diagnostic: an `extends` edge reports
+/// `dejavu.template.circular-extends` with the parent id in `chain`, an
+/// `include` edge reports `dejavu.template.circular-include` with the
+/// `a -> b -> a` path. Both match the interpreter's load-stage diagnostics so
+/// AOT and JIT agree on `code` and `args`. `Ok(())` when no cycle is present.
 pub fn detect_cycle(
     catalog: &TemplateCatalog,
     entry_id: &str,
 ) -> Result<(), Diagnostic> {
     let mut state: HashMap<String, CycleState> = HashMap::new();
-    detect_cycle_inner(catalog, entry_id, &mut state)
+    let mut path: Vec<String> = Vec::new();
+    detect_cycle_inner(catalog, entry_id, &mut state, &mut path)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -175,32 +178,61 @@ fn detect_cycle_inner(
     catalog: &TemplateCatalog,
     id: &str,
     state: &mut HashMap<String, CycleState>,
+    path: &mut Vec<String>,
 ) -> Result<(), Diagnostic> {
-    let st = state.get(id).copied();
-    match st {
-        Some(CycleState::Visiting) => {
-            return Err(
-                Diagnostic::new(
-                    Severity::Error,
-                    "dejavu.compile.circular-reference",
-                    Stage::Compile,
-                )
-                .template_id(id)
-                .message(format!("circular include/extends involving {id}")),
-            );
-        }
+    match state.get(id).copied() {
         Some(CycleState::Done) => return Ok(()),
+        Some(CycleState::Visiting) => {
+            // Back edges are classified where they are traversed, not here.
+            return Ok(());
+        }
         None => {}
     }
     state.insert(id.to_string(), CycleState::Visiting);
+    path.push(id.to_string());
 
-    let edges = collect_edges(catalog, id, false);
-    for next in edges {
-        detect_cycle_inner(catalog, &next, state)?;
+    for (next, kind) in collect_edges(catalog, id, false) {
+        if state.get(&next).copied() == Some(CycleState::Visiting) {
+            if let Some(kind) = kind {
+                return Err(circular_diagnostic(kind, &next, path));
+            }
+            continue;
+        }
+        detect_cycle_inner(catalog, &next, state, path)?;
     }
 
+    path.pop();
     state.insert(id.to_string(), CycleState::Done);
     Ok(())
+}
+
+/// Build the load-stage cycle diagnostic for the edge that closes the cycle.
+fn circular_diagnostic(kind: EdgeKind, target: &str, path: &[String]) -> Diagnostic {
+    match kind {
+        EdgeKind::Extends => {
+            Diagnostic::new(Severity::Error, codes::CIRCULAR_EXTENDS, Stage::Load)
+                .template_id(target)
+                .arg("chain", target.to_string())
+                .message(format!("circular extends involving {target}"))
+        }
+        EdgeKind::Include => {
+            let start = path.iter().position(|id| id == target).unwrap_or(0);
+            let mut chain = path[start..].to_vec();
+            chain.push(target.to_string());
+            Diagnostic::new(Severity::Error, codes::CIRCULAR_INCLUDE, Stage::Load)
+                .template_id(target)
+                .arg("chain", chain.join(" -> "))
+                .message(format!("circular include involving {target}"))
+        }
+    }
+}
+
+/// Which statement produced an edge. `None` marks a `from ... import` edge,
+/// which is reachability-only and never closes a cycle.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum EdgeKind {
+    Include,
+    Extends,
 }
 
 /// Gather all canonical ids reachable from `id` via a single include, extends,
@@ -210,7 +242,11 @@ fn detect_cycle_inner(
 /// `from ... import` edges are followed for reachability but excluded from
 /// cycle detection: ESM function declarations are hoisted, so two templates
 /// may import each other's macros the way the interpreter allows.
-fn collect_edges(catalog: &TemplateCatalog, id: &str, follow_imports: bool) -> Vec<String> {
+fn collect_edges(
+    catalog: &TemplateCatalog,
+    id: &str,
+    follow_imports: bool,
+) -> Vec<(String, Option<EdgeKind>)> {
     let mut out = Vec::new();
     let Some((root_name, path)) = split_canonical(id) else { return out };
     // Find the right root + path in catalog.
@@ -225,7 +261,7 @@ fn collect_edges_from_doc(
     doc: &IrDocument,
     from_id: &str,
     follow_imports: bool,
-    out: &mut Vec<String>,
+    out: &mut Vec<(String, Option<EdgeKind>)>,
 ) {
     let body = match &doc.body {
         IrNode::Template { children, .. } => children,
@@ -243,19 +279,19 @@ fn collect_edges_nodes(
     node: &IrNode,
     from_id: &str,
     follow_imports: bool,
-    out: &mut Vec<String>,
+    out: &mut Vec<(String, Option<EdgeKind>)>,
 ) {
     match node {
         IrNode::StmtInclude { path, .. } => {
-            push_ref_edge(catalog, path, from_id, out);
+            push_ref_edge(catalog, path, from_id, Some(EdgeKind::Include), out);
         }
         IrNode::StmtImport { path, .. } => {
             if follow_imports {
-                push_ref_edge(catalog, path, from_id, out);
+                push_ref_edge(catalog, path, from_id, None, out);
             }
         }
         IrNode::StmtExtends { parent, .. } => {
-            push_ref_edge(catalog, parent, from_id, out);
+            push_ref_edge(catalog, parent, from_id, Some(EdgeKind::Extends), out);
         }
         IrNode::Template { children, .. }
         | IrNode::StmtFor { body: children, .. }
@@ -287,12 +323,13 @@ fn push_ref_edge(
     catalog: &TemplateCatalog,
     path: &IrNode,
     from_id: &str,
-    out: &mut Vec<String>,
+    kind: Option<EdgeKind>,
+    out: &mut Vec<(String, Option<EdgeKind>)>,
 ) {
     if let Some(p) = extract_path_literal(path) {
         if let Ok(hit) = catalog.resolve_ref(&p, Some(from_id)) {
             if let Some(canon) = catalog.canonical_id(&hit) {
-                out.push(canon);
+                out.push((canon, kind));
             }
         }
     }
@@ -412,7 +449,7 @@ pub fn collect_all_reachable(
     let mut stack: Vec<String> = vec![entry_id.to_string()];
     while let Some(id) = stack.pop() {
         if !seen.insert(id.clone()) { continue; }
-        for next in collect_edges(catalog, &id, true) {
+        for (next, _) in collect_edges(catalog, &id, true) {
             if !seen.contains(&next) {
                 stack.push(next);
             }
