@@ -23,6 +23,10 @@
  * `projects/dejavu.ts/platforms/dejavu-<host>/dejavu.<triple>.node`, and the
  * TypeScript packages must be built (`dist/`). Both are produced by
  * `node scripts/build/napi.mjs --release` and `pnpm --filter ... build`.
+ *
+ * A cross-compiled target (e.g. `darwin-x64` on an Apple Silicon runner) is
+ * skipped: npm refuses the `cpu` field and the addon cannot be loaded there, so
+ * that matrix leg can only prove the build, not the consumer closure.
  */
 import { spawnSync } from "node:child_process";
 import {
@@ -205,7 +209,15 @@ function main() {
     }
 
     const targetArch = platform.nodeTriple.includes("arm64") ? "arm64" : "x64";
-    const nativeRunnable = process.arch === targetArch;
+    if (process.arch !== targetArch) {
+        // A cross-compiled addon cannot be installed (npm rejects the `cpu`
+        // field) or loaded here, so there is no consumer closure to prove.
+        console.log(
+            `skip: ${platform.nodeTriple} cannot be consumed on ${process.platform}-${process.arch} (cross-compiled target)`,
+        );
+        return;
+    }
+
     const tempRoot = mkdtempSync(join(tmpdir(), "dejavu-packed-closure-"));
     const tarballDir = join(tempRoot, "tarballs");
     const consumerDir = join(tempRoot, "consumer");
@@ -248,13 +260,10 @@ function main() {
             )}\n`,
         );
 
-        const installArgs = ["install", "--no-audit", "--no-fund", "--save-exact", ...tarballs];
-        if (!nativeRunnable) {
-            // Cross-compiled target: npm refuses packages whose `cpu` differs
-            // from the host, and the addon cannot be loaded here anyway.
-            installArgs.push(`--os=${platform.os[0]}`, `--cpu=${platform.cpu[0]}`, "--force");
-        }
-        mustRun(runNpm(installArgs, consumerDir), "npm install <local tarballs>");
+        mustRun(
+            runNpm(["install", "--no-audit", "--no-fund", "--save-exact", ...tarballs], consumerDir),
+            "npm install <local tarballs>",
+        );
 
         const installed = readdirSync(join(consumerDir, "node_modules", "@doki-land")).sort();
         console.log(`installed ${installed.map((name) => `@doki-land/${name}`).join(", ")}`);
@@ -283,13 +292,6 @@ function main() {
         }
         if (!versionLine.includes(CONTRACT_PREFIX)) {
             throw new Error(`dejavu version output has no binding contract: ${versionLine}`);
-        }
-
-        if (!nativeRunnable) {
-            console.log(
-                `closure-only: native checks skipped because ${platform.nodeTriple} cannot run on ${process.platform}-${process.arch}`,
-            );
-            return;
         }
 
         writeFileSync(
