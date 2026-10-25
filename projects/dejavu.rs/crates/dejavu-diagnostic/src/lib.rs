@@ -339,6 +339,8 @@ pub mod codes {
     pub const CAPABILITY_NOT_ALLOWED: &str = "dejavu.template.capability-not-allowed";
     /// A capability name passed by the host is not in the contract.
     pub const UNKNOWN_CAPABILITY: &str = "dejavu.template.unknown-capability";
+    /// A host-supplied registry entry collides with a built-in or another entry.
+    pub const REGISTRY_CONFLICT: &str = "dejavu.template.registry-conflict";
     pub const INVALID_ITERABLE: &str = "dejavu.template.invalid-iterable";
     pub const UNDEFINED_VARIABLE: &str = "dejavu.template.undefined-variable";
     pub const SUPER_OUTSIDE_BLOCK: &str = "dejavu.template.super-outside-block";

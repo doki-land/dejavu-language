@@ -18,7 +18,7 @@ pub use catalog::{
 pub use native::{NativeExpr, NativeImportName, NativeKind, NativeNode, NativeParam, NativeTemplate};
 pub use normalize::normalize_value;
 pub use trim::{level_of, normalized_children, trim_prefix, trim_suffix};
-pub use registry::{Capability, CapabilitySet};
+pub use registry::{Capability, CapabilitySet, CustomEntry, Namespace, validate_custom_entries};
 pub use render::{RenderOptions, ResolvedTemplate, TemplateLoader, render_ir, render_ir_opts, render_ir_with_loader};
 pub use types::{IrDocument, IrNode, Language, TemplateConfig, default_language};
 
