@@ -75,6 +75,28 @@ export type ParseOptions = {
     delimiters?: string;
 };
 
+/** Registry namespaces a host may extend. */
+export type CustomEntryNamespace = "filter" | "function" | "test";
+
+/** Capability an entry declares; `safe-output` filters skip auto-escaping. */
+export type CustomEntryCapability = "pure" | "safe-output";
+
+/**
+ * Language-neutral description of a host-supplied `filter` / `function` / `test`.
+ *
+ * Compile-time only: AOT codegen validates names, arity and capability, then
+ * emits calls under `name` (aliases never reach the runtime). Hosts pass the
+ * matching implementations to `render(ctx, { custom })`.
+ */
+export type CustomEntryWire = {
+    namespace: CustomEntryNamespace;
+    name: string;
+    aliases?: string[];
+    minArgs?: number;
+    maxArgs?: number;
+    capability: CustomEntryCapability;
+};
+
 /** Options accepted by `precompile`. */
 export type PrecompileOptions = {
     /** Fail on undefined variables in generated code. */
@@ -83,6 +105,8 @@ export type PrecompileOptions = {
     entryId?: string;
     /** Registry capabilities the compiled modules may use. Omit to grant all. */
     capabilities?: string[];
+    /** Host-supplied registry entries merged after the built-in tables. */
+    customRegistry?: CustomEntryWire[];
 };
 
 /** Options accepted by `compile` (JIT preparation). */

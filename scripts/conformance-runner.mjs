@@ -33,6 +33,12 @@ const CATALOG_SUITES = [
 const DIAGNOSTIC_SUITES = [join(BASE, "diagnostics")];
 /** Catalog diagnostic suites: templates + entry.txt + expected.diagnostics.json. */
 const CATALOG_DIAGNOSTIC_SUITES = [join(BASE, "catalog-diagnostics")];
+/**
+ * Custom registry suites: template.ir.json + context.json + meta.json +
+ * registry.mjs + expected.out.txt. Only the AOT adapter can supply host
+ * implementations; JIT / WASM callback injection is a later slice.
+ */
+const REGISTRY_SUITES = [join(BASE, "registry")];
 const TMP = join(ROOT, ".conformance-tmp");
 
 function suiteCases(suite) {
@@ -100,6 +106,21 @@ function catalogDiagnosticCases() {
                 name: relative(BASE, dir),
                 dir,
                 expected: JSON.parse(readFileSync(join(dir, "expected.diagnostics.json"), "utf8")),
+            };
+        }),
+    ).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function registryCases() {
+    return REGISTRY_SUITES.flatMap((suite) =>
+        suiteCases(suite).map((name) => {
+            const dir = join(suite, name);
+            return {
+                name: relative(BASE, dir),
+                dir,
+                irPath: join(dir, "template.ir.json"),
+                ctxPath: join(dir, "context.json"),
+                out: readFileSync(join(dir, "expected.out.txt"), "utf8"),
             };
         }),
     ).sort((a, b) => a.name.localeCompare(b.name));
@@ -695,6 +716,30 @@ function main() {
         }
         if (failedAny) failed++;
         console.log("");
+    }
+    console.log("");
+
+    // ---- custom registry fixtures (AOT only; JIT / WASM injection is a later slice) ----
+    console.log("## custom registry fixtures (AOT path only)");
+    for (const c of registryCases()) {
+        process.stdout.write(`  ${c.name}: `);
+        // `meta.json#customRegistry` + `registry.mjs` are picked up by the AOT
+        // adapter, which feeds implementations to `render(ctx, { custom })`.
+        const out = adapters.aot.render(c);
+        if (out === null) {
+            failed++;
+            console.log("[AOT=MISSING]");
+            continue;
+        }
+        const ok = normalize(out) === normalize(c.out);
+        if (ok) {
+            console.log("[AOT=OK]");
+        } else {
+            failed++;
+            console.log("[AOT=FAIL]");
+            console.log(`    expected ${JSON.stringify(c.out)}`);
+            console.log(`    actual   ${JSON.stringify(out)}`);
+        }
     }
     console.log("");
 

@@ -336,6 +336,7 @@ export function precompileIrSingle(
             strictUndefined: options.strictUndefined ?? false,
             entryId: options.entryId,
             capabilities: options.capabilities,
+            customRegistry: options.customRegistry,
         }),
     });
     return {
@@ -359,6 +360,7 @@ export function precompileCatalog(
             strictUndefined: options.strictUndefined ?? false,
             entryId: options.entryId,
             capabilities: options.capabilities,
+            customRegistry: options.customRegistry,
         }),
     });
     return {

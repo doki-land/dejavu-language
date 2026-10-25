@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { CustomRegistry } from "../src/runtime/index.js";
 import {
     htmlEscape,
     valueToString,
@@ -384,6 +385,63 @@ describe("applyTest", () => {
         );
         expect(() => applyTest("empty", 1, [1])).toThrow(
             "dejavu.template.test-arity",
+        );
+    });
+});
+
+// ---------------------------------------------------------------------------
+// custom registry（AOT 编译期已解析 alias 与 arity）
+// ---------------------------------------------------------------------------
+describe("custom registry", () => {
+    const custom: CustomRegistry = {
+        filter: {
+            shout: (value) => `${valueToString(value)}!`,
+            bolder: (value) => `<b>${valueToString(value)}</b>`,
+        },
+        function: {
+            twice: (args) => Number(args[0]) * 2,
+        },
+        test: {
+            evenish: (value) => Number(value) % 2 === 0,
+        },
+    };
+
+    it("applyFilter 命中自定义过滤器并以 canonical name 为键", () => {
+        expect(applyFilter("shout", "hi", [], custom)).toBe("hi!");
+        expect(applyFilter("bolder", "<i>", [], custom)).toBe("<b><i></b>");
+    });
+
+    it("applyFilter 内置优先于 custom", () => {
+        expect(
+            applyFilter("upper", "hi", [], { filter: { upper: () => "hijacked" } }),
+        ).toBe("HI");
+    });
+
+    it("applyFilter 未命中仍抛 unknown-filter", () => {
+        expect(() => applyFilter("absent", "x", [], custom)).toThrow(
+            "dejavu.template.unknown-filter",
+        );
+    });
+
+    it("callFunction 命中自定义函数", () => {
+        expect(callFunction("twice", [21], custom)).toBe(42);
+    });
+
+    it("callFunction 未命中仍抛 unknown-function", () => {
+        expect(() => callFunction("absent", [], custom)).toThrow(
+            "dejavu.template.unknown-function",
+        );
+    });
+
+    it("applyTest 命中自定义谓词并支持 is not 取反", () => {
+        expect(applyTest("evenish", 4, [], false, custom)).toBe(true);
+        expect(applyTest("evenish", 4, [], true, custom)).toBe(false);
+        expect(applyTest("evenish", 3, [], true, custom)).toBe(true);
+    });
+
+    it("applyTest 未命中仍抛 unknown-test", () => {
+        expect(() => applyTest("absent", 1, [], false, custom)).toThrow(
+            "dejavu.template.unknown-test",
         );
     });
 });

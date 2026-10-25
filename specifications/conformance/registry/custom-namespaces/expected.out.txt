@@ -1,0 +1,4 @@
+shout=dejavu!
+safe=<b><i>ok</i></b>
+twice=42
+four=true

@@ -6,6 +6,7 @@
  * 本文件只负责对已求值的左值执行谓词。
  */
 
+import type { CustomRegistry } from "./custom.js";
 import { runtimeError } from "./errors.js";
 import { isTruthy } from "./value.js";
 
@@ -43,9 +44,14 @@ export function applyTest(
     value: unknown,
     args: unknown[],
     negated = false,
+    custom?: CustomRegistry,
 ): boolean {
     const spec = testSpec(name);
     if (!spec) {
+        // Built-in names win; the compiler already resolved aliases to the
+        // canonical name a host-supplied registry keys on.
+        const implementation = custom?.test?.[name];
+        if (implementation) return implementation(value, args) !== negated;
         throw runtimeError("dejavu.template.unknown-test", name, { test: name });
     }
     if (args.length < spec.minArgs || args.length > spec.maxArgs) {

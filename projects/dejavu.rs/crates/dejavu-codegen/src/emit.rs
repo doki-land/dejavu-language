@@ -27,8 +27,9 @@ use std::collections::{HashMap, HashSet};
 
 use dejavu_diagnostic::{ArgValue, Diagnostic, Severity, Span, Stage, codes};
 use dejavu_ir::registry::{
-    Capability, CapabilitySet, FilterLookupError, FunctionLookupError, TestLookupError, validate_filter,
-    validate_function, validate_test,
+    Capability, CapabilitySet, CustomEntry, FilterLookupError, FunctionLookupError, Namespace,
+    TestLookupError, custom_entry, validate_custom_entries, validate_filter, validate_function,
+    validate_test,
 };
 use dejavu_ir::IrNode;
 
@@ -110,11 +111,20 @@ pub struct CodegenCtx<'a> {
     pub in_macro: bool,
     /// Registry capabilities granted to the compiled artifact.
     capabilities: CapabilitySet,
+    /// Host-supplied entries, validated once by [`CodegenCtx::new`].
+    custom_registry: &'a [CustomEntry],
 }
 
 impl<'a> CodegenCtx<'a> {
     pub fn new(options: &'a CodegenOptions) -> Self {
         let mut diagnostics = Vec::new();
+        // A rejected registry is a configuration error about the whole compile,
+        // reported before any template name is resolved. Reuse the JIT
+        // diagnostic code/args, only restating the stage as `Compile`.
+        if let Err(mut diagnostic) = validate_custom_entries(&options.custom_registry) {
+            diagnostic.stage = Stage::Compile;
+            diagnostics.push(diagnostic);
+        }
         let capabilities = match options.capability_set() {
             Ok(set) => set,
             Err(name) => {
@@ -139,6 +149,7 @@ impl<'a> CodegenCtx<'a> {
             macros: HashMap::new(),
             macro_depth_expr: "1".into(),
             in_macro: false,
+            custom_registry: &options.custom_registry,
         }
     }
 
@@ -206,6 +217,54 @@ impl<'a> CodegenCtx<'a> {
             format!("`{name}` requires the `{}` capability", capability.as_str()),
             [("name", ArgValue::from(name)), ("capability", ArgValue::from(capability.as_str()))],
         );
+    }
+
+    /// Resolve a host-supplied entry after the built-in lookup reported `Unknown`.
+    ///
+    /// The returned entry is owned so diagnostics can be recorded afterwards.
+    /// Aliases resolve to the canonical entry; callers emit `entry.name` only.
+    fn custom_lookup(&self, namespace: Namespace, name: &str) -> Option<CustomEntry> {
+        custom_entry(self.custom_registry, namespace, name).cloned()
+    }
+
+    /// Check a host-supplied entry's arity and capability.
+    ///
+    /// `code` is the namespace's existing arity code and `key` its `args` key
+    /// (`filter` / `function` / `test`) so custom entries reuse the built-in
+    /// contract instead of introducing new codes. Returns `false` when a
+    /// diagnostic was emitted.
+    fn accepts_custom(
+        &mut self,
+        entry: &CustomEntry,
+        arg_count: usize,
+        code: &'static str,
+        key: &'static str,
+    ) -> bool {
+        if arg_count < entry.min_args || arg_count > entry.max_args {
+            self.diagnostic_args(
+                Severity::Error,
+                code,
+                format!(
+                    "{} `{}` expects {}..{} argument(s), got {arg_count}",
+                    entry.namespace.as_str(),
+                    entry.name,
+                    entry.min_args,
+                    entry.max_args
+                ),
+                [
+                    (key, ArgValue::String(entry.name.clone())),
+                    ("minArgs", ArgValue::Number(entry.min_args as f64)),
+                    ("maxArgs", ArgValue::Number(entry.max_args as f64)),
+                    ("got", ArgValue::Number(arg_count as f64)),
+                ],
+            );
+            return false;
+        }
+        if !self.capabilities.allows(entry.capability) {
+            self.capability_denied(&entry.name, entry.capability);
+            return false;
+        }
+        true
     }
 
     /// Emit a Diagnostic with several structured `args`.
@@ -324,19 +383,29 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
             let inner = emit_expr(expression, ctx);
             let args_str = emit_expr_list(arguments, ctx);
             // Validate against the language-neutral registry at compile time so
-            // AOT output never contains an unknown or mis-arity filter.
+            // AOT output never contains an unknown or mis-arity filter. Names the
+            // built-in table does not know resolve against host-supplied entries,
+            // and are emitted under their canonical name (aliases never reach the
+            // runtime).
+            let mut emitted = filter.clone();
             match validate_filter(filter, arguments.len(), ctx.capabilities) {
                 Ok(_) => {}
                 Err(FilterLookupError::NotAllowed { spec }) => {
                     ctx.capability_denied(spec.name, spec.capability);
                 }
-                Err(FilterLookupError::Unknown) => ctx.diagnostic_arg(
-                    Severity::Error,
-                    codes::UNKNOWN_FILTER,
-                    format!("unknown filter `{filter}`"),
-                    "filter",
-                    filter.clone(),
-                ),
+                Err(FilterLookupError::Unknown) => match ctx.custom_lookup(Namespace::Filter, filter) {
+                    Some(entry) => {
+                        emitted = entry.name.clone();
+                        ctx.accepts_custom(&entry, arguments.len(), codes::FILTER_ARITY, "filter");
+                    }
+                    None => ctx.diagnostic_arg(
+                        Severity::Error,
+                        codes::UNKNOWN_FILTER,
+                        format!("unknown filter `{filter}`"),
+                        "filter",
+                        filter.clone(),
+                    ),
+                },
                 Err(FilterLookupError::Arity { spec }) => ctx.diagnostic_args(
                     Severity::Error,
                     codes::FILTER_ARITY,
@@ -356,8 +425,8 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
                 ),
             }
             format!(
-                "applyFilter({}, {inner}, [{args_str}])",
-                json_string(filter)
+                "applyFilter({}, {inner}, [{args_str}], __custom)",
+                json_string(&emitted)
             )
         }
         IrNode::ExprCall { callee, arguments, .. } => {
@@ -384,7 +453,7 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
                 let js_fn = js_fn.to_string();
                 let args_s = emit_expr_list(arguments, ctx);
                 return format!(
-                    "{js_fn}(ctx, [{args_s}], {}, __strict, null)",
+                    "{js_fn}(ctx, [{args_s}], {}, __strict, null, __custom)",
                     ctx.macro_depth_expr
                 );
             }
@@ -413,7 +482,7 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
             let args_s = emit_expr_list(arguments, ctx);
             match validate_function(name, arguments.len(), ctx.capabilities) {
                 Ok(spec) => format!(
-                    "callFunction({}, [{args_s}])",
+                    "callFunction({}, [{args_s}], __custom)",
                     json_string(spec.name)
                 ),
                 Err(FunctionLookupError::NotAllowed { spec }) => {
@@ -421,14 +490,31 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
                     "null".into()
                 }
                 Err(FunctionLookupError::Unknown) => {
-                    ctx.diagnostic_arg(
-                        Severity::Error,
-                        codes::UNKNOWN_FUNCTION,
-                        format!("unknown function `{name}`"),
-                        "function",
-                        name.clone(),
-                    );
-                    "null".into()
+                    match ctx.custom_lookup(Namespace::Function, name) {
+                        Some(entry) => {
+                            let canonical = entry.name.clone();
+                            if ctx.accepts_custom(
+                                &entry,
+                                arguments.len(),
+                                codes::FUNCTION_ARITY,
+                                "function",
+                            ) {
+                                format!("callFunction({}, [{args_s}], __custom)", json_string(&canonical))
+                            } else {
+                                "null".into()
+                            }
+                        }
+                        None => {
+                            ctx.diagnostic_arg(
+                                Severity::Error,
+                                codes::UNKNOWN_FUNCTION,
+                                format!("unknown function `{name}`"),
+                                "function",
+                                name.clone(),
+                            );
+                            "null".into()
+                        }
+                    }
                 }
                 Err(FunctionLookupError::Arity { spec }) => {
                     ctx.diagnostic_args(
@@ -457,23 +543,36 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
             let args_s = emit_expr_list(arguments, ctx);
             match validate_test(test, arguments.len(), ctx.capabilities) {
                 Ok(spec) => format!(
-                    "applyTest({}, {inner}, [{args_s}], {negated})",
+                    "applyTest({}, {inner}, [{args_s}], {negated}, __custom)",
                     json_string(spec.name)
                 ),
                 Err(TestLookupError::NotAllowed { spec }) => {
                     ctx.capability_denied(spec.name, spec.capability);
                     "null".into()
                 }
-                Err(TestLookupError::Unknown) => {
-                    ctx.diagnostic_arg(
-                        Severity::Error,
-                        codes::UNKNOWN_TEST,
-                        format!("unknown test `{test}`"),
-                        "test",
-                        test.clone(),
-                    );
-                    "null".into()
-                }
+                Err(TestLookupError::Unknown) => match ctx.custom_lookup(Namespace::Test, test) {
+                    Some(entry) => {
+                        let canonical = entry.name.clone();
+                        if ctx.accepts_custom(&entry, arguments.len(), codes::TEST_ARITY, "test") {
+                            format!(
+                                "applyTest({}, {inner}, [{args_s}], {negated}, __custom)",
+                                json_string(&canonical)
+                            )
+                        } else {
+                            "null".into()
+                        }
+                    }
+                    None => {
+                        ctx.diagnostic_arg(
+                            Severity::Error,
+                            codes::UNKNOWN_TEST,
+                            format!("unknown test `{test}`"),
+                            "test",
+                            test.clone(),
+                        );
+                        "null".into()
+                    }
+                },
                 Err(TestLookupError::Arity { spec }) => {
                     ctx.diagnostic_args(
                         Severity::Error,
@@ -700,7 +799,7 @@ pub fn emit_stmt(
             ));
             out.push_str("const __out = [];\n");
             out.push_str(&caller_body);
-            out.push_str("return __out.join(\"\");\n}));\n");
+            out.push_str("return __out.join(\"\");\n}, __custom));\n");
         }
         IrNode::StmtExtends { .. } => {
             // In catalog mode the extends chain is flattened before we reach
@@ -1106,11 +1205,16 @@ fn analyze_interpolation(
     match expression {
         IrNode::ExprPipe { filter, .. } => {
             // Only the outermost (final) filter decides escaping, via the
-            // registry capability shared with the JIT renderer.
-            let no_escape = matches!(
-                dejavu_ir::registry::filter_spec(filter).map(|spec| spec.capability),
-                Some(Capability::SafeOutput)
-            );
+            // registry capability shared with the JIT renderer. Host-supplied
+            // `safe-output` filters opt out of the automatic escape exactly like
+            // built-in `raw` / `safe` / `escape`.
+            let capability = dejavu_ir::registry::filter_spec(filter)
+                .map(|spec| spec.capability)
+                .or_else(|| {
+                    custom_entry(ctx.custom_registry, Namespace::Filter, filter)
+                        .map(|entry| entry.capability)
+                });
+            let no_escape = matches!(capability, Some(Capability::SafeOutput));
             (emit_expr(expression, ctx), !no_escape)
         }
         _ => (emit_expr(expression, ctx), true),
@@ -1165,7 +1269,7 @@ pub fn emit_macro_functions(
         let required = params.iter().filter(|p| p.default.is_none()).count();
         let max = params.len();
         out.push_str(&format!(
-            "function {}(__invokeCtx, args, __depth, __strict, __caller) {{\n",
+            "function {}(__invokeCtx, args, __depth, __strict, __caller, __custom) {{\n",
             macro_fn_name(name)
         ));
         out.push_str(&format!(

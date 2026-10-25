@@ -5,6 +5,7 @@
  * 仅允许 `name(args)` 形式的裸标识符调用；成员调用与未知名字一律报错。
  */
 
+import type { CustomRegistry } from "./custom.js";
 import { runtimeError } from "./errors.js";
 
 export interface FunctionSpec {
@@ -31,9 +32,17 @@ export function functionSpec(name: string): FunctionSpec | undefined {
     );
 }
 
-export function callFunction(name: string, args: unknown[]): unknown {
+export function callFunction(
+    name: string,
+    args: unknown[],
+    custom?: CustomRegistry,
+): unknown {
     const spec = functionSpec(name);
     if (!spec) {
+        // Built-in names win; the canonical spelling emitted by the compiler is
+        // the only key a host-supplied registry needs to provide.
+        const implementation = custom?.function?.[name];
+        if (implementation) return implementation(args);
         throw runtimeError("dejavu.template.unknown-function", name, { function: name });
     }
     if (args.length < spec.minArgs || args.length > spec.maxArgs) {

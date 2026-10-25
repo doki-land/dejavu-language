@@ -11,4 +11,10 @@ export { valueToString, isTruthy, valuesEqual } from "./value.js";
 export { applyFilter } from "./filter.js";
 export { FUNCTIONS, functionSpec, callFunction } from "./function.js";
 export { TESTS, testSpec, applyTest } from "./test.js";
+export type {
+    CustomFilter,
+    CustomFunction,
+    CustomRegistry,
+    CustomTest,
+} from "./custom.js";
 export { binary, unary, exprMember, exprIndex } from "./expr.js";

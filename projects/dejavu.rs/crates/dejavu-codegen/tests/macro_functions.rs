@@ -59,12 +59,12 @@ fn macro_declaration_emits_a_hoisted_module_function() {
     assert!(result.diagnostics.is_empty(), "diagnostics: {:?}", result.diagnostics);
     let code = &result.code;
     assert!(
-        code.contains("function __macro_card(__invokeCtx, args, __depth, __strict, __caller)"),
+        code.contains("function __macro_card(__invokeCtx, args, __depth, __strict, __caller, __custom)"),
         "code:\n{code}"
     );
     assert!(code.contains("dejavu.template.missing-macro-argument"), "code:\n{code}");
     assert!(code.contains("dejavu.template.macro-arity"), "code:\n{code}");
-    assert!(code.contains("__macro_card(ctx, [\"Hi\"], 1, __strict, null)"), "code:\n{code}");
+    assert!(code.contains("__macro_card(ctx, [\"Hi\"], 1, __strict, null, __custom)"), "code:\n{code}");
 }
 
 #[test]

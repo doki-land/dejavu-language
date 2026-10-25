@@ -562,6 +562,9 @@ pub(crate) fn build_module(
     s.push_str(&format!(
         "  const __strict = options.strictUndefined === undefined ? {strict_undefined} : options.strictUndefined === true;\n"
     ));
+    // Host-supplied registry implementations. Passed to every registry call so
+    // the generated module never reads module-level state.
+    s.push_str("  const __custom = options.custom;\n");
     s.push_str("  const __out = [];\n");
     s.push('\n');
     for line in body.lines() {
@@ -595,8 +598,8 @@ pub(crate) fn build_module(
 /// so this offset is all a source map needs.
 fn module_header_lines(template_imports: usize, macro_lines: u32) -> u32 {
     // runtime import + template imports, blank, macro functions,
-    // `export function render`, three prologue statements, blank.
-    u32::try_from(1 + template_imports + 1 + 4 + 1)
+    // `export function render`, four prologue statements, blank.
+    u32::try_from(1 + template_imports + 1 + 5 + 1)
         .unwrap_or(u32::MAX)
         .saturating_add(macro_lines)
 }

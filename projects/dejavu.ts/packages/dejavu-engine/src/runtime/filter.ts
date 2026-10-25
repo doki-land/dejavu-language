@@ -1,3 +1,4 @@
+import type { CustomRegistry } from "./custom.js";
 import { htmlEscape } from "./escape.js";
 import { runtimeError } from "./errors.js";
 import { valueToString } from "./value.js";
@@ -46,9 +47,15 @@ export function applyFilter(
     name: string,
     value: unknown,
     args: unknown[],
+    custom?: CustomRegistry,
 ): unknown {
     const spec = filterSpec(name);
     if (!spec) {
+        // Built-in names win; only names the table does not know reach the
+        // host-supplied registry. The compiler already emitted the canonical
+        // name, so a miss here is a genuine unknown filter.
+        const implementation = custom?.filter?.[name];
+        if (implementation) return implementation(value, args);
         throw runtimeError("dejavu.template.unknown-filter", name, { filter: name });
     }
     if (args.length < spec.minArgs || args.length > spec.maxArgs) {

@@ -3,7 +3,7 @@
 //! Keep JSON shape permissive (unknown fields ignored) so future dejavu-engine
 //! versions can pass extra knobs without breaking older crates.
 
-use dejavu_ir::registry::CapabilitySet;
+use dejavu_ir::registry::{CapabilitySet, CustomEntry};
 use serde::{Deserialize, Serialize};
 
 /// Single-template codegen options.
@@ -24,6 +24,12 @@ pub struct CodegenOptions {
     /// capability; a list closes the rest at compile time.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub capabilities: Option<Vec<String>>,
+
+    /// Host-supplied `filter` / `function` / `test` descriptions merged after the
+    /// built-in tables. Validated once per compile; implementations are supplied
+    /// by the host at render time (`render(ctx, { custom })`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub custom_registry: Vec<CustomEntry>,
 }
 
 impl CodegenOptions {

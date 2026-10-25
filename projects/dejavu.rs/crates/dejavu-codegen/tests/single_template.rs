@@ -430,7 +430,7 @@ fn expr_call_builtin_emits_call_function() {
     )]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round_body(&res.code);
-    assert!(r.contains("callFunction(\"range\", [0, 3])"), "{r}");
+    assert!(r.contains("callFunction(\"range\", [0, 3], __custom)"), "{r}");
     assert!(res.diagnostics.is_empty(), "{:?}", res.diagnostics);
 }
 
@@ -446,7 +446,7 @@ fn expr_test_emits_apply_test() {
     let ir = doc(vec![interp(test_node(ident("n"), "even", vec![], false), false)]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round_body(&res.code);
-    assert!(r.contains("applyTest(\"even\", ctx.n, [], false)"), "{r}");
+    assert!(r.contains("applyTest(\"even\", ctx.n, [], false, __custom)"), "{r}");
     assert!(res.diagnostics.is_empty(), "{:?}", res.diagnostics);
 }
 
@@ -455,7 +455,7 @@ fn expr_test_negation_and_alias_use_canonical_name() {
     let ir = doc(vec![interp(test_node(ident("v"), "none", vec![], true), false)]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round_body(&res.code);
-    assert!(r.contains("applyTest(\"null\", ctx.v, [], true)"), "{r}");
+    assert!(r.contains("applyTest(\"null\", ctx.v, [], true, __custom)"), "{r}");
 }
 
 #[test]
@@ -591,16 +591,16 @@ fn origins_point_each_construct_at_its_template_span() {
     ]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
 
-    // Module header is 7 lines when there are no template imports.
+    // Module header is 8 lines when there are no template imports.
     assert_eq!(
         res.origins,
         vec![
-            LineOrigin { line: 7, start: 0, end: 5 },
-            LineOrigin { line: 8, start: 5, end: 15 },
+            LineOrigin { line: 8, start: 0, end: 5 },
+            LineOrigin { line: 9, start: 5, end: 15 },
             // The interpolation emits its (runtime-gated) strict check, so the
             // following `if` starts one body line later.
-            LineOrigin { line: 11, start: 15, end: 40 },
-            LineOrigin { line: 12, start: 21, end: 24 },
+            LineOrigin { line: 12, start: 15, end: 40 },
+            LineOrigin { line: 13, start: 21, end: 24 },
         ]
     );
 

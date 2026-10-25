@@ -15,3 +15,9 @@ export {
     exprMember,
     exprIndex,
 } from "./runtime/index.js";
+export type {
+    CustomFilter,
+    CustomFunction,
+    CustomRegistry,
+    CustomTest,
+} from "./runtime/index.js";

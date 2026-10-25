@@ -1,0 +1,36 @@
+{
+    "customRegistry": [
+        {
+            "namespace": "filter",
+            "name": "shout",
+            "aliases": ["loud"],
+            "minArgs": 0,
+            "maxArgs": 0,
+            "capability": "pure"
+        },
+        {
+            "namespace": "filter",
+            "name": "bolder",
+            "aliases": [],
+            "minArgs": 0,
+            "maxArgs": 0,
+            "capability": "safe-output"
+        },
+        {
+            "namespace": "function",
+            "name": "twice",
+            "aliases": ["double"],
+            "minArgs": 1,
+            "maxArgs": 1,
+            "capability": "pure"
+        },
+        {
+            "namespace": "test",
+            "name": "evenish",
+            "aliases": ["divisible2"],
+            "minArgs": 0,
+            "maxArgs": 0,
+            "capability": "pure"
+        }
+    ]
+}

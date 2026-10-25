@@ -733,7 +733,7 @@ fn from_import_links_macro_modules() {
         "code: {entry_code}"
     );
     assert!(
-        entry_code.contains("__macro_import_hi(ctx, [\"Ann\"], 1, __strict, null)"),
+        entry_code.contains("__macro_import_hi(ctx, [\"Ann\"], 1, __strict, null, __custom)"),
         "code: {entry_code}"
     );
 

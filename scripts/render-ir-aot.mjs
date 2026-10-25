@@ -6,6 +6,11 @@
  * Emits the same `render(ctx, options)` entry as generated projects:
  *   IR JSON -> precompileIrSingle (N-API) -> ESM module -> engine runtime.
  *
+ * If the IR fixture directory also holds `meta.json` and `registry.mjs`, the
+ * fixture extends the registry: `meta.json#customRegistry` becomes the compile
+ * options and the `registry.mjs` namespace (`filter` / `function` / `test`) is
+ * passed to `render` as `custom`.
+ *
  * Requires:
  *   - `pnpm --filter @doki-land/dejavu build` (N-API facade in dist/)
  *   - `pnpm --filter @doki-land/dejavu-engine build` (pure TS runtime)
@@ -14,7 +19,7 @@
  * Diagnostics go to stderr. Non-zero exit means AOT render failed.
  */
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -71,10 +76,25 @@ if (!existsSync(nativePath)) {
     fail(`missing native addon ${nativePath}\n` + "  build it with: node scripts/build/napi.mjs");
 }
 
-const irJson = readFileSync(process.argv[2], "utf8");
-const ctx = JSON.parse(readFileSync(process.argv[3], "utf8"));
+const irPath = process.argv[2];
+const ctxPath = process.argv[3];
+const irJson = readFileSync(irPath, "utf8");
+const ctx = JSON.parse(readFileSync(ctxPath, "utf8"));
 
-const result = precompileIrSingle(irJson);
+// Registry fixtures keep the language-neutral entry descriptions in `meta.json`
+// and their implementations in `registry.mjs`, both next to the IR document.
+const fixtureDir = dirname(resolve(irPath));
+const metaPath = join(fixtureDir, "meta.json");
+const registryPath = join(fixtureDir, "registry.mjs");
+const meta = existsSync(metaPath) ? JSON.parse(readFileSync(metaPath, "utf8")) : {};
+const precompileOptions = meta.customRegistry
+    ? { customRegistry: meta.customRegistry }
+    : {};
+const custom = existsSync(registryPath)
+    ? await import(pathToFileURL(registryPath).href)
+    : undefined;
+
+const result = precompileIrSingle(irJson, precompileOptions);
 
 if (result.diagnostics.length) {
     console.error(describeDiagnostics(result.diagnostics));
@@ -101,4 +121,4 @@ const rewritten = module.code
 
 const dataUrl = `data:text/javascript;base64,${Buffer.from(rewritten, "utf8").toString("base64")}`;
 const { render } = await import(dataUrl);
-process.stdout.write(render(ctx, {}));
+process.stdout.write(render(ctx, custom ? { custom } : {}));
