@@ -3,13 +3,17 @@
  * Conformance helper: render a multi-template inheritance fixture through
  * the `@doki-land/dejavu` facade (N-API → Rust parser + renderer).
  *
- * Usage: node scripts/render-catalog-ts.mjs <fixture_dir>
+ * Usage: node scripts/render-catalog-ts.mjs <fixture_dir> [diagnostics]
  *
  * Reads `entry.txt`, `templates/*`, `context.ctx.json` and optional
  * `language.json` from the fixture dir, builds a catalog via
  * `loadCatalogFromDirs`, then renders the entry template source through
  * `renderSource`. Passes `delimiters` through to support non-default
  * `<% %>` code delimiters (e.g. Jinja-style `{% %}`).
+ *
+ * With the `diagnostics` mode the script emits `{"diagnostics":[...]}` (code /
+ * stage / args) instead of the render output and exits 0, matching the Rust
+ * `catalog_diag` example shape.
  */
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -22,6 +26,7 @@ const { parseIr, renderSource } = await import(
 );
 
 const fixtureDir = process.argv[2];
+const mode = process.argv[3];
 const templatesDir = join(fixtureDir, "templates");
 const ctx = JSON.parse(readFileSync(join(fixtureDir, "context.ctx.json"), "utf8"));
 const entryName = readFileSync(join(fixtureDir, "entry.txt"), "utf8").trim();
@@ -80,5 +85,19 @@ const catalog = {
     ],
 };
 
-const out = renderSource(entrySource, ctx, { catalog: JSON.stringify(catalog), delimiters });
-process.stdout.write(out);
+const render = () => renderSource(entrySource, ctx, { catalog: JSON.stringify(catalog), delimiters });
+
+if (mode === "diagnostics") {
+    try {
+        render();
+        process.stdout.write(JSON.stringify({ diagnostics: [] }));
+    } catch (error) {
+        // Only structured engine diagnostics participate. Anything else is a
+        // host failure and must not look like a cycle diagnostic.
+        if (!error || typeof error.code !== "string") throw error;
+        const diagnostic = { code: error.code, stage: error.stage, args: error.args ?? {} };
+        process.stdout.write(JSON.stringify({ diagnostics: [diagnostic] }));
+    }
+} else {
+    process.stdout.write(render());
+}

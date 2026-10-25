@@ -31,6 +31,8 @@ const CATALOG_SUITES = [
 ];
 /** Diagnostic suites: expected.ir.json + expected.diagnostics.json (`code` / `stage`). */
 const DIAGNOSTIC_SUITES = [join(BASE, "diagnostics")];
+/** Catalog diagnostic suites: templates + entry.txt + expected.diagnostics.json. */
+const CATALOG_DIAGNOSTIC_SUITES = [join(BASE, "catalog-diagnostics")];
 const TMP = join(ROOT, ".conformance-tmp");
 
 function suiteCases(suite) {
@@ -84,6 +86,19 @@ function diagnosticCases() {
                 irPath: join(dir, "expected.ir.json"),
                 ctxPath: join(dir, "context.ctx.json"),
                 optionsPath: existsSync(optionsPath) ? optionsPath : undefined,
+                expected: JSON.parse(readFileSync(join(dir, "expected.diagnostics.json"), "utf8")),
+            };
+        }),
+    ).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function catalogDiagnosticCases() {
+    return CATALOG_DIAGNOSTIC_SUITES.flatMap((suite) =>
+        suiteCases(suite).map((name) => {
+            const dir = join(suite, name);
+            return {
+                name: relative(BASE, dir),
+                dir,
                 expected: JSON.parse(readFileSync(join(dir, "expected.diagnostics.json"), "utf8")),
             };
         }),
@@ -330,6 +345,17 @@ sys.stdout.write(Dejavu.render(ir, ctx))
             }
             return r.ok ? r.stdout : null;
         },
+        /** Emit load-stage diagnostics for the same fixture layout. */
+        diagnose(caseDir) {
+            const workspaceManifest = join(ROOT, "Cargo.toml");
+            if (!existsSync(workspaceManifest)) return null;
+            const r = run(
+                "cargo",
+                ["run", "--quiet", "--example", "catalog_diag", "--", caseDir.dir],
+                join(ROOT, "projects"),
+            );
+            return r.ok ? r.stdout : null;
+        },
     },
     "ts-catalog": {
         label: "TypeScript catalog",
@@ -342,6 +368,14 @@ sys.stdout.write(Dejavu.render(ir, ctx))
             const r = run("node", [script, caseDir.dir]);
             return r.ok ? r.stdout : null;
         },
+        /** Emit load-stage diagnostics through the N-API renderer. */
+        diagnose(caseDir) {
+            const facadeDist = join(ROOT, "projects", "dejavu.ts", "packages", "dejavu", "dist", "index.js");
+            if (!existsSync(facadeDist)) return null;
+            const script = join(ROOT, "scripts", "render-catalog-ts.mjs");
+            const r = run("node", [script, caseDir.dir, "diagnostics"]);
+            return r.ok ? r.stdout : null;
+        },
     },
     "aot-catalog": {
         label: "AOT catalog",
@@ -350,6 +384,16 @@ sys.stdout.write(Dejavu.render(ir, ctx))
         render(caseDir) {
             const script = join(ROOT, "scripts", "render-catalog-aot.mjs");
             const r = run("node", [script, caseDir.dir]);
+            if (!r.ok) {
+                console.error(r.stderr || r.stdout);
+                return null;
+            }
+            return r.stdout;
+        },
+        /** Emit compile-stage diagnostics through catalog codegen. */
+        diagnose(caseDir) {
+            const script = join(ROOT, "scripts", "render-catalog-aot.mjs");
+            const r = run("node", [script, caseDir.dir, "diagnostics"]);
             if (!r.ok) {
                 console.error(r.stderr || r.stdout);
                 return null;
@@ -629,6 +673,40 @@ function main() {
         const keys = {};
         for (const [lang, adapter] of Object.entries(diagnosticAdapters)) {
             const payload = adapter.run(c);
+            if (payload === null) {
+                if (adapter.required) {
+                    failedAny = true;
+                    process.stdout.write(`[${adapter.label}=MISSING] `);
+                } else {
+                    process.stdout.write(`[${adapter.label}=SKIP] `);
+                }
+                continue;
+            }
+            const pairs = diagnosticPairs(payload);
+            keys[adapter.label] = codeKey(pairs);
+            const ok = matchesExpected(pairs, c.expected);
+            if (!ok) failedAny = true;
+            process.stdout.write(`[${adapter.label}=${ok ? "OK" : "FAIL"}] `);
+        }
+        const labels = Object.keys(keys);
+        if (labels.length >= 2 && !labels.every((label) => keys[label] === keys[labels[0]])) {
+            failedAny = true;
+            process.stdout.write("[CROSS-FAIL] ");
+        }
+        if (failedAny) failed++;
+        console.log("");
+    }
+    console.log("");
+
+    // ---- catalog diagnostic fixtures (multi-template cycle parity) ----
+    console.log("## catalog diagnostic fixtures (code + stage + args)");
+    for (const c of catalogDiagnosticCases()) {
+        process.stdout.write(`  ${c.name}: `);
+        let failedAny = false;
+        const keys = {};
+        for (const key of ["rs-catalog", "ts-catalog", "aot-catalog"]) {
+            const adapter = adapters[key];
+            const payload = adapter.diagnose(c);
             if (payload === null) {
                 if (adapter.required) {
                     failedAny = true;

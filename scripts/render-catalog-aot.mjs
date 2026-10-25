@@ -2,12 +2,15 @@
 /**
  * Conformance helper: render a multi-template fixture through AOT codegen.
  *
- * Usage: node scripts/render-catalog-aot.mjs <fixture_dir>
+ * Usage: node scripts/render-catalog-aot.mjs <fixture_dir> [diagnostics]
  *
  * Parses every `templates/*` file (honouring optional `language.json`), builds
  * the catalog wire format, runs `precompileCatalog`, materialises the modules
  * under `.conformance-tmp/aot-catalog/<case>/`, then imports the entry module
  * and renders its `render(ctx, options)` export.
+ *
+ * With the `diagnostics` mode the script stops after `precompileCatalog` and
+ * emits `{"diagnostics":[...]}` (code / stage / args) with exit 0.
  */
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
@@ -42,6 +45,7 @@ if (!existsSync(nativePath)) {
 }
 
 const fixtureDir = process.argv[2];
+const mode = process.argv[3];
 const templatesDir = join(fixtureDir, "templates");
 const ctx = JSON.parse(readFileSync(join(fixtureDir, "context.ctx.json"), "utf8"));
 const entryName = readFileSync(join(fixtureDir, "entry.txt"), "utf8").trim();
@@ -83,6 +87,15 @@ const catalog = {
 const entryId = `fixture:${entryName}`;
 const result = precompileCatalog("", JSON.stringify(catalog), { entryId });
 const errors = result.diagnostics.filter((d) => d.severity === "error");
+if (mode === "diagnostics") {
+    const diagnostics = errors.map((d) => ({
+        code: d.code,
+        stage: d.stage,
+        args: JSON.parse(d.argsJson || "{}"),
+    }));
+    process.stdout.write(JSON.stringify({ diagnostics }));
+    process.exit(0);
+}
 if (errors.length > 0) {
     console.error(errors.map((d) => `  [error] ${d.code}: ${d.message}`).join("\n"));
     process.exit(2);
