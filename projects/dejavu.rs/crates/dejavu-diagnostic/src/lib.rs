@@ -374,7 +374,7 @@ pub mod codes {
     pub const UNKNOWN_IMPORT: &str = "dejavu.template.unknown-import";
     /// `caller()` was used outside a `call` block.
     pub const CALLER_UNAVAILABLE: &str = "dejavu.template.caller-unavailable";
-    /// `caller()` takes no arguments.
+    /// `caller()` arguments did not match the caller block's parameters.
     pub const CALLER_ARITY: &str = "dejavu.template.caller-arity";
     pub const UNKNOWN_BINARY: &str = "dejavu.template.unknown-binary";
 
