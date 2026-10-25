@@ -1,0 +1,9 @@
+[
+    {
+        "code": "dejavu.template.circular-extends",
+        "stage": "load",
+        "args": {
+            "chain": "fixture:b.dejavu"
+        }
+    }
+]

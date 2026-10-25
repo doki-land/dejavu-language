@@ -1,0 +1,9 @@
+[
+    {
+        "code": "dejavu.template.circular-include",
+        "stage": "load",
+        "args": {
+            "chain": "fixture:b.dejavu -> fixture:index.dejavu -> fixture:b.dejavu"
+        }
+    }
+]
