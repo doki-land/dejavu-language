@@ -42,6 +42,7 @@
     "test": "tsc -p tsconfig.json && node dist/cli.js --help && node --test \"tests/**/*.test.mjs\""
   },
   "dependencies": {
+    "@doki-land/dejavu-engine": "workspace:*",
     "@vmz/commander": "^0.3.6"
   },
   "optionalDependencies": {
