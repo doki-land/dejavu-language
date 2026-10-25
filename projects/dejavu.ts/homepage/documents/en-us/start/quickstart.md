@@ -17,14 +17,14 @@ Do not install the unrelated unscoped `dejavu` package from npm.
 Create `src/order-summary.ts`:
 
 ```ts
-import {Dejavu} from "@doki-land/dejavu";
+import {render} from "@doki-land/dejavu";
 
 const template = `Order <% order.number %>
 <% if order.paid %>Payment received<% else %>Payment required<% end if %>
 <% loop item in order.items %>- <% item.name %>: <% item.quantity %>
 <% end loop %>`;
 
-const output = Dejavu.renderSource(template, {
+const output = render(template, {
     order: {
         number: "A-1042",
         paid: true,

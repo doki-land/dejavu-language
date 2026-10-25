@@ -28,9 +28,9 @@ pnpm add @doki-land/dejavu
 ```
 
 ```ts
-import { parse, render } from "@doki-land/dejavu";
+import { render } from "@doki-land/dejavu";
 
-const out = render(parse("Hello, <% name %>!"), { name: "World" });
+const out = render("Hello, <% name %>!", { name: "World" });
 // → Hello, World!
 ```
 
