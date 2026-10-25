@@ -80,6 +80,26 @@ struct Manifest<'a> {
     version: u32,
 }
 
+/// Everything catalog traversal needs to know about one template before it can
+/// be emitted: its flattened render body, block chains, include bindings, and
+/// resolved macro imports.
+struct ModulePlan {
+    /// Canonical template id.
+    id: String,
+    /// Body actually emitted: the topmost parent for the entry, the template's
+    /// own children otherwise. A `partial` template contributes its
+    /// declaration only.
+    body_children: Vec<IrNode>,
+    /// Every ancestor definition of each block, most-derived first.
+    block_chains: HashMap<String, Vec<Vec<IrNode>>>,
+    /// Include path literal → canonical target id.
+    include_imports: HashMap<String, String>,
+    /// Canonical ids of templates this module includes.
+    dependencies: Vec<String>,
+    /// Resolved `from ... import` bindings.
+    macro_imports: Vec<MacroImport>,
+}
+
 // ---------------------------------------------------------------------------
 // Single-template path
 // ---------------------------------------------------------------------------
@@ -182,7 +202,6 @@ pub fn precompile_catalog(
 
     // 3. Module naming plan: canonical id → file path.
     let mut id_to_path: serde_json::Map<String, Value> = serde_json::Map::new();
-    let mut id_to_deps: HashMap<String, Vec<String>> = HashMap::new();
 
     // First pass — decide every module's path.
     for id in &reachable {
@@ -196,118 +215,61 @@ pub fn precompile_catalog(
         }
     }
 
-    // 4. Emit each reachable template.
+    // 4. Resolve each module's emitted body, block chains, and macro imports.
+    let plans = build_module_plans(&catalog, &reachable, &entry_id, &partial_ids, &mut diagnostics);
+    let id_to_deps: HashMap<String, Vec<String>> =
+        plans.iter().map(|plan| (plan.id.clone(), plan.dependencies.clone())).collect();
+
+    // 5. Macro tree-shaking: only declarations reachable from a real call site
+    //    (direct calls, `call` blocks, or calls inside live macros) are kept.
+    //    A macro no live body can invoke has no observable effect.
+    let live_macros = reachable_macros(&plans);
+
+    // 6. Emit each module with only its live macros and used imports.
     let mut modules: Vec<GeneratedModule> = Vec::new();
-    let mut id_to_module: HashMap<String, GeneratedModule> = HashMap::new();
 
-    for id in &reachable {
-        let Some(doc) = catalog_document(&catalog, id) else {
-            diagnostics.push(
-                Diagnostic::new(
-                    Severity::Error,
-                    "dejavu.compile.template-missing",
-                    Stage::Compile,
-                )
-                .template_id(id)
-                .message(format!("template {id:?} referenced by catalog but not found")),
-            );
-            continue;
-        };
+    for plan in &plans {
+        let id = &plan.id;
 
-        // The entry body is flattened from the topmost parent; blocks are
-        // emitted through their per-block ancestor chain (`super` support).
-        let topmost_parent_id = match collect_blocks(&catalog, id) {
-            Ok(topmost) => topmost,
-            Err(d) => {
-                diagnostics.push(d);
-                continue;
-            }
-        };
-        let block_chains = match crate::catalog::collect_block_chains(&catalog, id) {
-            Ok(m) => m,
-            Err(d) => {
-                diagnostics.push(d);
-                continue;
-            }
-        };
+        // Declaration order is preserved so generated modules stay stable.
+        let mut live_names: Vec<String> = macro_names(&plan.body_children);
+        live_names.retain(|name| live_macros.contains(&(id.clone(), name.clone())));
+        let live_set: HashSet<&str> = live_names.iter().map(String::as_str).collect();
 
-        // Walk the document for include refs (pre-resolve to canonical id).
-        let include_imports = resolve_include_imports(&catalog, doc, id);
-
-        // Collect include dependencies (canonical ids of templates this
-        // module directly imports).
-        let mut dependencies: Vec<String> = include_imports.values().cloned().collect();
-        dependencies.sort();
-        dependencies.dedup();
-        id_to_deps.insert(id.clone(), dependencies.clone());
-
-        // Render body comes from topmost parent's document (entry is flattened).
-        let render_doc = if id == &entry_id {
-            // Entry: flattened body from the topmost parent.
-            let Some(doc) = catalog_document(&catalog, &topmost_parent_id) else {
-                diagnostics.push(
-                    Diagnostic::new(
-                        Severity::Error,
-                        "dejavu.compile.parent-template-missing",
-                        Stage::Compile,
-                    )
-                    .template_id(&topmost_parent_id),
-                );
-                continue;
-            };
-            doc
-        } else {
-            doc
-        };
-
-        // If this is an entry template that extends, the render body is the
-        // topmost parent's body — strip any Stmt.Extends that might be there
-        // (they should be top-level only).
-        let body_children = match &render_doc.body {
-            IrNode::Template { children, .. } => {
-                if partial_ids.contains(id) {
-                    // A partial template may only carry whitespace/comments
-                    // outside its declaration; emit just the declaration.
-                    children
-                        .iter()
-                        .filter(|n| matches!(n, IrNode::StmtPartial { .. }))
-                        .cloned()
-                        .collect()
-                } else {
-                    children.clone()
-                }
-            }
-            _ => Vec::new(),
-        };
-
-        let macro_imports = resolve_macro_imports(&catalog, &body_children, id, &mut diagnostics);
+        let used_names = used_call_names(plan, &live_macros);
+        let used_imports: Vec<MacroImport> = plan
+            .macro_imports
+            .iter()
+            .filter(|imported| used_names.contains(&imported.local))
+            .cloned()
+            .collect();
+        let macro_nodes: Vec<IrNode> = plan
+            .body_children
+            .iter()
+            .filter(|node| matches!(node, IrNode::StmtMacro { name, .. } if live_set.contains(name.as_str())))
+            .cloned()
+            .collect();
 
         let cat_ctx = CatalogEmitCtx {
-            block_chains: &block_chains,
-            include_imports: &include_imports,
+            block_chains: &plan.block_chains,
+            include_imports: &plan.include_imports,
             partial_ids: &partial_ids,
         };
 
         let mut ctx = CodegenCtx::new(&opts);
-        ctx.set_macros(macro_names(&body_children));
-        for imported in &macro_imports {
+        ctx.set_macros(live_names.iter().cloned());
+        for imported in &used_imports {
             ctx.set_macro_ref(&imported.local, &emit::macro_import_binding(&imported.local));
         }
         let mut body_str = String::new();
-        emit::emit_body(&body_children, &mut ctx, &mut body_str, Some(&cat_ctx));
-        let macro_fns = emit::emit_macro_functions(&body_children, &mut ctx, Some(&cat_ctx));
+        emit::emit_body(&plan.body_children, &mut ctx, &mut body_str, Some(&cat_ctx));
+        let macro_fns = emit::emit_macro_functions(&macro_nodes, &mut ctx, Some(&cat_ctx));
 
-        // Drop Stmt.Extends nodes from the emitted body — they have already
-        // been flattened. The emit_stmt above will still append a warning
-        // diagnostic if any are found, but we keep the module parseable.
-        // Actually, the body_children we took from the topmost parent won't
-        // have Stmt.Extends — only the child would. Good.
-
-        let entry_imports = build_import_lines(&dependencies, id, &id_to_path);
-        let macro_import_lines = build_macro_import_lines(&macro_imports, id, &id_to_path);
+        let entry_imports = build_import_lines(&plan.dependencies, id, &id_to_path);
+        let macro_import_lines = build_macro_import_lines(&used_imports, id, &id_to_path);
         let mut template_imports = entry_imports;
         template_imports.extend(macro_import_lines);
-        let exports = macro_export_lines(&body_children, &macro_imports);
+        let exports = macro_export_lines(&live_names, &used_imports);
         let export_name = js_import_name(id);
         let code = build_module(
             &body_str,
@@ -326,9 +288,12 @@ pub fn precompile_catalog(
         diagnostics.extend(ctx.diagnostics);
 
         let path = id_to_path.get(id).unwrap().as_str().unwrap_or("").to_string();
-        let m = GeneratedModule { path, code, dependencies, origins };
-        id_to_module.insert(id.clone(), m.clone());
-        modules.push(m);
+        modules.push(GeneratedModule {
+            path,
+            code,
+            dependencies: plan.dependencies.clone(),
+            origins,
+        });
     }
 
     // Sort entry first, then alphabetical by path for determinism.
@@ -356,6 +321,215 @@ pub fn precompile_catalog(
         diagnostics,
         entry_id,
     })
+}
+
+// ---------------------------------------------------------------------------
+// Helpers: macro tree-shaking
+// ---------------------------------------------------------------------------
+
+/// `(declaring module, macro name)` — the unit of macro reachability.
+type MacroKey = (String, String);
+
+/// Resolve every reachable template into an emit-ready [`ModulePlan`].
+///
+/// This is a separate pass from emission so macro reachability can be computed
+/// before any module decides which declarations to generate.
+fn build_module_plans(
+    catalog: &TemplateCatalog,
+    reachable: &HashSet<String>,
+    entry_id: &str,
+    partial_ids: &HashSet<String>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Vec<ModulePlan> {
+    let mut plans = Vec::new();
+    for id in reachable {
+        let Some(doc) = catalog_document(catalog, id) else {
+            diagnostics.push(
+                Diagnostic::new(
+                    Severity::Error,
+                    "dejavu.compile.template-missing",
+                    Stage::Compile,
+                )
+                .template_id(id)
+                .message(format!("template {id:?} referenced by catalog but not found")),
+            );
+            continue;
+        };
+
+        // The entry body is flattened from the topmost parent; blocks are
+        // emitted through their per-block ancestor chain (`super` support).
+        let topmost_parent_id = match collect_blocks(catalog, id) {
+            Ok(topmost) => topmost,
+            Err(d) => {
+                diagnostics.push(d);
+                continue;
+            }
+        };
+        let block_chains = match crate::catalog::collect_block_chains(catalog, id) {
+            Ok(chains) => chains,
+            Err(d) => {
+                diagnostics.push(d);
+                continue;
+            }
+        };
+
+        let include_imports = resolve_include_imports(catalog, doc, id);
+        let mut dependencies: Vec<String> = include_imports.values().cloned().collect();
+        dependencies.sort();
+        dependencies.dedup();
+
+        let render_doc = if id == entry_id {
+            let Some(parent) = catalog_document(catalog, &topmost_parent_id) else {
+                diagnostics.push(
+                    Diagnostic::new(
+                        Severity::Error,
+                        "dejavu.compile.parent-template-missing",
+                        Stage::Compile,
+                    )
+                    .template_id(&topmost_parent_id),
+                );
+                continue;
+            };
+            parent
+        } else {
+            doc
+        };
+
+        let body_children = match &render_doc.body {
+            IrNode::Template { children, .. } => {
+                if partial_ids.contains(id) {
+                    // A partial template may only carry whitespace/comments
+                    // outside its declaration; emit just the declaration.
+                    children
+                        .iter()
+                        .filter(|n| matches!(n, IrNode::StmtPartial { .. }))
+                        .cloned()
+                        .collect()
+                } else {
+                    children.clone()
+                }
+            }
+            _ => Vec::new(),
+        };
+
+        let macro_imports = resolve_macro_imports(catalog, &body_children, id, diagnostics);
+
+        plans.push(ModulePlan {
+            id: id.clone(),
+            body_children,
+            block_chains,
+            include_imports,
+            dependencies,
+            macro_imports,
+        });
+    }
+    plans
+}
+
+/// A macro declaration is live when some emitted body can invoke it.
+///
+/// Seeds come from every module's emitted render body and block chains. They
+/// expand through macro bodies: a live macro exposes the calls it makes inside
+/// its own declaring module's macro table (local declarations plus that
+/// module's `from ... import` bindings), matching how the renderer resolves
+/// macro calls.
+fn reachable_macros(plans: &[ModulePlan]) -> HashSet<MacroKey> {
+    let by_id: HashMap<&str, &ModulePlan> =
+        plans.iter().map(|plan| (plan.id.as_str(), plan)).collect();
+    let local: HashMap<&str, HashSet<String>> = plans
+        .iter()
+        .map(|plan| (plan.id.as_str(), macro_names(&plan.body_children).into_iter().collect()))
+        .collect();
+    let imports: HashMap<&str, HashMap<String, MacroKey>> = plans
+        .iter()
+        .map(|plan| {
+            let table = plan
+                .macro_imports
+                .iter()
+                .map(|imported| {
+                    (
+                        imported.local.clone(),
+                        (imported.dep_id.clone(), imported.imported.clone()),
+                    )
+                })
+                .collect();
+            (plan.id.as_str(), table)
+        })
+        .collect();
+
+    let resolve = |from: &str, name: &str| -> Option<MacroKey> {
+        if local.get(from).is_some_and(|names| names.contains(name)) {
+            return Some((from.to_string(), name.to_string()));
+        }
+        imports.get(from).and_then(|table| table.get(name)).cloned()
+    };
+
+    let mut live: HashSet<MacroKey> = HashSet::new();
+    let mut worklist: Vec<MacroKey> = Vec::new();
+
+    // Seed: every body that a module actually renders (its own body plus the
+    // block chain it emits, covering `super` levels).
+    for plan in plans {
+        let mut names = HashSet::new();
+        crate::catalog::collect_macro_calls(&plan.body_children, true, &mut names);
+        for bodies in plan.block_chains.values() {
+            for body in bodies {
+                crate::catalog::collect_macro_calls(body, true, &mut names);
+            }
+        }
+        for name in names {
+            if let Some(key) = resolve(&plan.id, &name) {
+                if live.insert(key.clone()) {
+                    worklist.push(key);
+                }
+            }
+        }
+    }
+
+    // Expand through live macro bodies.
+    while let Some(key) = worklist.pop() {
+        let Some(plan) = by_id.get(key.0.as_str()) else { continue };
+        let Some(node) = macro_node(&plan.body_children, &key.1) else { continue };
+        let mut names = HashSet::new();
+        crate::catalog::collect_macro_calls(std::slice::from_ref(node), false, &mut names);
+        for name in names {
+            if let Some(next) = resolve(&plan.id, &name) {
+                if live.insert(next.clone()) {
+                    worklist.push(next);
+                }
+            }
+        }
+    }
+
+    live
+}
+
+/// Every macro-call candidate name emitted by this module, including calls
+/// inside its live macro bodies.
+fn used_call_names(plan: &ModulePlan, live: &HashSet<MacroKey>) -> HashSet<String> {
+    let mut names = HashSet::new();
+    crate::catalog::collect_macro_calls(&plan.body_children, true, &mut names);
+    for bodies in plan.block_chains.values() {
+        for body in bodies {
+            crate::catalog::collect_macro_calls(body, true, &mut names);
+        }
+    }
+    for name in macro_names(&plan.body_children) {
+        if !live.contains(&(plan.id.clone(), name.clone())) {
+            continue;
+        }
+        if let Some(node) = macro_node(&plan.body_children, &name) {
+            crate::catalog::collect_macro_calls(std::slice::from_ref(node), false, &mut names);
+        }
+    }
+    names
+}
+
+/// The top-level macro declaration named `name`, if any.
+fn macro_node<'a>(children: &'a [IrNode], name: &str) -> Option<&'a IrNode> {
+    children
+        .iter()
+        .find(|node| matches!(node, IrNode::StmtMacro { name: declared, .. } if declared == name))
 }
 
 // ---------------------------------------------------------------------------
@@ -447,6 +621,7 @@ fn macro_names(children: &[IrNode]) -> Vec<String> {
 
 /// One `from <path> import <name> [as <local>]` binding resolved against the
 /// catalog.
+#[derive(Clone)]
 struct MacroImport {
     /// Canonical id of the module that declares the macro.
     dep_id: String,
@@ -566,11 +741,11 @@ fn build_macro_import_lines(
     out
 }
 
-/// Exports that make this module's macros importable by other templates.
-fn macro_export_lines(children: &[IrNode], macro_imports: &[MacroImport]) -> Vec<String> {
+/// Exports that make this module's live macros importable by other templates.
+fn macro_export_lines(live_macros: &[String], macro_imports: &[MacroImport]) -> Vec<String> {
     let mut out = Vec::new();
-    for name in macro_names(children) {
-        out.push(format!("export {{ {} }};", emit::macro_fn_name(&name)));
+    for name in live_macros {
+        out.push(format!("export {{ {} }};", emit::macro_fn_name(name)));
     }
     for imported in macro_imports {
         out.push(format!(

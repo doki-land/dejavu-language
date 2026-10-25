@@ -11,6 +11,7 @@ use std::collections::{HashMap, HashSet};
 
 use dejavu_diagnostic::{codes, Diagnostic, Severity, Stage};
 use dejavu_ir::{CatalogRoot, IrDocument, IrNode, TemplateCatalog};
+use dejavu_ir::types::PartialParam;
 
 // ---------------------------------------------------------------------------
 // Catalog JSON wire format
@@ -465,4 +466,138 @@ pub fn collect_all_reachable(
         }
     }
     seen
+}
+
+// ---------------------------------------------------------------------------
+// Macro call candidates (tree-shaking input)
+// ---------------------------------------------------------------------------
+
+/// Collect every identifier that appears as a macro-call candidate.
+///
+/// Candidates are bare-identifier `Expr.Call` callees and `Stmt.Call` names;
+/// whether a candidate really is a macro depends on the module's macro table,
+/// which is resolved by [`crate::codegen`]. The walker only records names, so
+/// it is deliberately independent of macro declarations.
+///
+/// `skip_macro_bodies` excludes `Stmt.Macro` bodies: a declaration produces no
+/// output in the enclosing render body, so calls inside it only matter once the
+/// macro itself is reachable.
+pub(crate) fn collect_macro_calls(
+    nodes: &[IrNode],
+    skip_macro_bodies: bool,
+    out: &mut HashSet<String>,
+) {
+    for node in nodes {
+        collect_macro_calls_node(node, skip_macro_bodies, out);
+    }
+}
+
+fn collect_macro_calls_node(node: &IrNode, skip_macro_bodies: bool, out: &mut HashSet<String>) {
+    match node {
+        IrNode::ExprCall { callee, arguments, .. } => {
+            if let IrNode::ExprIdentifier { name, .. } = callee.as_ref() {
+                out.insert(name.clone());
+            } else {
+                collect_macro_calls_node(callee, skip_macro_bodies, out);
+            }
+            collect_macro_calls(arguments, skip_macro_bodies, out);
+        }
+        IrNode::StmtCall { name, arguments, body, .. } => {
+            out.insert(name.clone());
+            collect_macro_calls(arguments, skip_macro_bodies, out);
+            collect_macro_calls(body, skip_macro_bodies, out);
+        }
+        IrNode::StmtMacro { params, body, .. } => {
+            if !skip_macro_bodies {
+                collect_param_defaults(params, out);
+                collect_macro_calls(body, skip_macro_bodies, out);
+            }
+        }
+        IrNode::StmtPartial { params, body, .. } => {
+            collect_param_defaults(params, out);
+            collect_macro_calls(body, skip_macro_bodies, out);
+        }
+        IrNode::Template { children, .. } => {
+            collect_macro_calls(children, skip_macro_bodies, out);
+        }
+        IrNode::Interpolation { expression, .. } => {
+            collect_macro_calls_node(expression, skip_macro_bodies, out);
+        }
+        IrNode::StmtIf { test, consequent, else_ifs, alternate, .. } => {
+            collect_macro_calls_node(test, skip_macro_bodies, out);
+            collect_macro_calls(consequent, skip_macro_bodies, out);
+            for ei in else_ifs {
+                collect_macro_calls_node(ei, skip_macro_bodies, out);
+            }
+            if let Some(alt) = alternate {
+                collect_macro_calls(alt, skip_macro_bodies, out);
+            }
+        }
+        IrNode::StmtElseIf { test, consequent, .. } => {
+            collect_macro_calls_node(test, skip_macro_bodies, out);
+            collect_macro_calls(consequent, skip_macro_bodies, out);
+        }
+        IrNode::StmtFor { iterable, body, .. } => {
+            collect_macro_calls_node(iterable, skip_macro_bodies, out);
+            collect_macro_calls(body, skip_macro_bodies, out);
+        }
+        IrNode::StmtBlock { body, .. } => {
+            collect_macro_calls(body, skip_macro_bodies, out);
+        }
+        IrNode::StmtExtends { parent, .. } => {
+            collect_macro_calls_node(parent, skip_macro_bodies, out);
+        }
+        IrNode::StmtInclude { path, with, .. } => {
+            collect_macro_calls_node(path, skip_macro_bodies, out);
+            if let Some(with) = with {
+                collect_macro_calls_node(with, skip_macro_bodies, out);
+            }
+        }
+        IrNode::ExprMember { object, .. } => {
+            collect_macro_calls_node(object, skip_macro_bodies, out);
+        }
+        IrNode::ExprIndex { object, index, .. } => {
+            collect_macro_calls_node(object, skip_macro_bodies, out);
+            collect_macro_calls_node(index, skip_macro_bodies, out);
+        }
+        IrNode::ExprTest { expression, arguments, .. } => {
+            collect_macro_calls_node(expression, skip_macro_bodies, out);
+            collect_macro_calls(arguments, skip_macro_bodies, out);
+        }
+        IrNode::ExprBinary { left, right, .. } => {
+            collect_macro_calls_node(left, skip_macro_bodies, out);
+            collect_macro_calls_node(right, skip_macro_bodies, out);
+        }
+        IrNode::ExprUnary { argument, .. } => {
+            collect_macro_calls_node(argument, skip_macro_bodies, out);
+        }
+        IrNode::ExprObject { entries, .. } => {
+            for entry in entries {
+                collect_macro_calls_node(&entry.value, skip_macro_bodies, out);
+            }
+        }
+        IrNode::ExprPipe { expression, arguments, .. } => {
+            collect_macro_calls_node(expression, skip_macro_bodies, out);
+            collect_macro_calls(arguments, skip_macro_bodies, out);
+        }
+        // Declarations and leaves cannot contain a call site (the `import` /
+        // `extends` / `include` paths are literals by contract).
+        IrNode::StmtImport { .. }
+        | IrNode::StmtSuper { .. }
+        | IrNode::StmtRaw { .. }
+        | IrNode::Text { .. }
+        | IrNode::Comment { .. }
+        | IrNode::ExprLiteral { .. }
+        | IrNode::ExprIdentifier { .. } => {}
+    }
+}
+
+fn collect_param_defaults(params: &[PartialParam], out: &mut HashSet<String>) {
+    for param in params {
+        if let Some(default) = &param.default {
+            // Defaults are literals by contract; walk them anyway so a future
+            // expression default cannot silently escape tree-shaking.
+            collect_macro_calls_node(default, false, out);
+        }
+    }
 }

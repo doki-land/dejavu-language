@@ -633,3 +633,95 @@ fn from_import_requires_a_literal_path() {
         errors(&res)
     );
 }
+
+// ---------------------------------------------------------------------------
+// 10. Cross-module macro tree-shaking
+// ---------------------------------------------------------------------------
+
+#[test]
+fn unused_cross_module_macros_are_tree_shaken() {
+    // `lib` declares a used macro (which calls a local helper), an unused
+    // helper reachable only from a dead macro, and a dead macro.
+    let lib = doc(vec![
+        stmt_macro(
+            "shout",
+            vec![param("text", None)],
+            vec![text("<em>"), interp(ident("text"), false), text("</em>")],
+        ),
+        stmt_macro(
+            "greet",
+            vec![param("name", None), param("mark", Some(lit(json!("!"))))],
+            vec![interp(call("shout", vec![ident("name")]), false), interp(ident("mark"), false)],
+        ),
+        stmt_macro("dead_greet", vec![], vec![interp(call("shout", vec![lit(json!("x"))]), false)]),
+    ]);
+    // `panel` is included for its render body; it calls one local macro and
+    // declares another that no body invokes.
+    let panel = doc(vec![
+        stmt_macro(
+            "local_card",
+            vec![param("label", None)],
+            vec![text("["), interp(ident("label"), false), text("]")],
+        ),
+        stmt_macro("dead_card", vec![], vec![text("DEAD-PANEL")]),
+        interp(call("local_card", vec![lit(json!("panel"))]), false),
+    ]);
+    // Entry imports `greet` (called) and `dead_greet` (never called), and
+    // includes `panel`.
+    let entry = doc(vec![
+        stmt_import(
+            lit(json!("lib.dejavu")),
+            vec![("greet", Some("hi")), ("dead_greet", None)],
+        ),
+        interp(call("hi", vec![lit(json!("Ann"))]), false),
+        stmt_include(lit(json!("panel.dejavu"))),
+    ]);
+
+    let res = compile_catalog(
+        &[("index.dejavu", entry), ("lib.dejavu", lib), ("panel.dejavu", panel)],
+        "index.dejavu",
+    );
+    assert!(errors(&res).is_empty(), "errors: {:?}", errors(&res));
+    assert_eq!(res.modules.len(), 3);
+
+    // Entry: the live import stays, the unused one must be pruned (otherwise
+    // the generated ESM import would reference a dropped export).
+    let entry_code = round(&res.modules[0].code);
+    assert!(
+        entry_code.contains("import { __macro_greet as __macro_import_hi }"),
+        "code: {entry_code}"
+    );
+    assert!(!entry_code.contains("dead_greet"), "entry leaked a dead macro import: {entry_code}");
+
+    // Lib: the imported macro and the helper it calls survive, the dead macro
+    // does not (even though it also calls the helper).
+    let lib_code = round(
+        res.modules
+            .iter()
+            .find(|m| m.path.contains("lib"))
+            .map(|m| &m.code)
+            .expect("lib module"),
+    );
+    assert!(lib_code.contains("function __macro_greet("), "code: {lib_code}");
+    assert!(lib_code.contains("function __macro_shout("), "code: {lib_code}");
+    assert!(lib_code.contains("export { __macro_greet };"), "code: {lib_code}");
+    assert!(lib_code.contains("export { __macro_shout };"), "code: {lib_code}");
+    assert!(!lib_code.contains("__macro_dead_greet"), "lib leaked a dead macro: {lib_code}");
+
+    // Panel: locally called macro survives, unused one does not.
+    let panel_code = round(
+        res.modules
+            .iter()
+            .find(|m| m.path.contains("panel"))
+            .map(|m| &m.code)
+            .expect("panel module"),
+    );
+    assert!(panel_code.contains("function __macro_local_card("), "code: {panel_code}");
+    assert!(!panel_code.contains("__macro_dead_card"), "panel leaked a dead macro: {panel_code}");
+
+    // Observable behavior must be unchanged.
+    if let Some(out) = run_modules_in_node(&res.modules, "({})") {
+        assert_eq!(out, "<em>Ann</em>![panel]");
+    }
+}
+
