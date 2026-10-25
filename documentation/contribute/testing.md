@@ -24,6 +24,8 @@ cargo test --workspace
 
 路径形式不依赖 workspace 当前包名；包名和发布作用域仍由发布清单单独检查。
 
+浏览器与 Web Worker 的 wasm 桥验收：`node scripts/browser-check.mjs`。它用本机无头 Chrome/Edge 同时跑主线程 import map 和 module worker，需要本机浏览器，也可用 `DEJAVU_BROWSER` 指定可执行文件。
+
 ## 解释 conformance 输出
 
 - PASS：宿主进程成功并与 `expected.out.txt` 字节一致。
