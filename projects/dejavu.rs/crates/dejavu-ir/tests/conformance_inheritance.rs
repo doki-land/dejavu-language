@@ -310,7 +310,13 @@ fn circular_extends_is_detected() {
 
     assert!(result.is_err());
     match result.unwrap_err() {
-        IrError::Diagnostic(d) => assert_eq!(d.code, codes::CIRCULAR_EXTENDS),
+        IrError::Diagnostic(d) => {
+            assert_eq!(d.code, codes::CIRCULAR_EXTENDS);
+            assert_eq!(
+                d.args.get("chain"),
+                Some(&dejavu_diagnostic::ArgValue::String("b.dejavu".into()))
+            );
+        }
         other => panic!("expected Diagnostic, got {other:?}"),
     }
 }
@@ -483,7 +489,13 @@ fn circular_include_abba_detected() {
     );
     assert!(result.is_err());
     match result.unwrap_err() {
-        IrError::Diagnostic(d) => assert_eq!(d.code, codes::CIRCULAR_INCLUDE),
+        IrError::Diagnostic(d) => {
+            assert_eq!(d.code, codes::CIRCULAR_INCLUDE);
+            assert_eq!(
+                d.args.get("chain"),
+                Some(&dejavu_diagnostic::ArgValue::String("b -> a -> b".into()))
+            );
+        }
         other => panic!("expected Diagnostic, got {other:?}"),
     }
 }

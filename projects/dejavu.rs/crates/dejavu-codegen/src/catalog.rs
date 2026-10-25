@@ -207,18 +207,27 @@ fn detect_cycle_inner(
 }
 
 /// Build the load-stage cycle diagnostic for the edge that closes the cycle.
+///
+/// The `chain` arg reproduces what the interpreter reports at the moment it
+/// detects the same cycle: the include stack never holds the entry template,
+/// so it is re-entered before the repeat shows up, while an extends cycle
+/// reports the parent that was already being extended.
 fn circular_diagnostic(kind: EdgeKind, target: &str, path: &[String]) -> Diagnostic {
+    let start = path.iter().position(|id| id == target).unwrap_or(0);
     match kind {
         EdgeKind::Extends => {
+            let repeated = path.get(start + 1).cloned().unwrap_or_else(|| target.to_string());
             Diagnostic::new(Severity::Error, codes::CIRCULAR_EXTENDS, Stage::Load)
                 .template_id(target)
-                .arg("chain", target.to_string())
+                .arg("chain", repeated)
                 .message(format!("circular extends involving {target}"))
         }
         EdgeKind::Include => {
-            let start = path.iter().position(|id| id == target).unwrap_or(0);
-            let mut chain = path[start..].to_vec();
+            let mut chain: Vec<String> = path[1.min(path.len())..].to_vec();
             chain.push(target.to_string());
+            if start == 0 {
+                chain.push(path.get(1).cloned().unwrap_or_else(|| target.to_string()));
+            }
             Diagnostic::new(Severity::Error, codes::CIRCULAR_INCLUDE, Stage::Load)
                 .template_id(target)
                 .arg("chain", chain.join(" -> "))

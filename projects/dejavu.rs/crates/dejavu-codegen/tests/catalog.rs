@@ -320,7 +320,7 @@ fn cycle_detected_include_ab_ba() {
     let diag = errors(&res).into_iter().next().expect("cycle diagnostic");
     assert_eq!(diag.code, dejavu_diagnostic::codes::CIRCULAR_INCLUDE);
     assert_eq!(diag.stage, dejavu_diagnostic::Stage::Load);
-    assert_eq!(chain_arg(diag), "main:index.dejavu -> main:b.dejavu -> main:index.dejavu");
+    assert_eq!(chain_arg(diag), "main:b.dejavu -> main:index.dejavu -> main:b.dejavu");
 }
 
 #[test]
@@ -335,7 +335,7 @@ fn cycle_detected_extends_ab_ba() {
     let diag = errors(&res).into_iter().next().expect("cycle diagnostic");
     assert_eq!(diag.code, dejavu_diagnostic::codes::CIRCULAR_EXTENDS);
     assert_eq!(diag.stage, dejavu_diagnostic::Stage::Load);
-    assert_eq!(chain_arg(diag), "main:index.dejavu");
+    assert_eq!(chain_arg(diag), "main:b.dejavu");
 }
 
 fn chain_arg(diag: &dejavu_diagnostic::Diagnostic) -> String {
