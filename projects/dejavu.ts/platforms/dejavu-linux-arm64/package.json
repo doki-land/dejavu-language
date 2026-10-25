@@ -1,6 +1,6 @@
 {
   "name": "@doki-land/dejavu-linux-arm64",
-  "version": "0.0.14",
+  "version": "0.0.15",
   "description": "Dejavu N-API native addon (linux-arm64)",
   "license": "MPL-2.0",
   "author": "Doki Land",
