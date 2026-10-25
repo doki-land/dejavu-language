@@ -29,6 +29,13 @@ pub enum Capability {
     SafeOutput,
 }
 
+impl Default for Capability {
+    /// An entry that omits `capability` never owns its output escaping.
+    fn default() -> Self {
+        Capability::Pure
+    }
+}
+
 impl Capability {
     /// Stable wire name used by options and cross-host registry dumps.
     pub const fn as_str(self) -> &'static str {
@@ -375,6 +382,7 @@ pub struct CustomEntry {
     #[serde(default)]
     pub max_args: usize,
     /// Capability the host must grant for this entry to run.
+    #[serde(default)]
     pub capability: Capability,
 }
 

@@ -105,6 +105,79 @@ test("precompileCatalog returns modules and a manifest", () => {
     assert.ok(result.manifest);
 });
 
+test("renderSource dispatches host registry entries", () => {
+    const registry = {
+        entries: [
+            { namespace: "filter", name: "shout" },
+            { namespace: "filter", name: "bolder", capability: "safe-output" },
+            { namespace: "function", name: "twice", minArgs: 1, maxArgs: 1 },
+            { namespace: "test", name: "evenish" },
+        ],
+        filter: {
+            shout: (value) => `${value}!`,
+            bolder: (value) => `<b>${value}</b>`,
+        },
+        function: { twice: (args) => Number(args[0]) * 2 },
+        test: { evenish: (value) => Number(value) % 2 === 0 },
+    };
+
+    const source =
+        "<% greeting |> shout %>|<% greeting |> bolder %>|<% twice(21) %><% if n is evenish %>Y<% end if %>";
+    const rendered = dejavu.renderSource({
+        source,
+        context: { greeting: "hi", n: 4 },
+        registry,
+    });
+    assert.deepEqual(rendered.diagnostics, []);
+    assert.equal(rendered.output, "hi!|<b>hi</b>|42Y");
+});
+
+test("host registry respects the capability grant", () => {
+    const registry = {
+        entries: [{ namespace: "filter", name: "bolder", capability: "safe-output" }],
+        filter: { bolder: (value) => `<b>${value}</b>` },
+    };
+    const rendered = dejavu.renderSource({
+        source: "<% greeting |> bolder %>",
+        context: { greeting: "hi" },
+        options: { capabilities: ["pure"] },
+        registry,
+    });
+    assert.equal(rendered.output, undefined);
+    assert.equal(rendered.diagnostics[0].code, "dejavu.template.capability-not-allowed");
+});
+
+test("conflicting host registry entries are rejected", () => {
+    const rendered = dejavu.renderSource({
+        source: "<% greeting |> upper %>",
+        context: { greeting: "hi" },
+        registry: {
+            entries: [{ namespace: "filter", name: "upper" }],
+            filter: { upper: () => "hijacked" },
+        },
+    });
+    assert.equal(rendered.output, undefined);
+    assert.equal(rendered.diagnostics[0].code, "dejavu.template.registry-conflict");
+});
+
+test("a throwing host implementation reports custom-invocation", () => {
+    const rendered = dejavu.renderSource({
+        source: "<% greeting |> shout %>",
+        context: { greeting: "hi" },
+        registry: {
+            entries: [{ namespace: "filter", name: "shout" }],
+            filter: {
+                shout: () => {
+                    throw new Error("host exploded");
+                },
+            },
+        },
+    });
+    assert.equal(rendered.output, undefined);
+    assert.equal(rendered.diagnostics[0].code, "dejavu.template.custom-invocation");
+    assert.match(rendered.diagnostics[0].argsJson, /host exploded/);
+});
+
 function parseIrOk(source) {
     const parsed = dejavu.parseIr({ source });
     assert.deepEqual(parsed.diagnostics, []);

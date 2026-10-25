@@ -57,6 +57,30 @@ export interface RenderOptions {
     capabilities?: string[];
 }
 
+/**
+ * One host-supplied registry entry.
+ *
+ * The description mirrors the Rust `CustomEntry` wire, so conflict, arity and
+ * capability checks stay identical across hosts. Implementations live in
+ * {@link CustomRegistry} keyed by canonical name.
+ */
+export interface CustomRegistryEntry {
+    namespace: "filter" | "function" | "test";
+    name: string;
+    aliases?: string[];
+    minArgs?: number;
+    maxArgs?: number;
+    capability?: "pure" | "safe-output";
+}
+
+/** Host-supplied implementations; never mutated during a render. */
+export interface CustomRegistry {
+    entries: CustomRegistryEntry[];
+    filter?: Record<string, (value: unknown, args: unknown[]) => unknown>;
+    function?: Record<string, (args: unknown[]) => unknown>;
+    test?: Record<string, (value: unknown, args: unknown[]) => boolean>;
+}
+
 /** In-memory template catalog for inheritance and includes. */
 export interface CatalogSpec {
     roots: CatalogRoot[];
@@ -150,6 +174,8 @@ export interface RenderIrRequest {
     context: unknown;
     options?: RenderOptions;
     catalog?: CatalogSpec;
+    /** Optional host registry; describes and implements custom entries. */
+    registry?: CustomRegistry;
 }
 
 /** Render source request. */
@@ -158,6 +184,8 @@ export interface RenderSourceRequest {
     context: unknown;
     options?: RenderOptions;
     catalog?: CatalogSpec;
+    /** Optional host registry; describes and implements custom entries. */
+    registry?: CustomRegistry;
     delimiters?: Language;
 }
 
@@ -251,6 +279,7 @@ export function renderIr(request: RenderIrRequest): RenderResult {
                 options: encodeRenderOptions(request.options),
                 catalog: jsonOrUndefined(request.catalog),
             }),
+            request.registry,
         ),
     );
 }
@@ -266,6 +295,7 @@ export function renderSource(request: RenderSourceRequest): RenderResult {
                 catalog: jsonOrUndefined(request.catalog),
                 delimiters: jsonOrUndefined(request.delimiters),
             }),
+            request.registry,
         ),
     );
 }

@@ -11,10 +11,12 @@
 use std::collections::BTreeMap;
 
 use dejavu_diagnostic::{Diagnostic, Severity, Stage, codes};
-use dejavu_ir::registry::CapabilitySet;
+use dejavu_ir::registry::{CapabilitySet, CustomEntry, Namespace};
 use dejavu_ir::{
-    CatalogRoot, IrDocument, IrError, RenderOptions, ResolveRoot, TemplateCatalog, TemplateLoader, render_ir_opts, resolve_ref,
+    CatalogRoot, CustomError, CustomRegistry, IrDocument, IrError, RenderOptions, ResolveRoot, TemplateCatalog,
+    TemplateLoader, render_ir_opts, resolve_ref,
 };
+use js_sys::{JSON, Reflect};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use wasm_bindgen::prelude::*;
@@ -282,8 +284,11 @@ pub fn normalize_ir(request_json: &str) -> String {
 }
 
 /// 渲染 IR JSON。
+///
+/// `registry` 是可选的 JS 注册表对象（`{ entries, filter, function, test }`），
+/// 缺省 / `undefined` / `null` 时只用内置注册表。
 #[wasm_bindgen(js_name = "renderIr")]
-pub fn render_ir_api(request_json: &str) -> String {
+pub fn render_ir_api(request_json: &str, registry: Option<JsValue>) -> String {
     let request: RenderRequest = match from_request(request_json) {
         Ok(request) => request,
         Err(diagnostic) => return respond(&RenderResponse { output: None, diagnostics: vec![diagnostic] }),
@@ -294,12 +299,18 @@ pub fn render_ir_api(request_json: &str) -> String {
             return respond(&RenderResponse { output: None, diagnostics: vec![to_wire(&json_diag(error.to_string()))] });
         }
     };
-    render_document(&document, &request.context, request.options.as_deref(), request.catalog.as_deref())
+    let registry = match JsCustomRegistry::from_value(registry) {
+        Ok(registry) => registry,
+        Err(diagnostic) => {
+            return respond(&RenderResponse { output: None, diagnostics: vec![to_wire(&diagnostic)] });
+        }
+    };
+    render_document(&document, &request.context, request.options.as_deref(), request.catalog.as_deref(), registry.as_ref())
 }
 
 /// 解析并渲染模板源码。
 #[wasm_bindgen(js_name = "renderSource")]
-pub fn render_source_api(request_json: &str) -> String {
+pub fn render_source_api(request_json: &str, registry: Option<JsValue>) -> String {
     let request: RenderSourceRequest = match from_request(request_json) {
         Ok(request) => request,
         Err(diagnostic) => return respond(&RenderResponse { output: None, diagnostics: vec![diagnostic] }),
@@ -324,7 +335,13 @@ pub fn render_source_api(request_json: &str) -> String {
             });
         }
     };
-    render_document(&document, &request.context, request.options.as_deref(), request.catalog.as_deref())
+    let registry = match JsCustomRegistry::from_value(registry) {
+        Ok(registry) => registry,
+        Err(diagnostic) => {
+            return respond(&RenderResponse { output: None, diagnostics: vec![to_wire(&diagnostic)] });
+        }
+    };
+    render_document(&document, &request.context, request.options.as_deref(), request.catalog.as_deref(), registry.as_ref())
 }
 
 /// 纯 path-v1 引用解析：不读文件、不解析模板。
@@ -467,7 +484,13 @@ struct CatalogRootSpec {
     base_path: Option<String>,
 }
 
-fn render_document(document: &IrDocument, context: &str, options: Option<&str>, catalog: Option<&str>) -> String {
+fn render_document(
+    document: &IrDocument,
+    context: &str,
+    options: Option<&str>,
+    catalog: Option<&str>,
+    custom: Option<&JsCustomRegistry>,
+) -> String {
     let context: Value = match serde_json::from_str(context) {
         Ok(value) => value,
         Err(error) => {
@@ -504,7 +527,8 @@ fn render_document(document: &IrDocument, context: &str, options: Option<&str>, 
         },
         None => CapabilitySet::all(),
     };
-    let options = RenderOptions { strict_undefined: wire.strict, name: wire.name, capabilities, custom: None };
+    let custom: Option<&dyn CustomRegistry> = custom.map(|registry| registry as &dyn CustomRegistry);
+    let options = RenderOptions { strict_undefined: wire.strict, name: wire.name, capabilities, custom };
     let mut loader_state = catalog_state.as_ref().map(dejavu_ir::CatalogLoader::new);
     let loader: Option<&mut dyn TemplateLoader> = match loader_state.as_mut() {
         Some(loader) => Some(loader),
@@ -514,6 +538,139 @@ fn render_document(document: &IrDocument, context: &str, options: Option<&str>, 
         Ok(output) => respond(&RenderResponse { output: Some(output), diagnostics: Vec::new() }),
         Err(error) => respond(&RenderResponse { output: None, diagnostics: vec![to_wire(&ir_error_diagnostic(error))] }),
     }
+}
+
+// ---------------------------------------------------------------------------
+// JS 自定义注册表
+// ---------------------------------------------------------------------------
+
+/// Host-supplied registry passed as a JS object to `renderIr` / `renderSource`.
+///
+/// Shape: `{ entries: CustomEntry[], filter?: {name: fn}, function?: {name: fn},
+/// test?: {name: fn} }`. Descriptions use the same `CustomEntry` wire as the
+/// Rust and AOT paths, so the conflict / arity / capability rules stay in one
+/// place. Implementations are synchronous and only exchange JSON-friendly
+/// values. Any exception becomes `dejavu.template.custom-invocation` with the
+/// exception message, because the renderer trait itself never unwinds.
+struct JsCustomRegistry {
+    entries: Vec<CustomEntry>,
+    filter: Option<JsValue>,
+    function: Option<JsValue>,
+    test: Option<JsValue>,
+}
+
+impl JsCustomRegistry {
+    fn from_value(value: Option<JsValue>) -> Result<Option<Self>, Diagnostic> {
+        let Some(value) = value else { return Ok(None) };
+        if value.is_undefined() || value.is_null() {
+            return Ok(None);
+        }
+        let entries_value = get_property(&value, "entries")?;
+        let entries: Vec<CustomEntry> = if entries_value.is_undefined() || entries_value.is_null() {
+            Vec::new()
+        } else {
+            let text = JSON::stringify(&entries_value)
+                .map_err(|error| json_diag(js_error_message(&error)))?;
+            serde_json::from_str(&String::from(text))
+                .map_err(|error| json_diag(format!("invalid registry entries: {error}")))?
+        };
+        Ok(Some(Self {
+            entries,
+            filter: optional_namespace(&value, "filter")?,
+            function: optional_namespace(&value, "function")?,
+            test: optional_namespace(&value, "test")?,
+        }))
+    }
+
+    fn invoke(
+        &self,
+        namespace: Namespace,
+        name: &str,
+        arguments: &js_sys::Array,
+    ) -> Result<JsValue, CustomError> {
+        let object = match namespace {
+            Namespace::Filter => self.filter.as_ref(),
+            Namespace::Function => self.function.as_ref(),
+            Namespace::Test => self.test.as_ref(),
+        };
+        let Some(object) = object else {
+            return Err(CustomError::new(format!(
+                "host registry has no `{}` implementations",
+                namespace.as_str()
+            )));
+        };
+        let implementation = Reflect::get(object, &JsValue::from_str(name))
+            .map_err(|error| CustomError::new(js_error_message(&error)))?;
+        if !implementation.is_function() {
+            return Err(CustomError::new(format!("host registry has no `{name}` implementation")));
+        }
+        let function: js_sys::Function = implementation.unchecked_into();
+        Reflect::apply(&function, object, arguments)
+            .map_err(|error| CustomError::new(js_error_message(&error)))
+    }
+}
+
+impl CustomRegistry for JsCustomRegistry {
+    fn entries(&self) -> &[CustomEntry] {
+        &self.entries
+    }
+
+    fn apply_filter(&self, name: &str, value: &Value, args: &[Value]) -> Result<Value, CustomError> {
+        let arguments = js_sys::Array::new();
+        arguments.push(&value_to_js(value)?);
+        arguments.push(&values_to_js(args)?);
+        js_to_value(self.invoke(Namespace::Filter, name, &arguments)?)
+    }
+
+    fn call_function(&self, name: &str, args: &[Value]) -> Result<Value, CustomError> {
+        let arguments = js_sys::Array::new();
+        arguments.push(&values_to_js(args)?);
+        js_to_value(self.invoke(Namespace::Function, name, &arguments)?)
+    }
+
+    fn apply_test(&self, name: &str, value: &Value, args: &[Value]) -> Result<bool, CustomError> {
+        let arguments = js_sys::Array::new();
+        arguments.push(&value_to_js(value)?);
+        arguments.push(&values_to_js(args)?);
+        Ok(self.invoke(Namespace::Test, name, &arguments)?.as_bool().unwrap_or(false))
+    }
+}
+
+fn get_property(object: &JsValue, key: &str) -> Result<JsValue, Diagnostic> {
+    Reflect::get(object, &JsValue::from_str(key)).map_err(|error| json_diag(js_error_message(&error)))
+}
+
+fn optional_namespace(object: &JsValue, key: &str) -> Result<Option<JsValue>, Diagnostic> {
+    let value = get_property(object, key)?;
+    Ok(if value.is_undefined() || value.is_null() { None } else { Some(value) })
+}
+
+fn values_to_js(values: &[Value]) -> Result<JsValue, CustomError> {
+    let array = js_sys::Array::new();
+    for value in values {
+        array.push(&value_to_js(value)?);
+    }
+    Ok(array.into())
+}
+
+fn value_to_js(value: &Value) -> Result<JsValue, CustomError> {
+    let text = serde_json::to_string(value).map_err(|error| CustomError::new(error.to_string()))?;
+    JSON::parse(&text).map_err(|error| CustomError::new(js_error_message(&error)))
+}
+
+fn js_to_value(value: JsValue) -> Result<Value, CustomError> {
+    if value.is_undefined() || value.is_null() {
+        return Ok(Value::Null);
+    }
+    let text = JSON::stringify(&value).map_err(|error| CustomError::new(js_error_message(&error)))?;
+    serde_json::from_str(&String::from(text)).map_err(|error| CustomError::new(error.to_string()))
+}
+
+fn js_error_message(error: &JsValue) -> String {
+    error
+        .as_string()
+        .or_else(|| Reflect::get(error, &JsValue::from_str("message")).ok().and_then(|value| value.as_string()))
+        .unwrap_or_else(|| "host registry implementation failed".to_string())
 }
 
 fn build_catalog(raw: &str) -> Result<TemplateCatalog, Diagnostic> {
