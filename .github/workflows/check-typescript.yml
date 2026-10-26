@@ -83,3 +83,7 @@ jobs:
 
       - name: IR conformance
         run: pnpm conformance
+
+      - name: Browser smoke (main-thread + module worker)
+        timeout-minutes: 10
+        run: node scripts/browser-check.mjs
