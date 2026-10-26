@@ -7,7 +7,7 @@
 ## 修改前阅读
 
 - [TypeScript 公开表面](../guide/typescript-usage.md)（`@doki-land/dejavu` 与 `@doki-land/dejavu-engine` 分工）
-- [Template Contract](../../specifications/template-contract/v1.md) 中的 `strictUndefined` 与转义规则
+- [Template Contract](../../specifications/template-contract/v0.md) 中的 `strictUndefined` 与转义规则
 
 ## 仓库布局
 

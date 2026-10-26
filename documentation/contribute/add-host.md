@@ -7,7 +7,7 @@
 ## 修改前阅读
 
 - [同构分层](../architecture/isomorphic-layers.md)
-- [Template Contract](../../specifications/template-contract/v1.md)
+- [Template Contract](../../specifications/template-contract/v0.md)
 - [IR v0](../../specifications/ir/v0/readme.md)
 
 ## 实现要求

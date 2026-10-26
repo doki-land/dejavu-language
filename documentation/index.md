@@ -19,7 +19,7 @@
 - [架构总览](./architecture/overview.md)
 - [同构分层](./architecture/isomorphic-layers.md)
 - [宿主表面与 LSP](./architecture/host-surface-and-lsp.md)
-- [Template Contract](../specifications/template-contract/v1.md)
+- [Template Contract](../specifications/template-contract/v0.md)
 - [IR v0](../specifications/ir/v0/readme.md)
 - [语法实现状态](./grammar/index.md)
 - [宿主实现状态](./compatibility.md)

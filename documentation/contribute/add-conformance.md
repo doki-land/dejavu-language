@@ -6,7 +6,7 @@
 
 ## 修改前阅读
 
-- [Template Contract](../../specifications/template-contract/v1.md)
+- [Template Contract](../../specifications/template-contract/v0.md)
 - `specifications/conformance/` 中与目标行为最接近的现有案例
 
 ## Fixture 位置

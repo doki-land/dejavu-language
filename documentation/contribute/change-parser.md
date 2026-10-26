@@ -6,7 +6,7 @@
 
 ## 修改前阅读
 
-- [Template Contract](../../specifications/template-contract/v1.md)
+- [Template Contract](../../specifications/template-contract/v0.md)
 - [IR 节点](../../specifications/ir/v0/nodes.md)
 - [语法实现状态](../grammar/index.md)
 

@@ -6,7 +6,7 @@
 
 ## 修改前阅读
 
-- [Template Contract](../../specifications/template-contract/v1.md) 中的 Filters、Inheritance、Loader & Resolution
+- [Template Contract](../../specifications/template-contract/v0.md) 中的 Filters、Inheritance、Loader & Resolution
 - [架构总览](../architecture/overview.md)
 
 ## 工作目录与命令

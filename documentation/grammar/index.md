@@ -1,6 +1,6 @@
 # 语法实现状态
 
-本目录是核心开发者的实现索引，不是用户语法教程。规范行为以 [Template Contract](../../specifications/template-contract/v1.md)
+本目录是核心开发者的实现索引，不是用户语法教程。规范行为以 [Template Contract](../../specifications/template-contract/v0.md)
 和 conformance fixture 为准。
 
 | 能力                           | 当前契约  | 实现证据                                                         |

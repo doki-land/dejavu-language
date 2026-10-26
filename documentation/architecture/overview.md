@@ -37,4 +37,4 @@ TypeScript 应用入口固定为 `@doki-land/dejavu`；Rust 为 `dejavu` crate�
 - HTML 插值默认转义；绕过转义必须由显式 `safe` / `raw` 或宿主安全值完成。
 
 实现细节见[同构分层](./isomorphic-layers.md)、[宿主表面与 LSP](./host-surface-and-lsp.md)
-，规范行为见 [Template Contract](../../specifications/template-contract/v1.md)。
+，规范行为见 [Template Contract](../../specifications/template-contract/v0.md)。

@@ -7,7 +7,7 @@
 ## 修改前阅读
 
 - [架构总览](../architecture/overview.md)
-- [Template Contract](../../specifications/template-contract/v1.md)
+- [Template Contract](../../specifications/template-contract/v0.md)
 - [IR v0](../../specifications/ir/v0/readme.md)
 
 ## 工作目录与命令
