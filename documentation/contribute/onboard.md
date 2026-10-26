@@ -8,7 +8,7 @@
 
 - [架构总览](../architecture/overview.md)
 - [Template Contract](../../specifications/template-contract/v1.md)
-- [IR v1](../../specifications/ir/v1/readme.md)
+- [IR v0](../../specifications/ir/v0/readme.md)
 
 ## 工作目录与命令
 

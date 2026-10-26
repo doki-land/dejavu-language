@@ -6,9 +6,9 @@
 
 ## 修改前阅读
 
-- [IR v1](../../specifications/ir/v1/readme.md)
-- [节点定义](../../specifications/ir/v1/nodes.md)
-- [规范化规则](../../specifications/ir/v1/normalize.md)
+- [IR v0](../../specifications/ir/v0/readme.md)
+- [节点定义](../../specifications/ir/v0/nodes.md)
+- [规范化规则](../../specifications/ir/v0/normalize.md)
 
 ## 工作目录与命令
 
@@ -24,8 +24,8 @@ cargo test --manifest-path projects/dejavu.rs/Cargo.toml -p dejavu-ir
 
 ## 修改位置
 
-- JSON Schema：`specifications/ir/v1/schema.json`
-- 节点说明和规范化：`specifications/ir/v1/`
+- JSON Schema：`specifications/ir/v0/schema.json`
+- 节点说明和规范化：`specifications/ir/v0/`
 - 金样：`specifications/conformance/*/expected.ir.json`
 - TypeScript 公开类型与 N-API wire：`projects/dejavu.ts/packages/dejavu/src/types.ts`、`napi.ts`
 - 各宿主 IR decoder / renderer：`projects/dejavu.{rs,cs,kt,py}/`

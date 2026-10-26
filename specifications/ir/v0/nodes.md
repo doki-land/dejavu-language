@@ -1,4 +1,4 @@
-# Dejavu IR v1 节点
+# Dejavu IR v0 节点
 
 机器权威 schema：[`schema.json`](./schema.json)。
 

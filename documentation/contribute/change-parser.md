@@ -7,7 +7,7 @@
 ## 修改前阅读
 
 - [Template Contract](../../specifications/template-contract/v1.md)
-- [IR 节点](../../specifications/ir/v1/nodes.md)
+- [IR 节点](../../specifications/ir/v0/nodes.md)
 - [语法实现状态](../grammar/index.md)
 
 当前 Contract 已冻结的行为不能静默改变。新增能力先定义语法、IR、诊断和版本策略；未进入 Contract 的能力不能只在单一宿主先变成正式语法。

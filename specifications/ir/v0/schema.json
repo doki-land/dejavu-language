@@ -1,7 +1,7 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://dejavu.dev/specifications/ir/v1/schema.json",
-    "title": "Dejavu IR v1",
+    "$id": "https://dejavu.dev/specifications/ir/v0/schema.json",
+    "title": "Dejavu IR v0",
     "description": "Dejavu 模板（T1）的跨语言中间表示。",
     "type": "object",
     "required": ["irVersion", "language", "body"],

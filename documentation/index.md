@@ -20,7 +20,7 @@
 - [同构分层](./architecture/isomorphic-layers.md)
 - [宿主表面与 LSP](./architecture/host-surface-and-lsp.md)
 - [Template Contract](../specifications/template-contract/v1.md)
-- [IR v1](../specifications/ir/v1/readme.md)
+- [IR v0](../specifications/ir/v0/readme.md)
 - [语法实现状态](./grammar/index.md)
 - [宿主实现状态](./compatibility.md)
 

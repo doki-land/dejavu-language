@@ -1,4 +1,4 @@
-# Dejavu IR v1 规范化
+# Dejavu IR v0 规范化
 
 在 conformance runner 做语义相等比较 **之前**应用以下规则。
 
