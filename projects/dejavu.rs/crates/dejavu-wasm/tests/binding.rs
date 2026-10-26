@@ -21,7 +21,7 @@ fn diagnostics(response: &Value) -> &Vec<Value> {
 
 #[test]
 fn binding_contract_version_is_stable() {
-    assert_eq!(binding_contract_version(), "dejavu.wasm/2");
+    assert_eq!(binding_contract_version(), "dejavu.wasm/0");
 }
 
 #[test]

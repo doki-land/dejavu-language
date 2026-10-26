@@ -12,7 +12,7 @@
 import * as glue from "@doki-land/dejavu-unknown-wasm32";
 
 /** Binding contract reported by the bridge. */
-export const BINDING_CONTRACT = "dejavu.wasm/2";
+export const BINDING_CONTRACT = "dejavu.wasm/0";
 
 /** Diagnostic severity. */
 export type Severity = "error" | "warning" | "info" | "debug";

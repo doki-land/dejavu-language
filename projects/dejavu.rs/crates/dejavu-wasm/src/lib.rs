@@ -22,7 +22,7 @@ use serde_json::Value;
 use wasm_bindgen::prelude::*;
 
 /// 绑定合同标识。
-pub const BINDING_CONTRACT: &str = "dejavu.wasm/2";
+pub const BINDING_CONTRACT: &str = "dejavu.wasm/0";
 
 /// path-v1 默认扩展名表（与 catalog loader 一致）。
 const DEFAULT_EXTENSIONS: [&str; 4] = ["", ".html", ".doki", ".dejavu"];

@@ -122,7 +122,7 @@ type NativeGeneratedOrigin = {
 // ---------------------------------------------------------------------------
 
 /** Binding contract version this facade is written against. */
-export const BINDING_CONTRACT = "dejavu.napi/3";
+export const BINDING_CONTRACT = "dejavu.napi/0";
 
 const PLATFORM_PACKAGES: Record<string, string> = {
     "linux-x64": "@doki-land/dejavu-linux-x64",

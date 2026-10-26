@@ -26,7 +26,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 /// 绑定合同标识。
-pub const BINDING_CONTRACT: &str = "dejavu.napi/3";
+pub const BINDING_CONTRACT: &str = "dejavu.napi/0";
 
 /// path-v1 默认扩展名表（与 catalog loader 一致）。
 const DEFAULT_EXTENSIONS: [&str; 4] = ["", ".html", ".doki", ".dejavu"];

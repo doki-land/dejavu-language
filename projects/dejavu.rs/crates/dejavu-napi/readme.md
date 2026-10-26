@@ -4,7 +4,7 @@ N-API bridge that exports the Dejavu Rust engine's orthogonal capabilities to No
 
 ## Contract
 
-- Binding contract id is `dejavu.napi/2`, returned by `bindingContractVersion()`. Hosts **must** verify before calling.
+- Binding contract id is `dejavu.napi/0`, returned by `bindingContractVersion()`. Hosts **must** verify before calling.
 - Exported surface: `parseIr`, `normalizeIr`, `renderIr`, `renderSource`, `resolveTemplateRef`.
 - Command semantics (`build`, `dev`, `check` flags, config files, stdio, exit codes, interactivity) belong to the TypeScript CLI, **not** this crate — no clap wrapper here.
 - One diagnostic shape: `code` + `severity` + `stage` + `message` + `span` + `path` + `argsJson` + `related`.
