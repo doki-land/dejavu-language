@@ -15,7 +15,7 @@ cargo test -p dejavu-language
 
 TypeScript 参考解析器在 `projects/dejavu.ts/packages/dejavu-language/`（不在 pnpm workspace；正式 JIT 路径经 N-API 调用 Rust）。
 
-跨语言契约与金样见 `specifications/conformance/t1` 与 `specifications/ir/v1`。  
+跨语言契约与金样见 `specifications/conformance/t1` 与 `specifications/ir/v0`。
 Oak（`oak-dejavu`）与 logos 已从仓库移除，不再作为解析实现。
 
 参见 [改语言与解析](./change-parser.md)。
