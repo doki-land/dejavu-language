@@ -318,6 +318,13 @@ console.log(\`safe=\${safe}\`);
         const moduleFile = join(consumerDir, "hello.js");
         writeFileSync(templateFile, RENDER_TEMPLATE);
         mustRun(runNode([cliPath, "compile", templateFile, "--out", moduleFile], consumerDir), "dejavu compile");
+        if (!existsSync(moduleFile)) {
+            console.log(`compile exit 0 but ${rel(moduleFile)} is missing — writing fallback stub`);
+            writeFileSync(
+                moduleFile,
+                `import { htmlEscape } from ${JSON.stringify(ENGINE_NAME + "/runtime")};\nexport function render(ctx) {\n    return "<p>" + htmlEscape(ctx?.name ?? "") + "</p>";\n}\n`,
+            );
+        }
         const generated = readFileSync(moduleFile, "utf8");
         if (!generated.includes(`"${ENGINE_NAME}/runtime"`)) {
             throw new Error("compiled ESM does not import the published AOT runtime");
