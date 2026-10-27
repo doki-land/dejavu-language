@@ -140,6 +140,7 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       - name: Build TypeScript packages
+        shell: bash
         run: |
           set -euo pipefail
           pnpm --filter @doki-land/dejavu-engine build

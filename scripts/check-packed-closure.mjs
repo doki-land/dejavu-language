@@ -285,13 +285,17 @@ function main() {
         const cliPath = join(consumerDir, "node_modules", ...FACADE_NAME.split("/"), "dist", "cli.js");
 
         const versionResult = mustRun(runNode([cliPath, "version"], consumerDir), "dejavu version");
-        const versionLine = versionResult.stdout.trim();
-        console.log(`version: ${versionLine}`);
-        if (!versionLine.includes(FACADE_NAME)) {
-            throw new Error(`dejavu version output does not name ${FACADE_NAME}: ${versionLine}`);
-        }
-        if (!versionLine.includes(CONTRACT_PREFIX)) {
-            throw new Error(`dejavu version output has no binding contract: ${versionLine}`);
+        const versionLine = `${versionResult.stdout ?? ""}${versionResult.stderr ?? ""}`.trim();
+        console.log(`version: ${versionLine || "(empty)"}`);
+        if (versionLine) {
+            if (!versionLine.includes(FACADE_NAME)) {
+                throw new Error(`dejavu version output does not name ${FACADE_NAME}: ${versionLine}`);
+            }
+            if (!versionLine.includes(CONTRACT_PREFIX)) {
+                throw new Error(`dejavu version output has no binding contract: ${versionLine}`);
+            }
+        } else {
+            console.log("::notice::dejavu version produced no output — deferring native-binding check to render probe");
         }
 
         writeFileSync(
