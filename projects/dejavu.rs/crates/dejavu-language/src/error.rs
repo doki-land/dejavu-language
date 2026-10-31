@@ -25,6 +25,9 @@ pub struct ParseError {
     pub label: String,
     /// Stable machine-readable code, e.g. `dejavu.parse.unclosed-block`.
     pub code: Option<&'static str>,
+    /// Structured diagnostic args carried to the cross-host contract
+    /// (e.g. `kind` for `control-outside-loop`).
+    pub args: Vec<(String, String)>,
 }
 
 impl ParseError {
@@ -42,6 +45,7 @@ impl ParseError {
             message: message.into(),
             label: label.into(),
             code: None,
+            args: Vec::new(),
         }
     }
 
@@ -69,6 +73,12 @@ impl ParseError {
     /// Attach a stable error code (builder-style).
     pub fn with_code(mut self, code: &'static str) -> Self {
         self.code = Some(code);
+        self
+    }
+
+    /// Attach a structured diagnostic arg (builder-style).
+    pub fn with_arg(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.args.push((key.into(), value.into()));
         self
     }
 

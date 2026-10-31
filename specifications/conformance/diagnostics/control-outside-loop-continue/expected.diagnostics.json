@@ -1,0 +1,7 @@
+[
+    {
+        "code": "dejavu.template.control-outside-loop",
+        "stages": ["render"],
+        "args": { "kind": "continue" }
+    }
+]

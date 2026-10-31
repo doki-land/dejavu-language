@@ -1,0 +1,20 @@
+{
+    "irVersion": "v0",
+    "language": {
+        "syntaxMode": "template",
+        "template": {
+            "codeStart": "<%",
+            "codeEnd": "%>",
+            "commentStart": "<#",
+            "commentEnd": "#>",
+            "supportFilterPipe": true,
+            "legacyFor": false
+        }
+    },
+    "body": {
+        "type": "Template",
+        "children": [
+            { "type": "Stmt.Continue", "trim": "none" }
+        ]
+    }
+}

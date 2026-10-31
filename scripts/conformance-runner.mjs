@@ -20,6 +20,7 @@ const IR_SUITES = [
     join(BASE, "functions"),
     join(BASE, "tests"),
     join(BASE, "loop-metadata"),
+    join(BASE, "control-flow"),
 ];
 /** Source-level suites: templates parsed by every host before rendering. */
 const CATALOG_SUITES = [
@@ -29,6 +30,7 @@ const CATALOG_SUITES = [
     join(BASE, "partial-params"),
     join(BASE, "macros"),
     join(BASE, "builtin-expressions"),
+    join(BASE, "control-flow-catalog"),
 ];
 /** Diagnostic suites: expected.ir.json + expected.diagnostics.json (`code` / `stage`). */
 const DIAGNOSTIC_SUITES = [join(BASE, "diagnostics")];

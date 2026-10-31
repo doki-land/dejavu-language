@@ -113,6 +113,11 @@ pub struct CodegenCtx<'a> {
     capabilities: CapabilitySet,
     /// Host-supplied entries, validated once by [`CodegenCtx::new`].
     custom_registry: &'a [CustomEntry],
+    /// Nesting depth of emitted JS loops in the current control-flow scope.
+    /// Reset to zero at every lexical unit (macro, caller block, partial,
+    /// block, module function) so `break` / `continue` can only bind to a
+    /// loop inside the same unit.
+    loop_depth: usize,
 }
 
 impl<'a> CodegenCtx<'a> {
@@ -150,6 +155,7 @@ impl<'a> CodegenCtx<'a> {
             macro_depth_expr: "1".into(),
             in_macro: false,
             custom_registry: &options.custom_registry,
+            loop_depth: 0,
         }
     }
 
@@ -300,6 +306,8 @@ impl<'a> CodegenCtx<'a> {
             | IrNode::StmtExtends { span, .. }
             | IrNode::StmtInclude { span, .. }
             | IrNode::StmtSuper { span, .. }
+            | IrNode::StmtBreak { span, .. }
+            | IrNode::StmtContinue { span, .. }
             | IrNode::StmtRaw { span, .. }
             | IrNode::ExprLiteral { span, .. }
             | IrNode::ExprIdentifier { span, .. }
@@ -789,7 +797,12 @@ pub fn emit_stmt(
             };
             let args_s = emit_expr_list(arguments, ctx);
             let mut caller_body = String::new();
+            // The caller block is its own lexical unit (and a JS function
+            // boundary): control signals cannot reach an outer loop.
+            let saved_loop_depth = ctx.loop_depth;
+            ctx.loop_depth = 0;
             emit_body(body, ctx, &mut caller_body, catalog);
+            ctx.loop_depth = saved_loop_depth;
             let depth = ctx.macro_depth_expr.clone();
             let count = params.len();
             let guard = format!(
@@ -837,6 +850,22 @@ pub fn emit_stmt(
         IrNode::StmtSuper { .. } => {
             emit_super(ctx, out, catalog);
         }
+        IrNode::StmtBreak { .. } | IrNode::StmtContinue { .. } => {
+            let is_break = matches!(node, IrNode::StmtBreak { .. });
+            let keyword = if is_break { "break" } else { "continue" };
+            if ctx.loop_depth > 0 {
+                out.push_str(keyword);
+                out.push_str(";\n");
+            } else {
+                // Hand-authored IR may carry a stray control node. Bind it to
+                // the same render-stage diagnostic as the JIT renderer instead
+                // of emitting JavaScript that fails to parse.
+                out.push_str(&format!(
+                    "throw runtimeError(\"{}\", \"`{keyword}` outside loop\", {{ kind: \"{keyword}\" }});\n",
+                    codes::CONTROL_OUTSIDE_LOOP
+                ));
+            }
+        }
         IrNode::Template { children, .. } => {
             // Nested template — emit its children directly (no extra wrapper).
             emit_body(children, ctx, out, catalog);
@@ -879,7 +908,11 @@ fn emit_block(
         let saved_chain = std::mem::replace(&mut ctx.super_chain, chain.clone());
         let saved_index = ctx.super_index;
         ctx.super_index = 1;
+        // A block body is its own lexical unit.
+        let saved_loop_depth = ctx.loop_depth;
+        ctx.loop_depth = 0;
         emit_body(&chain[0], ctx, out, Some(cat));
+        ctx.loop_depth = saved_loop_depth;
         ctx.super_index = saved_index;
         ctx.super_chain = saved_chain;
     } else {
@@ -925,7 +958,11 @@ fn emit_partial(
             }
         }
     }
+    // A partial body is its own lexical unit.
+    let saved_loop_depth = ctx.loop_depth;
+    ctx.loop_depth = 0;
     emit_body(body, ctx, out, catalog);
+    ctx.loop_depth = saved_loop_depth;
     out.push_str(&format!("ctx = {saved};\n"));
     out.push_str("}\n");
 }
@@ -1020,7 +1057,11 @@ fn emit_super(
     };
     let saved_index = ctx.super_index;
     ctx.super_index = index + 1;
+    // The inlined ancestor block body is again its own lexical unit.
+    let saved_loop_depth = ctx.loop_depth;
+    ctx.loop_depth = 0;
     emit_body(&body, ctx, out, Some(cat));
+    ctx.loop_depth = saved_loop_depth;
     ctx.super_index = saved_index;
 }
 
@@ -1131,7 +1172,9 @@ fn emit_for(
     out.push_str(&format!(
         "ctx[\"forloop\"] = {{ index: __i + 1, index0: __i, first: __i === 0, last: __i + 1 === {len}, length: {len}, depth: {meta_depth} }};\n"
     ));
+    ctx.loop_depth += 1;
     emit_body(body, ctx, out, catalog);
+    ctx.loop_depth -= 1;
     out.push_str("}\n");
 
     // Restore the caller context: write back the old value when the key was

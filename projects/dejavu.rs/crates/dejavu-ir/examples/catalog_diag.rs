@@ -13,8 +13,8 @@ use std::fs;
 use std::path::Path;
 
 use dejavu_ir::{
-    CatalogRoot, IrError, Language, ResolveHit, RenderOptions, ResolvedTemplate, TemplateCatalog,
-    TemplateLoader, default_language, diag_load, render_ir_opts,
+    CatalogRoot, Diagnostic, IrError, Language, ResolveHit, RenderOptions, ResolvedTemplate,
+    Severity, Stage, TemplateCatalog, TemplateLoader, default_language, diag_load, render_ir_opts,
 };
 use dejavu_language::parse_with as dejavu_parse_with;
 use serde_json::json;
@@ -49,9 +49,25 @@ fn main() {
         }
         let name = path.file_name().unwrap().to_string_lossy().to_string();
         let source = fs::read_to_string(&path).expect(&format!("read {}", name));
-        // A parse failure is a host/fixture problem, never a cycle diagnostic.
-        let ir = dejavu_parse_with(&source, &name, &language)
-            .unwrap_or_else(|error| panic!("failed to parse {name}: {error}"));
+        // A parse failure is itself a cross-host diagnostic (stage `parse`);
+        // report the first one and stop, mirroring the render-stage contract.
+        let ir = match dejavu_parse_with(&source, &name, &language) {
+            Ok(ir) => ir,
+            Err(error) => {
+                let mut diagnostic =
+                    Diagnostic::new(Severity::Error, error.code_or_default(), Stage::Parse)
+                        .message(error.message)
+                        .path(error.file);
+                if error.span.len() > 0 {
+                    diagnostic = diagnostic.span(error.span.start, error.span.end);
+                }
+                for (key, value) in error.args {
+                    diagnostic = diagnostic.arg(key, value);
+                }
+                println!("{}", json!({ "diagnostics": [diagnostic] }));
+                return;
+            }
+        };
         files.insert(name, ir);
     }
 

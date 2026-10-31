@@ -69,7 +69,57 @@ impl<'a> Parser<'a> {
         let (children, _) = self.parse_body(0, &[])?;
         self.validate_partial_layout(&children)?;
         self.validate_macro_layout(&children)?;
+        self.validate_control_flow(&children, 0)?;
         Ok(NativeTemplate { children })
+    }
+
+    /// `break` / `continue` must bind to a lexically enclosing `loop` inside
+    /// the same lexical unit. `macro`, `call`, `partial` and `block` bodies
+    /// open a new unit (loop depth restarts at zero there), so a control
+    /// statement can never escape across those boundaries.
+    fn validate_control_flow(&self, children: &[NativeNode], loop_depth: usize) -> Result<(), ParseError> {
+        for node in children {
+            match &node.kind {
+                NativeKind::Break { .. } | NativeKind::Continue { .. } => {
+                    if loop_depth == 0 {
+                        let kind = if matches!(node.kind, NativeKind::Break { .. }) { "break" } else { "continue" };
+                        let (start, len) = node
+                            .span
+                            .as_ref()
+                            .map(|s| (s.start, (s.end - s.start).max(1)))
+                            .unwrap_or((0, 1));
+                        return Err(ParseError::at(
+                            self.source,
+                            self.file,
+                            start,
+                            len,
+                            format!("`{kind}` is only valid inside a `loop` in the same lexical unit"),
+                            "outside loop",
+                        )
+                        .with_code(codes::PARSE_CONTROL_OUTSIDE_LOOP)
+                        .with_arg("kind", kind));
+                    }
+                }
+                NativeKind::For { body, .. } => self.validate_control_flow(body, loop_depth + 1)?,
+                NativeKind::If { consequent, else_ifs, alternate, .. } => {
+                    self.validate_control_flow(consequent, loop_depth)?;
+                    for (_, branch) in else_ifs {
+                        self.validate_control_flow(branch, loop_depth)?;
+                    }
+                    if let Some(alt) = alternate {
+                        self.validate_control_flow(alt, loop_depth)?;
+                    }
+                }
+                NativeKind::Macro { body, .. }
+                | NativeKind::Call { body, .. }
+                | NativeKind::Partial { body, .. }
+                | NativeKind::Block { body, .. } => {
+                    self.validate_control_flow(body, 0)?;
+                }
+                _ => {}
+            }
+        }
+        Ok(())
     }
 
     /// A template declaring `partial` must consist of exactly one partial:
@@ -480,6 +530,16 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
                             NativeKind::Super { trim: tag.trim_left.as_str().into() },
                             Some(Span { start: open, end: next_i }),
                         ));
+                        pending = right_trim(tag.trim_right);
+                        i = next_i;
+                    }
+                    CodeHead::Break | CodeHead::Continue => {
+                        let kind = if matches!(head, CodeHead::Break) {
+                            NativeKind::Break { trim: tag.trim_left.as_str().into() }
+                        } else {
+                            NativeKind::Continue { trim: tag.trim_left.as_str().into() }
+                        };
+                        children.push(NativeNode::new(kind, Some(Span { start: open, end: next_i })));
                         pending = right_trim(tag.trim_right);
                         i = next_i;
                     }

@@ -192,6 +192,20 @@ pub enum IrNode {
         #[serde(skip_serializing_if = "Option::is_none")]
         span: Option<Span>,
     },
+    /// `break` — terminates the nearest enclosing loop in the same lexical unit.
+    #[serde(rename = "Stmt.Break")]
+    StmtBreak {
+        trim: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        span: Option<Span>,
+    },
+    /// `continue` — skips the rest of the bound loop's current iteration.
+    #[serde(rename = "Stmt.Continue")]
+    StmtContinue {
+        trim: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        span: Option<Span>,
+    },
     #[serde(rename = "Stmt.Raw")]
     StmtRaw {
         value: String,

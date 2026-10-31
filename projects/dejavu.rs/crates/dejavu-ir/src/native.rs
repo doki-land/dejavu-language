@@ -87,6 +87,14 @@ pub enum NativeKind {
     Super {
         trim: String,
     },
+    /// `break` — terminates the nearest enclosing loop in the same lexical unit.
+    Break {
+        trim: String,
+    },
+    /// `continue` — skips the rest of the bound loop's current iteration.
+    Continue {
+        trim: String,
+    },
     Raw {
         value: String,
         trim: String,
@@ -234,6 +242,8 @@ fn encode_node(n: &NativeNode) -> IrNode {
             span,
         },
         NativeKind::Super { trim } => IrNode::StmtSuper { trim: trim.clone(), span },
+        NativeKind::Break { trim } => IrNode::StmtBreak { trim: trim.clone(), span },
+        NativeKind::Continue { trim } => IrNode::StmtContinue { trim: trim.clone(), span },
         NativeKind::Raw { value, trim } => IrNode::StmtRaw { value: value.clone(), trim: trim.clone(), span },
     }
 }
@@ -403,6 +413,8 @@ fn decode_node(n: &IrNode) -> NativeNode {
             span.clone(),
         ),
         IrNode::StmtSuper { trim, span } => NativeNode::new(NativeKind::Super { trim: trim.clone() }, span.clone()),
+        IrNode::StmtBreak { trim, span } => NativeNode::new(NativeKind::Break { trim: trim.clone() }, span.clone()),
+        IrNode::StmtContinue { trim, span } => NativeNode::new(NativeKind::Continue { trim: trim.clone() }, span.clone()),
         IrNode::StmtRaw { value, trim, span } => {
             NativeNode::new(NativeKind::Raw { value: value.clone(), trim: trim.clone() }, span.clone())
         }

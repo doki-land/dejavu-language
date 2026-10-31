@@ -77,6 +77,26 @@
 - 同名上下文变量（含上下文自带的 `forloop`）在 body 内被遮蔽，循环后按原值恢复；原本不存在的键被删除。
 - 空数组零次迭代：body 不执行，`forloop` 不绑定。
 
+### `Stmt.Break` / `Stmt.Continue`
+
+`break` / `continue` 语句节点，无附加字段（仅 `trim` 与可选 `span`）。
+
+- 绑定对象是**词法上最近的外层 `Stmt.For`**，且只在同一**词法单元**内成立。
+  词法单元 = 模板顶层 body、每个 `macro` body、每个 `call` caller 块 body、
+  每个 `partial` body、每个 `block` body。
+- `break` 终止所绑定的循环：跳过剩余迭代，循环正常收尾（循环变量与 `forloop`
+  按普通规则恢复），循环之后的模板内容继续渲染。
+- `continue` 跳过所绑定循环当前迭代的剩余 body，进入下一次迭代；最后一次迭代
+  上的 `continue` 等价于循环正常结束。
+- 嵌套循环中信号只被最内层绑定的循环消费一次，不影响外层。
+- `break` 不会把被中止的迭代改写成 `forloop.last == true`；元数据仍按原始
+  `length` 计算。
+- 词法单元内没有外层 `loop` 时（含跨 macro / caller / partial / block 边界逃逸），
+  parser 报 `dejavu.parse.control-outside-loop`（args `kind` 为 `break` 或
+  `continue`）。手写 IR 必须满足同一绑定规则；渲染器与 AOT 编译器不依赖 parser
+  时按各自合同拒绝或产生无效产物。
+- AOT 与 JIT 控制流语义一致：AOT 直接生成宿主语言的循环内 `break` / `continue`。
+
 ### `Stmt.Block` / `Stmt.Extends` / `Stmt.Include` / `Stmt.Super` / `Stmt.Raw`
 
 T1 的继承与包含表面。`Stmt.Extends.parent` 与 `Stmt.Include.path` 为表达式（通常是字符串字面量）。

@@ -31,17 +31,36 @@ def truthy(v: Any) -> bool:
 
 def render_ir(doc: dict, ctx: dict) -> str:
     scope = dict(ctx)
-    return _render_node(doc["body"], scope)
+    control = {"signal": None}
+    out = _render_node(doc["body"], scope, control)
+    if control["signal"] is not None:
+        raise ValueError(f"dejavu.template.control-outside-loop: {control['signal']}")
+    return out
 
 
 def render_source(source: str, ctx: dict) -> str:
     return render_ir(parse_to_ir(source), ctx)
 
 
-def _render_node(node: dict, scope: dict) -> str:
+def _render_body(nodes: list, scope: dict, control: dict) -> str:
+    """Render a sibling list, stopping after the node that set a control signal.
+
+    The pending `break` / `continue` is consumed by the enclosing loop or
+    rejected at a lexical-unit boundary; the partial text before the signal
+    is kept (same contract as the Rust renderer).
+    """
+    out = []
+    for c in nodes:
+        out.append(_render_node(c, scope, control))
+        if control["signal"] is not None:
+            break
+    return "".join(out)
+
+
+def _render_node(node: dict, scope: dict, control: dict) -> str:
     t = node["type"]
     if t == "Template":
-        return "".join(_render_node(c, scope) for c in node["children"])
+        return _render_body(node["children"], scope, control)
     if t == "Text":
         return node["value"]
     if t == "Comment":
@@ -51,12 +70,18 @@ def _render_node(node: dict, scope: dict) -> str:
         return s if node.get("raw") else html_escape(s)
     if t == "Stmt.If":
         if truthy(_eval(node["test"], scope)):
-            return "".join(_render_node(c, scope) for c in node["consequent"])
+            return _render_body(node["consequent"], scope, control)
         for ei in node.get("elseIfs", []):
             if truthy(_eval(ei["test"], scope)):
-                return "".join(_render_node(c, scope) for c in ei["consequent"])
+                return _render_body(ei["consequent"], scope, control)
         if "alternate" in node:
-            return "".join(_render_node(c, scope) for c in node["alternate"])
+            return _render_body(node["alternate"], scope, control)
+        return ""
+    if t == "Stmt.Break":
+        control["signal"] = "break"
+        return ""
+    if t == "Stmt.Continue":
+        control["signal"] = "continue"
         return ""
     if t == "Stmt.For":
         iterable = _eval(node["iterable"], scope)
@@ -85,11 +110,19 @@ def _render_node(node: dict, scope: dict) -> str:
                 "length": length,
                 "depth": depth,
             }
-            out.append("".join(_render_node(c, scope) for c in node["body"]))
+            out.append(_render_body(node["body"], scope, control))
             if prev is _MISSING:
                 scope.pop(item, None)
             else:
                 scope[item] = prev
+            # The bound loop consumes the signal once, after the iteration's
+            # bindings are restored (normal loop exit).
+            signal = control["signal"]
+            control["signal"] = None
+            if signal == "break":
+                break
+            if signal == "continue":
+                continue
         if prev_meta is _MISSING:
             scope.pop("forloop", None)
         else:
@@ -98,7 +131,12 @@ def _render_node(node: dict, scope: dict) -> str:
     if t == "Stmt.Raw":
         return node["value"]
     if t == "Stmt.Block":
-        return "".join(_render_node(c, scope) for c in node["body"])
+        out = _render_body(node["body"], scope, control)
+        # A block body is its own lexical unit: an escaping signal never
+        # binds to a loop outside it.
+        if control["signal"] is not None:
+            raise ValueError(f"dejavu.template.control-outside-loop: {control['signal']}")
+        return out
     raise ValueError(f"node not renderable: {t}")
 
 

@@ -28,6 +28,10 @@ pub(crate) enum CodeHead<'a> {
         params: Option<(&'a str, usize)>,
     },
     EndCall,
+    /// `break` — terminates the nearest enclosing loop in the same lexical unit.
+    Break,
+    /// `continue` — skips the rest of the bound loop's current iteration.
+    Continue,
     /// `from "<path>" import a, b as c`
     From { path: String, names: Vec<(String, Option<String>)> },
     Extends { parent_src: &'a str, parent_base: usize },
@@ -340,6 +344,24 @@ pub(crate) fn classify_code<'a>(
                 .with_code(codes::PARSE_UNEXPECTED_TOKEN));
             }
             Ok(CodeHead::Super)
+        }
+        CodeToken::Ident(name) if name == "break" || name == "continue" => {
+            if spans.len() != 1 {
+                return Err(ParseError::at(
+                    source,
+                    file,
+                    content_base + spans[1].start,
+                    1,
+                    format!("unexpected tokens after `{name}`"),
+                    "unexpected",
+                )
+                .with_code(codes::PARSE_UNEXPECTED_TOKEN));
+            }
+            if name == "break" {
+                Ok(CodeHead::Break)
+            } else {
+                Ok(CodeHead::Continue)
+            }
         }
         CodeToken::Ident(name) if name == "else" => {
             if spans.len() == 1 {

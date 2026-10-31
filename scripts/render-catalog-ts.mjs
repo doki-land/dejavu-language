@@ -64,6 +64,16 @@ for (const entry of readdirSync(templatesDir, { withFileTypes: true })) {
     const parsed = parseIr(source, { file: name, ...(delimiters ? { delimiters } : {}) });
     const errors = parsed.diagnostics.filter((d) => d.severity === "error");
     if (errors.length > 0 || !parsed.irJson) {
+        // In diagnostics mode a parse failure is itself the fixture's
+        // expected cross-host diagnostic (stage `parse`).
+        if (mode === "diagnostics") {
+            const first = errors[0];
+            const diagnostic = first
+                ? { code: first.code, stage: first.stage, args: JSON.parse(first.argsJson || "{}") }
+                : { code: "dejavu.host.unknown", stage: "host", args: {} };
+            process.stdout.write(JSON.stringify({ diagnostics: [diagnostic] }));
+            process.exit(0);
+        }
         console.error(`failed to parse ${name}: ${errors.map((d) => d.message).join("; ")}`);
         process.exit(2);
     }

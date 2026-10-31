@@ -136,6 +136,12 @@
                     "$ref": "#/$defs/StmtSuper"
                 },
                 {
+                    "$ref": "#/$defs/StmtBreak"
+                },
+                {
+                    "$ref": "#/$defs/StmtContinue"
+                },
+                {
                     "$ref": "#/$defs/StmtRaw"
                 }
             ]
@@ -357,6 +363,38 @@
             "properties": {
                 "type": {
                     "const": "Stmt.Super"
+                },
+                "trim": {
+                    "$ref": "#/$defs/Trim"
+                },
+                "span": {
+                    "$ref": "#/$defs/Span"
+                }
+            }
+        },
+        "StmtBreak": {
+            "type": "object",
+            "required": ["type", "trim"],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "Stmt.Break"
+                },
+                "trim": {
+                    "$ref": "#/$defs/Trim"
+                },
+                "span": {
+                    "$ref": "#/$defs/Span"
+                }
+            }
+        },
+        "StmtContinue": {
+            "type": "object",
+            "required": ["type", "trim"],
+            "additionalProperties": false,
+            "properties": {
+                "type": {
+                    "const": "Stmt.Continue"
                 },
                 "trim": {
                     "$ref": "#/$defs/Trim"

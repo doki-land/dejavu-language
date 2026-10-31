@@ -49,6 +49,9 @@ pub fn parse_error_diagnostic(e: dejavu_language::ParseError) -> Diagnostic {
     if e.span.len() > 0 {
         diag = diag.span(e.span.start, e.span.end);
     }
+    for (key, value) in e.args {
+        diag = diag.arg(key, value);
+    }
     diag
 }
 

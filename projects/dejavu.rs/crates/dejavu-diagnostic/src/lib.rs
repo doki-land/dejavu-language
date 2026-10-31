@@ -316,6 +316,8 @@ pub mod codes {
     pub const PARSE_UNCLOSED_EXPRESSION: &str = "dejavu.parse.unclosed-expression";
     pub const PARSE_UNCLOSED_BLOCK: &str = "dejavu.parse.unclosed-block";
     pub const PARSE_TRAILING_INPUT: &str = "dejavu.parse.trailing-input";
+    /// `break` / `continue` without an enclosing `loop` in the same lexical unit.
+    pub const PARSE_CONTROL_OUTSIDE_LOOP: &str = "dejavu.parse.control-outside-loop";
 
     // Template load / resolve
     pub const TEMPLATE_NOT_FOUND: &str = "dejavu.template.template-not-found";
@@ -346,6 +348,8 @@ pub mod codes {
     pub const INVALID_ITERABLE: &str = "dejavu.template.invalid-iterable";
     pub const UNDEFINED_VARIABLE: &str = "dejavu.template.undefined-variable";
     pub const SUPER_OUTSIDE_BLOCK: &str = "dejavu.template.super-outside-block";
+    /// A `break` / `continue` signal escaped every enclosing loop in the document.
+    pub const CONTROL_OUTSIDE_LOOP: &str = "dejavu.template.control-outside-loop";
     pub const NOT_RENDERABLE_NODE: &str = "dejavu.template.not-renderable-node";
     pub const EXTENDS_NOT_TOP_LEVEL: &str = "dejavu.template.extends-not-top-level";
     pub const CALLS_NOT_SUPPORTED: &str = "dejavu.template.calls-not-supported";

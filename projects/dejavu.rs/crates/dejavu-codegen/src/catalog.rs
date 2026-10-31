@@ -638,6 +638,8 @@ fn collect_macro_calls_node(node: &IrNode, skip_macro_bodies: bool, out: &mut Ha
         // `extends` / `include` paths are literals by contract).
         IrNode::StmtImport { .. }
         | IrNode::StmtSuper { .. }
+        | IrNode::StmtBreak { .. }
+        | IrNode::StmtContinue { .. }
         | IrNode::StmtRaw { .. }
         | IrNode::Text { .. }
         | IrNode::Comment { .. }

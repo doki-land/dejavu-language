@@ -154,6 +154,7 @@ pub fn render_ir_opts<'a>(
         include_stack: Vec::new(),
         partial_depth: 0,
         resolved: HashMap::new(),
+        control: None,
     };
     r.render_doc(doc)
 }
@@ -196,6 +197,16 @@ struct Renderer<'a> {
     /// `render_ir_opts` 内有效，跨调用不复用；文档以 `Rc` 共享，重复 include
     /// 不再重复克隆 IR。
     resolved: HashMap<(String, Option<String>), Result<Resolved, Diagnostic>>,
+    /// Pending `break` / `continue` signal. `Some(true)` is `break`,
+    /// `Some(false)` is `continue`. The nearest enclosing loop consumes it;
+    /// a signal that escapes its lexical unit fails the render.
+    control: Option<bool>,
+}
+
+/// Diagnostic for a control signal that escaped its lexical unit.
+fn control_escape(signal: bool) -> IrError {
+    diag_render(codes::CONTROL_OUTSIDE_LOOP)
+        .arg("kind", if signal { "break" } else { "continue" })
 }
 
 /// 缓存中的已解析模板：canonical id + 共享文档。
@@ -393,7 +404,7 @@ impl<'a> Renderer<'a> {
         for (param, value) in block.params.iter().zip(args) {
             self.scope.insert(param.clone(), value.clone());
         }
-        let rendered = self.render_list(&block.body).map(Value::String);
+        let rendered = self.render_lexical_unit(&block.body).map(Value::String);
         self.scope = saved_scope;
         self.current_id = saved_id;
         self.caller_stack.push(block);
@@ -448,7 +459,7 @@ impl<'a> Renderer<'a> {
         if let Some(block) = caller {
             self.caller_stack.push(block);
         }
-        let rendered = self.render_list(&mac.body).map(Value::String);
+        let rendered = self.render_lexical_unit(&mac.body).map(Value::String);
         if has_caller {
             self.caller_stack.pop();
         }
@@ -505,8 +516,13 @@ impl<'a> Renderer<'a> {
                 return Ok(out);
             }
         }
-        // 没有 extends，正常渲染
-        self.render_nodes(&doc.body)
+        // 没有 extends，正常渲染。模板顶层 body 是一个词法单元：逃逸的
+        // `break` / `continue` 在这里显式失败，不绑定到任何外层。
+        let out = self.render_nodes(&doc.body)?;
+        if let Some(signal) = self.control.take() {
+            return Err(control_escape(signal));
+        }
+        Ok(out)
     }
 
     /// Render an included template.
@@ -583,7 +599,7 @@ impl<'a> Renderer<'a> {
 
         // 走 render_doc：被 include 的模板也可能有 extends/block 链
         let out = match partial {
-            Some((_, body)) => self.render_list(body),
+            Some((_, body)) => self.render_lexical_unit(body),
             None => self.render_doc(&child.document),
         };
 
@@ -654,10 +670,26 @@ impl<'a> Renderer<'a> {
                     let meta = forloop_meta(i, length, depth);
                     let prev_meta = self.scope.insert(FORLOOP_NAME.to_string(), meta);
                     out.push_str(&self.render_list(body)?);
+                    // The bound loop consumes the signal once, after the
+                    // iteration's bindings are restored (normal loop exit).
+                    let signal = self.control.take();
                     restore(&mut self.scope, FORLOOP_NAME, prev_meta);
                     restore(&mut self.scope, item, prev);
+                    match signal {
+                        Some(true) => break,
+                        Some(false) => continue,
+                        None => {}
+                    }
                 }
                 Ok(out)
+            }
+            IrNode::StmtBreak { .. } => {
+                self.control = Some(true);
+                Ok(String::new())
+            }
+            IrNode::StmtContinue { .. } => {
+                self.control = Some(false);
+                Ok(String::new())
             }
             IrNode::StmtRaw { value, .. } => Ok(value.clone()),
 
@@ -695,11 +727,11 @@ impl<'a> Renderer<'a> {
                     Some(idx) => {
                         self.block_level = idx;
                         let nodes = self.block_levels[idx][name].clone();
-                        self.render_list(&nodes)
+                        self.render_lexical_unit(&nodes)
                     }
                     None => {
                         self.block_level = self.block_levels.len().saturating_sub(1);
-                        self.render_list(body)
+                        self.render_lexical_unit(body)
                     }
                 };
 
@@ -721,7 +753,7 @@ impl<'a> Renderer<'a> {
                     Some(body) => {
                         let saved_level = self.block_level;
                         self.block_level = target;
-                        let rendered = self.render_list(&body);
+                        let rendered = self.render_lexical_unit(&body);
                         self.block_level = saved_level;
                         rendered
                     }
@@ -759,6 +791,22 @@ impl<'a> Renderer<'a> {
         let mut out = String::new();
         for n in &nodes {
             out.push_str(&self.render_nodes(n)?);
+            // A pending `break` / `continue` stops the rest of the list; the
+            // enclosing loop (or lexical-unit boundary) consumes the signal.
+            if self.control.is_some() {
+                return Ok(out);
+            }
+        }
+        Ok(out)
+    }
+
+    /// Render a body that forms its own lexical unit (`macro`, `call` caller
+    /// block, `partial`, `block`, template top). A control signal escaping
+    /// the unit never binds to a loop outside it.
+    fn render_lexical_unit(&mut self, nodes: &[IrNode]) -> Result<String, IrError> {
+        let out = self.render_list(nodes)?;
+        if let Some(signal) = self.control.take() {
+            return Err(control_escape(signal));
         }
         Ok(out)
     }

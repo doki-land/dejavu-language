@@ -1,0 +1,1 @@
+<% macro row(xs) %><% loop x in xs %><% if x == 2 %><% continue %><% end if %><% x %><% end loop %><% end macro %><% row(items) %>

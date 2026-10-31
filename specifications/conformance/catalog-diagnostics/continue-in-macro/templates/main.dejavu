@@ -1,0 +1,1 @@
+<% macro go() %><% continue %><% end macro %>

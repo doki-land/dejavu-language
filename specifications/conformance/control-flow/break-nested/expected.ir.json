@@ -1,0 +1,43 @@
+{
+    "irVersion": "v0",
+    "language": {
+        "syntaxMode": "template",
+        "template": {
+            "codeStart": "<%",
+            "codeEnd": "%>",
+            "commentStart": "<#",
+            "commentEnd": "#>",
+            "supportFilterPipe": true,
+            "legacyFor": false
+        }
+    },
+    "body": {
+        "type": "Template",
+        "children": [
+            {
+                "type": "Stmt.For",
+                "item": "outer",
+                "iterable": { "type": "Expr.Identifier", "name": "outerItems" },
+                "body": [
+                    {
+                        "type": "Interpolation",
+                        "expression": { "type": "Expr.Identifier", "name": "outer" },
+                        "trim": "none"
+                    },
+                    {
+                        "type": "Stmt.For",
+                        "item": "inner",
+                        "iterable": { "type": "Expr.Identifier", "name": "innerItems" },
+                        "body": [
+                            { "type": "Text", "value": "-" },
+                            { "type": "Stmt.Break", "trim": "none" },
+                            { "type": "Text", "value": "never" }
+                        ],
+                        "trim": "none"
+                    }
+                ],
+                "trim": "none"
+            }
+        ]
+    }
+}

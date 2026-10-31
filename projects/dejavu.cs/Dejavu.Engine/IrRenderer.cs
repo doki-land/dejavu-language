@@ -7,49 +7,78 @@ namespace Dejavu.Engine;
 
 public static class IrRenderer
 {
+    /// Pending <c>break</c> / <c>continue</c> signal, shared through one render.
+    sealed class ControlState
+    {
+        public string? Signal;
+    }
+
     public static string Render(JsonObject doc, JsonObject ctx)
     {
         var scope = ctx.ToDictionary(p => p.Key, p => p.Value?.DeepClone());
-        return RenderNode(doc["body"]!, scope);
+        var ctl = new ControlState();
+        var outText = RenderNode(doc["body"]!, scope, ctl);
+        // The template top level is a lexical unit: an escaping signal fails
+        // the render instead of binding to an outer loop.
+        if (ctl.Signal is not null)
+            throw new InvalidOperationException($"dejavu.template.control-outside-loop: {ctl.Signal}");
+        return outText;
     }
 
     public static string RenderSource(string source, JsonObject ctx)
         => Render(T1Parser.ParseToIr(source), ctx);
 
-    static string RenderNode(JsonNode node, Dictionary<string, JsonNode?> scope)
+    static string RenderNode(JsonNode node, Dictionary<string, JsonNode?> scope, ControlState ctl)
     {
         var type = node["type"]!.GetValue<string>();
         return type switch
         {
-            "Template" => JoinChildren(node["children"]!.AsArray(), scope),
+            "Template" => JoinChildren(node["children"]!.AsArray(), scope, ctl),
             "Text" => node["value"]!.GetValue<string>(),
             "Comment" => "",
             "Interpolation" => Format(Eval(node["expression"]!, scope), node["raw"]?.GetValue<bool>() == true),
-            "Stmt.If" => RenderIf(node, scope),
-            "Stmt.For" => RenderFor(node, scope),
+            "Stmt.If" => RenderIf(node, scope, ctl),
+            "Stmt.Break" => SetControl(ctl, "break"),
+            "Stmt.Continue" => SetControl(ctl, "continue"),
+            "Stmt.For" => RenderFor(node, scope, ctl),
             "Stmt.Raw" => node["value"]!.GetValue<string>(),
-            "Stmt.Block" => JoinChildren(node["body"]!.AsArray(), scope),
+            "Stmt.Block" => RenderBlock(node, scope, ctl),
             "Stmt.Extends" or "Stmt.Include" or "Stmt.Super"
                 => throw new InvalidOperationException("extends/include/super need a loader"),
             _ => throw new InvalidOperationException($"node not renderable: {type}"),
         };
     }
 
-    static string RenderIf(JsonNode node, Dictionary<string, JsonNode?> scope)
+    static string SetControl(ControlState ctl, string signal)
     {
-        if (Truthy(Eval(node["test"]!, scope)))
-            return JoinChildren(node["consequent"]!.AsArray(), scope);
-        foreach (var ei in node["elseIfs"]!.AsArray())
-        {
-            if (Truthy(Eval(ei!["test"]!, scope)))
-                return JoinChildren(ei["consequent"]!.AsArray(), scope);
-        }
-        if (node["alternate"] is JsonArray alt)
-            return JoinChildren(alt, scope);
+        ctl.Signal = signal;
         return "";
     }
 
-    static string RenderFor(JsonNode node, Dictionary<string, JsonNode?> scope)
+    static string RenderBlock(JsonNode node, Dictionary<string, JsonNode?> scope, ControlState ctl)
+    {
+        var outText = JoinChildren(node["body"]!.AsArray(), scope, ctl);
+        // A block body is its own lexical unit.
+        if (ctl.Signal is not null)
+            throw new InvalidOperationException($"dejavu.template.control-outside-loop: {ctl.Signal}");
+        return outText;
+    }
+
+    static string RenderIf(JsonNode node, Dictionary<string, JsonNode?> scope, ControlState ctl)
+    {
+        if (Truthy(Eval(node["test"]!, scope)))
+            return JoinChildren(node["consequent"]!.AsArray(), scope, ctl);
+        foreach (var ei in node["elseIfs"]!.AsArray())
+        {
+            if (Truthy(Eval(ei!["test"]!, scope)))
+                return JoinChildren(ei["consequent"]!.AsArray(), scope, ctl);
+        }
+        if (node["alternate"] is JsonArray alt)
+            return JoinChildren(alt, scope, ctl);
+        return "";
+    }
+
+    static string RenderFor(JsonNode node, Dictionary<string, JsonNode?> scope, ControlState ctl)
     {
         var item = node["item"]!.GetValue<string>();
         var iterable = Eval(node["iterable"]!, scope) as JsonArray
@@ -81,17 +110,29 @@ public static class IrRenderer
                 ["length"] = length,
                 ["depth"] = depth,
             };
-            sb.Append(JoinChildren(node["body"]!.AsArray(), scope));
+            sb.Append(JoinChildren(node["body"]!.AsArray(), scope, ctl));
             if (prev is null) scope.Remove(item); else scope[item] = prev;
+            // The bound loop consumes the signal once, after the iteration's
+            // bindings are restored (normal loop exit).
+            var signal = ctl.Signal;
+            ctl.Signal = null;
+            if (signal == "break") break;
+            if (signal == "continue") continue;
         }
         if (prevMeta is null) scope.Remove("forloop"); else scope["forloop"] = prevMeta;
         return sb.ToString();
     }
 
-    static string JoinChildren(JsonArray children, Dictionary<string, JsonNode?> scope)
+    static string JoinChildren(JsonArray children, Dictionary<string, JsonNode?> scope, ControlState ctl)
     {
         var sb = new StringBuilder();
-        foreach (var c in children) sb.Append(RenderNode(c!, scope));
+        foreach (var c in children)
+        {
+            sb.Append(RenderNode(c!, scope, ctl));
+            // A pending signal stops the rest of the list; the enclosing loop
+            // (or lexical-unit boundary) consumes it.
+            if (ctl.Signal is not null) break;
+        }
         return sb.ToString();
     }
 
