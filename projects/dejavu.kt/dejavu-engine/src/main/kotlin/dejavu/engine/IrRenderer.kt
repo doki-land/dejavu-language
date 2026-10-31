@@ -48,6 +48,14 @@ object IrRenderer {
         return out.toString()
     }
 
+    /** Only the outermost filter skips automatic escaping. */
+    private fun isSafeOutput(expr: JsonElement): Boolean {
+        val pipe = expr as? JsonObject ?: return false
+        if (pipe["type"]?.jsonPrimitive?.content != "Expr.Pipe") return false
+        val filter = pipe["filter"]?.jsonPrimitive?.content
+        return filter == "safe" || filter == "raw"
+    }
+
     private fun setControl(control: ControlState, signal: String): String {
         control.signal = signal
         return ""
@@ -65,7 +73,9 @@ object IrRenderer {
             "Comment" -> ""
             "Interpolation" -> {
                 val s = valueToString(eval(obj["expression"]!!, scope))
-                if (obj["raw"]?.jsonPrimitive?.booleanOrNull == true) s else htmlEscape(s)
+                val skipEscape = obj["raw"]?.jsonPrimitive?.booleanOrNull == true ||
+                    isSafeOutput(obj["expression"]!!)
+                if (skipEscape) s else htmlEscape(s)
             }
 
             "Stmt.If" -> renderIf(obj, scope, control)

@@ -67,7 +67,7 @@ def _render_node(node: dict, scope: dict, control: dict) -> str:
         return ""
     if t == "Interpolation":
         s = value_to_string(_eval(node["expression"], scope))
-        return s if node.get("raw") else html_escape(s)
+        return s if node.get("raw") or _is_safe_output(node["expression"]) else html_escape(s)
     if t == "Stmt.If":
         if truthy(_eval(node["test"], scope)):
             return _render_body(node["consequent"], scope, control)
@@ -141,6 +141,11 @@ def _render_node(node: dict, scope: dict, control: dict) -> str:
 
 
 _MISSING = object()
+
+
+def _is_safe_output(expr: dict) -> bool:
+    """Only the outermost filter skips automatic escaping."""
+    return expr.get("type") == "Expr.Pipe" and expr.get("filter") in ("safe", "raw")
 
 
 def _eval(expr: dict, scope: dict) -> Any:

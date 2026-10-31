@@ -36,7 +36,7 @@ public static class IrRenderer
             "Template" => JoinChildren(node["children"]!.AsArray(), scope, ctl),
             "Text" => node["value"]!.GetValue<string>(),
             "Comment" => "",
-            "Interpolation" => Format(Eval(node["expression"]!, scope), node["raw"]?.GetValue<bool>() == true),
+            "Interpolation" => Format(node["expression"]!, Eval(node["expression"]!, scope), node["raw"]?.GetValue<bool>() == true),
             "Stmt.If" => RenderIf(node, scope, ctl),
             "Stmt.Break" => SetControl(ctl, "break"),
             "Stmt.Continue" => SetControl(ctl, "continue"),
@@ -137,11 +137,17 @@ public static class IrRenderer
         return sb.ToString();
     }
 
-    static string Format(JsonNode? v, bool raw)
+    static string Format(JsonNode expression, JsonNode? v, bool raw)
     {
         var s = IrFilters.ToString(v);
-        return raw ? s : HtmlEscape(s);
+        return raw || IsSafeOutput(expression) ? s : HtmlEscape(s);
     }
+
+    /// Only the outermost filter skips automatic escaping.
+    static bool IsSafeOutput(JsonNode expression) =>
+        expression is JsonObject pipe
+        && pipe["type"]?.GetValue<string>() == "Expr.Pipe"
+        && pipe["filter"]?.GetValue<string>() is "safe" or "raw";
 
     static string HtmlEscape(string s) =>
         s.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;")

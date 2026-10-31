@@ -79,6 +79,7 @@ public static class IrFilters
             "length" => JsonValue.Create(Length(value)),
             "join" => JsonValue.Create(Join(value, args.FirstOrDefault())),
             "replace" => JsonValue.Create(ToString(value).Replace(ToString(args.ElementAtOrDefault(0)), ToString(args.ElementAtOrDefault(1)))),
+            "safe" or "raw" => value,
             _ => throw new InvalidOperationException($"unknown filter `{name}`"),
         };
     }

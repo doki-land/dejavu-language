@@ -74,6 +74,8 @@ fun applyFilter(name: String, value: JsonElement?, args: List<JsonElement?>): Js
             JsonPrimitive(valueToString(value).replace(from, to))
         }
 
+        "safe", "raw" -> value ?: JsonNull
+
         else -> error("unknown filter `$name`")
     }
 }

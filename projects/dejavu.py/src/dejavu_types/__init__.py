@@ -68,4 +68,6 @@ def apply_filter(name: str, value: Any, args: list[Any]) -> Any:
         frm = value_to_string(args[0]) if args else ""
         to = value_to_string(args[1]) if len(args) > 1 else ""
         return value_to_string(value).replace(frm, to)
+    if name in ("safe", "raw"):
+        return value
     raise ValueError(f"unknown filter `{name}`")
