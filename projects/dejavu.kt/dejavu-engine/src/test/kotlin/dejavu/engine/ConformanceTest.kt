@@ -12,6 +12,27 @@ class ConformanceTest {
     private val root: File = findConformanceRoot()
 
     @Test
+    fun irSuitesRenderFromExpectedIr() {
+        val suites = listOf("loop-metadata", "control-flow")
+        val conformance = requireNotNull(root.parentFile)
+        val json = Json { ignoreUnknownKeys = true }
+        suites.forEach { name ->
+            val suite = File(conformance, name)
+            assertTrue(suite.isDirectory, "missing $suite")
+            suite.listFiles()!!.filter { it.isDirectory }.sortedBy { it.name }.forEach { dir ->
+                val expectedIr = json.parseToJsonElement(
+                    File(dir, "expected.ir.json").readText(Charsets.UTF_8),
+                ).jsonObject
+                val ctx = json.parseToJsonElement(
+                    File(dir, "context.ctx.json").readText(Charsets.UTF_8),
+                ).jsonObject
+                val expectedOut = File(dir, "expected.out.txt").readText(Charsets.UTF_8).trimEnd()
+                assertEquals(expectedOut, Dejavu.render(expectedIr, ctx).trimEnd(), "render mismatch in $name/${dir.name}")
+            }
+        }
+    }
+
+    @Test
     fun t1CasesParseAndRenderFromExpectedIr() {
         assertTrue(root.isDirectory, "missing $root")
         val json = Json { ignoreUnknownKeys = true }

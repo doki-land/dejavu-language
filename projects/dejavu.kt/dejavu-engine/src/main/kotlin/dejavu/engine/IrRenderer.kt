@@ -10,18 +10,57 @@ import kotlinx.serialization.json.*
  * across host languages (byte-for-byte for T1 cases).
  */
 object IrRenderer {
+    /** Pending `break` / `continue` signal, shared through one render. */
+    private class ControlState {
+        var signal: String? = null
+    }
+
+    private const val FORLOOP_NAME = "forloop"
+
     fun render(doc: JsonObject, ctx: JsonObject): String {
         val scope = ctx.toMutableMap()
-        return renderNode(doc["body"]!!, scope)
+        val control = ControlState()
+        val out = renderNode(doc["body"]!!, scope, control)
+        // The template top level is a lexical unit: an escaping signal fails
+        // the render instead of binding to an outer loop.
+        if (control.signal != null) {
+            error("dejavu.template.control-outside-loop: ${control.signal}")
+        }
+        return out
     }
 
     fun renderSource(source: String, ctx: JsonObject): String =
         render(T1Parser.parseToIr(source), ctx)
 
-    private fun renderNode(node: JsonElement, scope: MutableMap<String, JsonElement>): String {
+    /** Render a sibling list, stopping after the node that set a control signal. */
+    private fun renderBody(
+        nodes: JsonArray,
+        scope: MutableMap<String, JsonElement>,
+        control: ControlState,
+    ): String {
+        val out = StringBuilder()
+        for (node in nodes) {
+            out.append(renderNode(node, scope, control))
+            // A pending signal stops the rest of the list; the enclosing loop
+            // (or lexical-unit boundary) consumes it.
+            if (control.signal != null) break
+        }
+        return out.toString()
+    }
+
+    private fun setControl(control: ControlState, signal: String): String {
+        control.signal = signal
+        return ""
+    }
+
+    private fun renderNode(
+        node: JsonElement,
+        scope: MutableMap<String, JsonElement>,
+        control: ControlState,
+    ): String {
         val obj = node.jsonObject
         return when (obj["type"]!!.jsonPrimitive.content) {
-            "Template" -> obj["children"]!!.jsonArray.joinToString("") { renderNode(it, scope) }
+            "Template" -> renderBody(obj["children"]!!.jsonArray, scope, control)
             "Text" -> obj["value"]!!.jsonPrimitive.content
             "Comment" -> ""
             "Interpolation" -> {
@@ -29,10 +68,20 @@ object IrRenderer {
                 if (obj["raw"]?.jsonPrimitive?.booleanOrNull == true) s else htmlEscape(s)
             }
 
-            "Stmt.If" -> renderIf(obj, scope)
-            "Stmt.For" -> renderFor(obj, scope)
+            "Stmt.If" -> renderIf(obj, scope, control)
+            "Stmt.Break" -> setControl(control, "break")
+            "Stmt.Continue" -> setControl(control, "continue")
+            "Stmt.For" -> renderFor(obj, scope, control)
             "Stmt.Raw" -> obj["value"]!!.jsonPrimitive.content
-            "Stmt.Block" -> obj["body"]!!.jsonArray.joinToString("") { renderNode(it, scope) }
+            "Stmt.Block" -> {
+                val out = renderBody(obj["body"]!!.jsonArray, scope, control)
+                // A block body is its own lexical unit.
+                if (control.signal != null) {
+                    error("dejavu.template.control-outside-loop: ${control.signal}")
+                }
+                out
+            }
+
             "Stmt.Extends", "Stmt.Include", "Stmt.Super" ->
                 error("extends/include/super require a template loader")
 
@@ -40,37 +89,81 @@ object IrRenderer {
         }
     }
 
-    private fun renderIf(obj: JsonObject, scope: MutableMap<String, JsonElement>): String {
+    private fun renderIf(
+        obj: JsonObject,
+        scope: MutableMap<String, JsonElement>,
+        control: ControlState,
+    ): String {
         if (truthy(eval(obj["test"]!!, scope))) {
-            return obj["consequent"]!!.jsonArray.joinToString("") { renderNode(it, scope) }
+            return renderBody(obj["consequent"]!!.jsonArray, scope, control)
         }
         for (ei in obj["elseIfs"]!!.jsonArray) {
             val e = ei.jsonObject
             if (truthy(eval(e["test"]!!, scope))) {
-                return e["consequent"]!!.jsonArray.joinToString("") { renderNode(it, scope) }
+                return renderBody(e["consequent"]!!.jsonArray, scope, control)
             }
         }
         val alt = obj["alternate"]?.jsonArray ?: return ""
-        return alt.joinToString("") { renderNode(it, scope) }
+        return renderBody(alt, scope, control)
     }
 
-    private fun renderFor(obj: JsonObject, scope: MutableMap<String, JsonElement>): String {
+    private fun renderFor(
+        obj: JsonObject,
+        scope: MutableMap<String, JsonElement>,
+        control: ControlState,
+    ): String {
         val item = obj["item"]!!.jsonPrimitive.content
         val iterable = eval(obj["iterable"]!!, scope).jsonArray
-        val indexName = obj["index"]?.jsonPrimitive?.content
+        val length = iterable.size
+        // 循环元数据：每次迭代在 body 作用域隐式绑定 `forloop`。
+        // depth 入口规则：循环入口时可见的 forloop 是对象且 depth 为 >=1 的
+        // 整数则 +1，否则从 1 重启（与 Rust/TS 宿主一致）。
+        val prevMeta = scope[FORLOOP_NAME]
+        val hadPrevMeta = scope.containsKey(FORLOOP_NAME)
+        val depth = forloopDepth(prevMeta)
         val out = StringBuilder()
-        iterable.forEachIndexed { i, value ->
-            val prev = scope[item]
-            scope[item] = value
-            val prevIdx = indexName?.let { scope[it] }
-            if (indexName != null) scope[indexName] = JsonPrimitive(i)
-            out.append(obj["body"]!!.jsonArray.joinToString("") { renderNode(it, scope) })
-            if (prev == null) scope.remove(item) else scope[item] = prev
-            if (indexName != null) {
-                if (prevIdx == null) scope.remove(indexName) else scope[indexName] = prevIdx
-            }
+        for (i in 0 until length) {
+            // 绑定恢复由键是否存在决定：键存在但值为 null 与键缺失不同。
+            val prevItem = scope[item]
+            val hadPrevItem = scope.containsKey(item)
+            scope[item] = iterable[i]
+            scope[FORLOOP_NAME] = forloopMeta(i, length, depth)
+            out.append(renderBody(obj["body"]!!.jsonArray, scope, control))
+            // The bound loop consumes the signal once, after the iteration's
+            // bindings are restored (normal loop exit).
+            val signal = control.signal
+            control.signal = null
+            restore(scope, FORLOOP_NAME, hadPrevMeta, prevMeta)
+            restore(scope, item, hadPrevItem, prevItem)
+            if (signal == "break") break
+            if (signal == "continue") continue
         }
         return out.toString()
+    }
+
+    /** One iteration's loop metadata, mirroring the Rust `forloop_meta`. */
+    private fun forloopMeta(i: Int, length: Int, depth: Long): JsonObject = buildJsonObject {
+        put("index", i + 1)
+        put("index0", i)
+        put("first", i == 0)
+        put("last", i + 1 == length)
+        put("length", length)
+        put("depth", depth)
+    }
+
+    /** `depth` entry rule: only an object with an integer `depth >= 1` increments. */
+    private fun forloopDepth(prev: JsonElement?): Long {
+        val depth = ((prev as? JsonObject)?.get("depth") as? JsonPrimitive)?.longOrNull
+        return if (depth != null && depth >= 1) depth + 1 else 1
+    }
+
+    private fun restore(
+        scope: MutableMap<String, JsonElement>,
+        key: String,
+        hadPrev: Boolean,
+        prev: JsonElement?,
+    ) {
+        if (hadPrev) scope[key] = prev!! else scope.remove(key)
     }
 
     private fun eval(expr: JsonElement, scope: Map<String, JsonElement>): JsonElement {

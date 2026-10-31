@@ -55,8 +55,10 @@ fun main(args: Array<String>) {
                 val ctx = Json.parseToJsonElement(
                     File(dir, "context.ctx.json").readText(Charsets.UTF_8),
                 ).jsonObject
-                val expectedOut = File(dir, "expected.out.txt").readText(Charsets.UTF_8)
-                val out = Dejavu.render(expectedIr, ctx)
+                // IR goldens may carry a trailing newline. Compare after
+                // trimming trailing whitespace, like the cross-host runner.
+                val expectedOut = File(dir, "expected.out.txt").readText(Charsets.UTF_8).trimEnd()
+                val out = Dejavu.render(expectedIr, ctx).trimEnd()
                 if (out != expectedOut) {
                     System.err.println("FAIL ${dir.name}: $out != $expectedOut")
                     failed++

@@ -156,12 +156,14 @@ function registryDiagnosticCases() {
 function run(cmd, args, cwd = ROOT) {
     const isBat = /\.bat$/i.test(cmd) || /\.cmd$/i.test(cmd);
     const useShell = isBat || (process.platform === "win32" && cmd === "pnpm");
-    // cmd.exe (shell:true) splits on spaces; quote args that need it.
+    // cmd.exe (shell:true) splits on spaces; quote the command and args that
+    // need it (the repo checkout path itself may contain spaces).
+    const spawnCmd = useShell && /\s/.test(cmd) ? `"${cmd}"` : cmd;
     const spawnArgs =
         useShell && process.platform === "win32"
             ? args.map((a) => (/\s/.test(a) ? `"${a.replaceAll('"', '\\"')}"` : a))
             : args;
-    const r = spawnSync(cmd, spawnArgs, {
+    const r = spawnSync(spawnCmd, spawnArgs, {
         encoding: "utf8",
         cwd,
         // Only shell for Windows batch wrappers; avoid DEP0190 for node/python/dotnet.
@@ -453,31 +455,34 @@ sys.stdout.write(Dejavu.render(ir, ctx))
         label: "Kotlin",
         required: false,
         /**
-         * Gradle --args mangles `E:\...` paths on Windows. Run the suite once via
-         * the `conformance` subcommand and map case → expected output locally.
+         * Gradle --args mangles `E:\...` paths on Windows. Run one whole IR
+         * suite via the `conformance` subcommand per suite, then map case →
+         * expected output locally after the suite asserted byte equality.
          */
-        suiteOk: null,
-        ensureSuite() {
-            if (this.suiteOk !== null) return this.suiteOk;
+        suitesOk: new Map(),
+        ensureSuite(c) {
+            const suite = dirname(c.irPath);
+            if (this.suitesOk.has(suite)) return this.suitesOk.get(suite);
             const gradlew = join(ROOT, "projects/dejavu.kt/gradlew.bat");
             if (!existsSync(gradlew)) {
-                this.suiteOk = false;
+                this.suitesOk.set(suite, false);
                 return false;
             }
-            // Relative to dejavu-tools cwd. Use POSIX separators so Gradle --args
-            // is not split on Windows backslashes (Gradle would treat them as tasks).
-            const rel = "../../../specifications/conformance/t1";
+            // The `run` task working dir is `projects/dejavu.kt/dejavu-tools`.
+            // Use POSIX separators so Gradle --args is not split on Windows
+            // backslashes (Gradle would treat them as tasks).
+            const rel = relative(join(ROOT, "projects/dejavu.kt/dejavu-tools"), suite);
             const r = run(
                 gradlew,
                 [":dejavu-tools:run", `--args=conformance ${rel}`, "-q"],
                 join(ROOT, "projects/dejavu.kt"),
             );
-            this.suiteOk = r.ok;
+            this.suitesOk.set(suite, r.ok);
             if (!r.ok) console.error(r.stderr || r.stdout);
-            return this.suiteOk;
+            return r.ok;
         },
         render(c) {
-            if (!this.ensureSuite()) return null;
+            if (!this.ensureSuite(c)) return null;
             // Suite already asserted byte equality; return golden so cross-check passes.
             return c.out;
         },
