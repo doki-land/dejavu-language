@@ -20,11 +20,15 @@ private class TemplateParser(
     private val file: String,
 ) {
     fun parse(): List<JsonElement> {
-        val (children, _) = parseBody(0, emptySet())
+        val (children, _) = parseBody(0, emptySet(), 0)
         return children
     }
 
-    private fun parseBody(i0: Int, stop: Set<CodeHead.Kind>): Pair<List<JsonElement>, Int> {
+    private fun parseBody(
+        i0: Int,
+        stop: Set<CodeHead.Kind>,
+        loopDepth: Int,
+    ): Pair<List<JsonElement>, Int> {
         val children = mutableListOf<JsonElement>()
         var i = i0
 
@@ -75,15 +79,34 @@ private class TemplateParser(
 
                 when (head) {
                     is CodeHead.If -> {
-                        val (node, ni) = parseIf(i, head, block.trim)
+                        val (node, ni) = parseIf(i, head, block.trim, loopDepth)
                         children += node
                         i = ni
                     }
 
                     is CodeHead.Loop -> {
-                        val (node, ni) = parseLoop(i, head, block.trim)
+                        val (node, ni) = parseLoop(i, head, block.trim, loopDepth)
                         children += node
                         i = ni
+                    }
+
+                    CodeHead.Break, CodeHead.Continue -> {
+                        if (loopDepth == 0) {
+                            val kind = if (head is CodeHead.Break) "break" else "continue"
+                            throw ParseError(
+                                message = "`$kind` is only valid inside a `loop` in the same lexical unit",
+                                file = file,
+                                start = open,
+                                length = block.next - open,
+                                label = "outside loop",
+                                code = "dejavu.parse.control-outside-loop",
+                                diagnosticArgs = mapOf("kind" to kind),
+                            )
+                        }
+                        children += buildJsonObject {
+                            put("type", if (head is CodeHead.Break) "Stmt.Break" else "Stmt.Continue")
+                            put("trim", block.trim)
+                        }
                     }
 
                     CodeHead.EndIf, CodeHead.EndLoop, CodeHead.Else, is CodeHead.ElseIf -> {
@@ -134,10 +157,19 @@ private class TemplateParser(
         return children to i
     }
 
-    private fun parseIf(i0: Int, head: CodeHead.If, trim: String): Pair<JsonObject, Int> {
+    private fun parseIf(
+        i0: Int,
+        head: CodeHead.If,
+        trim: String,
+        loopDepth: Int,
+    ): Pair<JsonObject, Int> {
         var i = i0
         val test = parseExpr(head.testSlice, source = source, file = file, base = head.testAbs)
-        var (consequent, pos) = parseBody(i, setOf(CodeHead.Kind.ElseIf, CodeHead.Kind.Else, CodeHead.Kind.EndIf))
+        var (consequent, pos) = parseBody(
+            i,
+            setOf(CodeHead.Kind.ElseIf, CodeHead.Kind.Else, CodeHead.Kind.EndIf),
+            loopDepth,
+        )
         i = pos
         val elseIfs = mutableListOf<JsonElement>()
         var alternate: List<JsonElement>? = null
@@ -148,7 +180,11 @@ private class TemplateParser(
                 is CodeHead.ElseIf -> {
                     i = block.next
                     val t = parseExpr(h.testSlice, source = source, file = file, base = h.testAbs)
-                    val (body, n) = parseBody(i, setOf(CodeHead.Kind.ElseIf, CodeHead.Kind.Else, CodeHead.Kind.EndIf))
+                    val (body, n) = parseBody(
+                        i,
+                        setOf(CodeHead.Kind.ElseIf, CodeHead.Kind.Else, CodeHead.Kind.EndIf),
+                        loopDepth,
+                    )
                     elseIfs += buildJsonObject {
                         put("type", "Stmt.ElseIf")
                         put("test", t)
@@ -160,7 +196,7 @@ private class TemplateParser(
 
                 CodeHead.Else -> {
                     i = block.next
-                    val (body, n) = parseBody(i, setOf(CodeHead.Kind.EndIf))
+                    val (body, n) = parseBody(i, setOf(CodeHead.Kind.EndIf), loopDepth)
                     alternate = body
                     i = n
                     val end = readCodeBlock(i)
@@ -200,10 +236,15 @@ private class TemplateParser(
         } to i
     }
 
-    private fun parseLoop(i0: Int, head: CodeHead.Loop, trim: String): Pair<JsonObject, Int> {
+    private fun parseLoop(
+        i0: Int,
+        head: CodeHead.Loop,
+        trim: String,
+        loopDepth: Int,
+    ): Pair<JsonObject, Int> {
         var i = i0
         val iterable = parseExpr(head.iterSlice, source = source, file = file, base = head.iterAbs)
-        val (body, pos) = parseBody(i, setOf(CodeHead.Kind.EndLoop))
+        val (body, pos) = parseBody(i, setOf(CodeHead.Kind.EndLoop), loopDepth + 1)
         i = pos
         val end = readCodeBlock(i)
         if (classifyCode(end.content, end.contentBase, end.tokens) !is CodeHead.EndLoop) {

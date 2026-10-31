@@ -8,6 +8,10 @@ sealed class CodeHead {
     data object Else : CodeHead()
     data object EndIf : CodeHead()
     data object EndLoop : CodeHead()
+    /** `break` — terminates the nearest enclosing loop in the same lexical unit. */
+    data object Break : CodeHead()
+    /** `continue` — skips the rest of the bound loop's current iteration. */
+    data object Continue : CodeHead()
     data class Expr(val exprSlice: String, val exprAbs: Int) : CodeHead()
 
     val kind: Kind
@@ -18,6 +22,8 @@ sealed class CodeHead {
             Else -> Kind.Else
             EndIf -> Kind.EndIf
             EndLoop -> Kind.EndLoop
+            Break -> Kind.Break
+            Continue -> Kind.Continue
             is Expr -> Kind.Expr
         }
 
@@ -28,6 +34,8 @@ sealed class CodeHead {
         Else,
         EndIf,
         EndLoop,
+        Break,
+        Continue,
         Expr,
     }
 }
@@ -71,6 +79,16 @@ fun classifyCode(content: String, contentBase: Int, tokens: List<CodeToken>): Co
         val item = tokens[1].text
         val (slice, abs) = sliceFromTokens(content, contentBase, tokens.drop(3))
         return CodeHead.Loop(item = item, iterSlice = slice, iterAbs = abs)
+    }
+    if (t0.kind == CodeTokenKind.Ident && (t0.text == "break" || t0.text == "continue")) {
+        if (tokens.size != 1) {
+            throw ParseError(
+                message = "unexpected tokens after `${t0.text}`",
+                start = contentBase + tokens[1].start,
+                length = 1,
+            )
+        }
+        return if (t0.text == "break") CodeHead.Break else CodeHead.Continue
     }
     if (t0.kind == CodeTokenKind.Ident && t0.text == "else") {
         val t1 = tokens.getOrNull(1)

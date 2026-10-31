@@ -47,6 +47,16 @@ class CodeHeadEndLoop:
 
 
 @dataclass(slots=True)
+class CodeHeadBreak:
+    kind: Literal["break"]
+
+
+@dataclass(slots=True)
+class CodeHeadContinue:
+    kind: Literal["continue"]
+
+
+@dataclass(slots=True)
 class CodeHeadExpr:
     kind: Literal["expr"]
     expr_slice: str
@@ -60,10 +70,22 @@ CodeHead = (
     | CodeHeadElse
     | CodeHeadEndIf
     | CodeHeadEndLoop
+    | CodeHeadBreak
+    | CodeHeadContinue
     | CodeHeadExpr
 )
 
-CodeHeadKind = Literal["if", "loop", "else_if", "else", "end_if", "end_loop", "expr"]
+CodeHeadKind = Literal[
+    "if",
+    "loop",
+    "else_if",
+    "else",
+    "end_if",
+    "end_loop",
+    "break",
+    "continue",
+    "expr",
+]
 
 
 def slice_from_tokens(
@@ -104,6 +126,17 @@ def classify_code(content: str, content_base: int, tokens: list[CodeToken]) -> C
         item = tokens[1].text
         slice_, abs_ = slice_from_tokens(content, content_base, tokens[3:])
         return CodeHeadLoop(kind="loop", item=item, iter_slice=slice_, iter_abs=abs_)
+
+    if t0.kind == "Ident" and t0.text in ("break", "continue"):
+        if len(tokens) != 1:
+            raise ParseError(
+                f"unexpected tokens after `{t0.text}`",
+                start=content_base + tokens[1].start,
+                length=1,
+            )
+        if t0.text == "break":
+            return CodeHeadBreak(kind="break")
+        return CodeHeadContinue(kind="continue")
 
     if t0.kind == "Ident" and t0.text == "else":
         if len(tokens) > 1 and tokens[1].kind == "Ident" and tokens[1].text == "if":

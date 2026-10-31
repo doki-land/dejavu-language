@@ -37,11 +37,11 @@ class TemplateParser:
         self.file = file
 
     def parse(self) -> list[dict[str, Any]]:
-        children, _ = self._parse_body(0, [])
+        children, _ = self._parse_body(0, [], 0)
         return children
 
     def _parse_body(
-        self, i: int, stop: list[CodeHeadKind]
+        self, i: int, stop: list[CodeHeadKind], loop_depth: int
     ) -> tuple[list[dict[str, Any]], int]:
         children: list[dict[str, Any]] = []
         source = self.source
@@ -83,12 +83,32 @@ class TemplateParser:
 
                 if head.kind == "if":
                     assert isinstance(head, CodeHeadIf)
-                    node, i = self._parse_if(i, head, block["trim"])
+                    node, i = self._parse_if(i, head, block["trim"], loop_depth)
                     children.append(node)
                 elif head.kind == "loop":
                     assert isinstance(head, CodeHeadLoop)
-                    node, i = self._parse_loop(i, head, block["trim"])
+                    node, i = self._parse_loop(i, head, block["trim"], loop_depth)
                     children.append(node)
+                elif head.kind in ("break", "continue"):
+                    # The nearest enclosing `loop` in this lexical unit binds the
+                    # control statement. Template top level and any parser-owned
+                    # unit boundary start with loop_depth == 0.
+                    if loop_depth == 0:
+                        raise ParseError(
+                            f"`{head.kind}` is only valid inside a `loop` in the same lexical unit",
+                            file=self.file,
+                            start=open_pos,
+                            length=block["next"] - open_pos,
+                            label="outside loop",
+                            code="dejavu.parse.control-outside-loop",
+                            diagnostic_args={"kind": head.kind},
+                        )
+                    children.append(
+                        {
+                            "type": "Stmt.Break" if head.kind == "break" else "Stmt.Continue",
+                            "trim": block["trim"],
+                        }
+                    )
                 elif head.kind in ("end_if", "end_loop", "else", "else_if"):
                     if not stop:
                         raise ParseError(
@@ -127,7 +147,7 @@ class TemplateParser:
         return children, i
 
     def _parse_if(
-        self, i: int, head: CodeHeadIf, trim: TrimMode
+        self, i: int, head: CodeHeadIf, trim: TrimMode, loop_depth: int
     ) -> tuple[dict[str, Any], int]:
         test = parse_expr(
             head.test_slice,
@@ -135,7 +155,7 @@ class TemplateParser:
             file=self.file,
             base=head.test_abs,
         )
-        consequent, i = self._parse_body(i, ["else_if", "else", "end_if"])
+        consequent, i = self._parse_body(i, ["else_if", "else", "end_if"], loop_depth)
         else_ifs: list[dict[str, Any]] = []
         alternate: list[dict[str, Any]] | None = None
 
@@ -150,7 +170,7 @@ class TemplateParser:
                     file=self.file,
                     base=h.test_abs,
                 )
-                body, i = self._parse_body(i, ["else_if", "else", "end_if"])
+                body, i = self._parse_body(i, ["else_if", "else", "end_if"], loop_depth)
                 else_ifs.append(
                     {
                         "type": "Stmt.ElseIf",
@@ -161,7 +181,7 @@ class TemplateParser:
                 )
             elif h.kind == "else":
                 i = block["next"]
-                body, i = self._parse_body(i, ["end_if"])
+                body, i = self._parse_body(i, ["end_if"], loop_depth)
                 alternate = body
                 end = self._read_code_block(i)
                 if (
@@ -199,7 +219,7 @@ class TemplateParser:
         return node, i
 
     def _parse_loop(
-        self, i: int, head: CodeHeadLoop, trim: TrimMode
+        self, i: int, head: CodeHeadLoop, trim: TrimMode, loop_depth: int
     ) -> tuple[dict[str, Any], int]:
         iterable = parse_expr(
             head.iter_slice,
@@ -207,7 +227,7 @@ class TemplateParser:
             file=self.file,
             base=head.iter_abs,
         )
-        body, i = self._parse_body(i, ["end_loop"])
+        body, i = self._parse_body(i, ["end_loop"], loop_depth + 1)
         end = self._read_code_block(i)
         if (
             classify_code(end["content"], end["content_base"], end["tokens"]).kind
