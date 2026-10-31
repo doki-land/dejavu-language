@@ -9,7 +9,7 @@
  * specifier to the glue module URL in memory. Neither `dist/` nor `src/` is
  * modified on disk — the rewrite is a harness-only substitute for bundling.
  */
-import { runFixtures } from "./runner.mjs";
+import { runAotFixtures, runFixtures } from "./runner.mjs";
 
 const DIST_BRIDGE_URL = "/projects/dejavu.ts/packages/dejavu-language/dist/index.js";
 const REWRITTEN_BRIDGE_URL = "/__browser-bridge.js";
@@ -31,11 +31,20 @@ async function loadBridge(wasmUrl) {
 self.onmessage = async (event) => {
     const message = event.data;
     if (!message || message.type !== "run") return;
+    // AOT first: it needs no wasm, so a JIT bridge failure cannot mask it.
+    // The harness route rewrites only the bare runtime specifier — the same
+    // bundler substitute used for the bridge below.
+    const aotResults = await runAotFixtures(message.aotFixtures ?? [], "worker");
     try {
         await loadBridge(message.wasmUrl);
         const results = await runFixtures(message.fixtures, api);
-        self.postMessage({ type: "done", mode, results });
+        self.postMessage({ type: "done", mode, results, aotResults });
     } catch (error) {
-        self.postMessage({ type: "error", mode, error: String((error && error.stack) || error) });
+        self.postMessage({
+            type: "error",
+            mode,
+            error: String((error && error.stack) || error),
+            aotResults,
+        });
     }
 };

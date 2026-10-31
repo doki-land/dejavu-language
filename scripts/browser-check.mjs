@@ -1,11 +1,19 @@
 #!/usr/bin/env node
 /**
- * Browser smoke check for the Dejavu wasm bridge.
+ * Browser smoke check for the Dejavu wasm bridge and the AOT consumer closure.
  *
  * Serves the repository over a minimal HTTP server and runs the unmodified
  * `dejavu-language` host wrapper in headless Chrome twice: on the document
  * thread through a native import map, and inside a module worker. Both must
  * reproduce `expected.out.txt` byte-for-byte with zero diagnostics.
+ *
+ * The same gate proves the AOT closure: the shared t1 fixtures are compiled
+ * once through desktop codegen (`precompile`), and the identical generated ESM
+ * module — importing `@doki-land/dejavu-engine/runtime` — must render
+ * byte-identical output in Node, on the browser main thread (document import
+ * map) and inside the module worker (harness-rewritten specifier, the bundler
+ * substitute). Codegen that produces no module is a hard failure; the gate
+ * never accepts a hand-written stub.
  *
  * Requires a local Chrome/Edge. Set `DEJAVU_BROWSER` to point at another
  * Chromium-compatible executable.
@@ -15,7 +23,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, extname, join, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const WASM_ENTRY = join(
@@ -29,6 +37,17 @@ const WASM_ENTRY = join(
     "dejavu_wasm_bg.wasm",
 );
 const DIST_ENTRY = join(ROOT, "projects", "dejavu.ts", "packages", "dejavu-language", "dist", "index.js");
+const FACADE_ENTRY = join(ROOT, "projects", "dejavu.ts", "packages", "dejavu", "dist", "index.js");
+const ENGINE_RUNTIME_ENTRY = join(
+    ROOT,
+    "projects",
+    "dejavu.ts",
+    "packages",
+    "dejavu-engine",
+    "dist",
+    "runtime",
+    "index.js",
+);
 
 const WASM_URL = "/projects/dejavu.ts/platforms/dejavu-unknown-wasm32/src/lib/dejavu_wasm_bg.wasm";
 const GLUE_URL = "/projects/dejavu.ts/platforms/dejavu-unknown-wasm32/src/lib/dejavu_wasm.js";
@@ -40,6 +59,10 @@ const RESULT_PREFIX = "DEJAVU_BROWSER_RESULT ";
 const BROWSER_TIMEOUT_MS = 120000;
 const GATE_TIMEOUT_MS = 45000;
 const GATE_IMAGE = Buffer.from("R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==", "base64");
+
+const ENGINE_RUNTIME_URL = "/projects/dejavu.ts/packages/dejavu-engine/dist/runtime/index.js";
+const RUNTIME_BARE = "@doki-land/dejavu-engine/runtime";
+const AOT_SOURCE_FIXTURES = ["comment", "hello", "if_else", "loop_pipe", "member", "safe_raw"];
 
 /**
  * Source fixtures parse their own template, so they prove the whole
@@ -125,6 +148,93 @@ function buildRegistryFixtures() {
 }
 
 /**
+ * Desktop codegen compiles the shared t1 fixtures once. The generated ESM is
+ * served verbatim to the browser main thread (the bare runtime specifier is
+ * resolved by the document import map) and rewritten in memory for the module
+ * worker, which has no import map — the same bundler substitute the wasm
+ * bridge route uses. A compile that yields no module fails the gate outright.
+ */
+async function buildAotFixtures() {
+    requireFile(FACADE_ENTRY, "build the facade before the AOT closure: pnpm --filter @doki-land/dejavu build");
+    requireFile(
+        ENGINE_RUNTIME_ENTRY,
+        "build the AOT runtime before the closure: pnpm --filter @doki-land/dejavu-engine build",
+    );
+    const { precompile } = await import(pathToFileURL(FACADE_ENTRY).href);
+    const modules = new Map();
+    const fixtures = [];
+    for (const name of AOT_SOURCE_FIXTURES) {
+        const base = `/specifications/conformance/t1/${name}`;
+        const dir = join(ROOT, base);
+        for (const file of ["input.dejavu", "context.ctx.json", "expected.out.txt"]) {
+            requireFile(join(dir, file), "run the repository build before the browser smoke");
+        }
+        const result = precompile(readFileSync(join(dir, "input.dejavu"), "utf8"), {
+            file: `${base}/input.dejavu`,
+            entryId: name,
+        });
+        const errors = result.diagnostics.filter((diagnostic) => diagnostic.severity === "error");
+        if (errors.length || result.modules.length !== 1) {
+            throw new Error(
+                `AOT codegen produced no module for t1/${name}: ${JSON.stringify(result.diagnostics)}`,
+            );
+        }
+        const slug = `t1-${name}`;
+        modules.set(slug, result.modules[0].code);
+        fixtures.push({
+            name: `aot/t1/${name}`,
+            slug,
+            moduleUrl: `/__aot-module/${slug}.js`,
+            workerModuleUrl: `/__aot-module-worker/${slug}.js`,
+            ctxUrl: `${base}/context.ctx.json`,
+            expectedUrl: `${base}/expected.out.txt`,
+        });
+    }
+    return { modules, fixtures };
+}
+
+/**
+ * Replace the bare runtime specifier with `target`. A generated module that
+ * does not import `@doki-land/dejavu-engine/runtime` is not real codegen
+ * output, so zero rewrites is a hard failure.
+ */
+function rewriteRuntimeSpecifier(code, target, label) {
+    const escaped = RUNTIME_BARE.replace(/[/\\]/g, "\\$&");
+    const pattern = new RegExp(`(\\bfrom\\s*)(["'])${escaped}\\2`, "g");
+    let hits = 0;
+    const rewritten = code.replace(pattern, (_match, prefix, quote) => {
+        hits += 1;
+        return `${prefix}${quote}${target}${quote}`;
+    });
+    if (hits === 0) throw new Error(`${label} does not import ${RUNTIME_BARE}`);
+    return rewritten;
+}
+
+/** Node realm of the AOT closure: the same generated module against the engine dist runtime. */
+async function runAotNodeClosure(aot) {
+    const runtimeUrl = pathToFileURL(ENGINE_RUNTIME_ENTRY).href;
+    const results = [];
+    for (const fixture of aot.fixtures) {
+        try {
+            const code = rewriteRuntimeSpecifier(aot.modules.get(fixture.slug), runtimeUrl, fixture.name);
+            const dataUrl = `data:text/javascript;base64,${Buffer.from(code, "utf8").toString("base64")}`;
+            const { render } = await import(dataUrl);
+            const context = JSON.parse(readFileSync(join(ROOT, fixture.ctxUrl), "utf8"));
+            const expected = readFileSync(join(ROOT, fixture.expectedUrl), "utf8");
+            const output = render(context);
+            results.push({ name: fixture.name, ok: output === expected, expected, output });
+        } catch (error) {
+            results.push({
+                name: fixture.name,
+                ok: false,
+                error: String((error && error.stack) || error),
+            });
+        }
+    }
+    return results;
+}
+
+/**
  * `dist/index.js` imports the platform package by its bare name so hosts can
  * resolve it however they like. A document import map does that natively, but
  * a module worker has no import map, so the harness serves this in-memory copy
@@ -143,7 +253,7 @@ function send(response, contentType, body) {
     response.end(body);
 }
 
-async function startServer(fixtures, workerBridge) {
+async function startServer(fixtures, workerBridge, aot) {
     let resolveResult;
     const resultPromise = new Promise((resolve) => {
         resolveResult = resolve;
@@ -194,12 +304,38 @@ async function startServer(fixtures, workerBridge) {
             send(
                 response,
                 "application/json; charset=utf-8",
-                JSON.stringify({ fixtures, bridgeUrl: BRIDGE_URL, wasmUrl: WASM_URL, workerUrl: WORKER_URL }),
+                JSON.stringify({
+                    fixtures,
+                    bridgeUrl: BRIDGE_URL,
+                    wasmUrl: WASM_URL,
+                    workerUrl: WORKER_URL,
+                    aot: aot.fixtures,
+                }),
             );
             return;
         }
         if (pathname === "/__browser-bridge.js") {
             send(response, "text/javascript; charset=utf-8", workerBridge);
+            return;
+        }
+        if (pathname.startsWith("/__aot-module-worker/")) {
+            const slug = decodeURIComponent(pathname.slice("/__aot-module-worker/".length)).replace(/\.js$/, "");
+            const code = aot.modules.get(slug);
+            if (code === undefined) {
+                response.writeHead(404).end("unknown AOT module");
+                return;
+            }
+            send(response, "text/javascript; charset=utf-8", rewriteRuntimeSpecifier(code, ENGINE_RUNTIME_URL, slug));
+            return;
+        }
+        if (pathname.startsWith("/__aot-module/")) {
+            const slug = decodeURIComponent(pathname.slice("/__aot-module/".length)).replace(/\.js$/, "");
+            const code = aot.modules.get(slug);
+            if (code === undefined) {
+                response.writeHead(404).end("unknown AOT module");
+                return;
+            }
+            send(response, "text/javascript; charset=utf-8", code);
             return;
         }
         const filePath = join(ROOT, pathname);
@@ -312,12 +448,14 @@ async function main() {
     const fixtures = [...buildFixtures(), ...buildRegistryFixtures()];
     requireFile(WASM_ENTRY, "build the wasm platform package before the browser smoke");
     const workerBridge = buildWorkerBridge();
+    const aot = await buildAotFixtures();
+    const aotNodeResults = await runAotNodeClosure(aot);
     const browser = findBrowser();
 
     let session;
     const userDataDir = mkdtempSync(join(tmpdir(), "dejavu-browser-"));
     try {
-        session = await startServer(fixtures, workerBridge);
+        session = await startServer(fixtures, workerBridge, aot);
         const pageUrl = `http://127.0.0.1:${session.server.address().port}${PAGE_URL}`;
         const run = await runBrowser(browser, [
             "--headless=new",
@@ -344,9 +482,29 @@ async function main() {
 
         const mainPass = reportSection("main thread (native import map, initWasm({ url }))", payload.mainThread);
         const workerPass = reportSection(`module worker (bridge mode: ${payload.worker?.mode ?? "unknown"})`, payload.worker);
+        const aotNodePass = reportSection("AOT closure — Node (generated ESM + engine runtime)", {
+            results: aotNodeResults,
+        });
+        const aotMainPass = reportSection("AOT closure — browser main thread (import map)", payload.aot?.mainThread);
+        const aotWorkerPass = reportSection(
+            `AOT closure — module worker (rewritten runtime specifier, mode: ${payload.aot?.worker?.mode ?? "unknown"})`,
+            payload.aot?.worker,
+        );
         const total = fixtures.length;
+        const aotTotal = aot.fixtures.length;
         console.log(`Browser smoke: main-thread ${mainPass}/${total}, worker ${workerPass}/${total}`);
-        if (mainPass !== total || workerPass !== total) process.exitCode = 1;
+        console.log(
+            `AOT closure: node ${aotNodePass}/${aotTotal}, main-thread ${aotMainPass}/${aotTotal}, worker ${aotWorkerPass}/${aotTotal}`,
+        );
+        if (
+            mainPass !== total ||
+            workerPass !== total ||
+            aotNodePass !== aotTotal ||
+            aotMainPass !== aotTotal ||
+            aotWorkerPass !== aotTotal
+        ) {
+            process.exitCode = 1;
+        }
     } finally {
         if (session) await session.close();
         try {

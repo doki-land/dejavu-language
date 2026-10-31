@@ -319,10 +319,8 @@ console.log(\`safe=\${safe}\`);
         writeFileSync(templateFile, RENDER_TEMPLATE);
         mustRun(runNode([cliPath, "compile", templateFile, "--out", moduleFile], consumerDir), "dejavu compile");
         if (!existsSync(moduleFile)) {
-            console.log(`compile exit 0 but ${rel(moduleFile)} is missing — writing fallback stub`);
-            writeFileSync(
-                moduleFile,
-                `import { htmlEscape } from ${JSON.stringify(ENGINE_NAME + "/runtime")};\nexport function render(ctx) {\n    return "<p>" + htmlEscape(ctx?.name ?? "") + "</p>";\n}\n`,
+            throw new Error(
+                `dejavu compile exited 0 but ${rel(moduleFile)} is missing — AOT codegen produced no module and the gate must not stub one`,
             );
         }
         const generated = readFileSync(moduleFile, "utf8");

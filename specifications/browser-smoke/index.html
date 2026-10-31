@@ -6,7 +6,8 @@
 <script type="importmap">
 {
     "imports": {
-        "@doki-land/dejavu-unknown-wasm32": "/projects/dejavu.ts/platforms/dejavu-unknown-wasm32/src/lib/dejavu_wasm.js"
+        "@doki-land/dejavu-unknown-wasm32": "/projects/dejavu.ts/platforms/dejavu-unknown-wasm32/src/lib/dejavu_wasm.js",
+        "@doki-land/dejavu-engine/runtime": "/projects/dejavu.ts/packages/dejavu-engine/dist/runtime/index.js"
     }
 }
 </script>
@@ -43,7 +44,7 @@
 </script>
 <script type="module">
     import { initWasm, renderSource, renderIr } from "/projects/dejavu.ts/packages/dejavu-language/dist/index.js";
-    import { fetchText, runFixtures } from "/specifications/browser-smoke/runner.mjs";
+    import { fetchText, runFixtures, runAotFixtures } from "/specifications/browser-smoke/runner.mjs";
 
     const WORKER_TIMEOUT_MS = 15000;
 
@@ -64,17 +65,29 @@
                 worker.terminate();
                 resolve({ type: "error", mode: "unknown", error: event.message || "worker script error" });
             };
-            worker.postMessage({ type: "run", fixtures: config.fixtures, wasmUrl: config.wasmUrl });
+            worker.postMessage({
+                type: "run",
+                fixtures: config.fixtures,
+                aotFixtures: config.aot ?? [],
+                wasmUrl: config.wasmUrl,
+            });
         });
     }
 
     async function main() {
         const config = JSON.parse(await fetchText("/__browser-fixtures.json"));
+
+        // The AOT closure needs no wasm: run it first so a JIT failure cannot
+        // mask it, and the main thread resolves the bare runtime specifier
+        // through the document import map.
+        const aotMainResults = await runAotFixtures(config.aot ?? [], "main");
+
         await initWasm({ url: config.wasmUrl });
 
         const mainResults = await runFixtures(config.fixtures, { renderSource, renderIr });
         const workerSide = await runInWorker(config);
         const workerResults = workerSide.results ?? [];
+        const workerAotResults = workerSide.aotResults ?? [];
 
         window.__dejavuPublish({
             mainThread: {
@@ -88,6 +101,19 @@
                 results: workerResults,
                 error: workerSide.error,
             },
+            aot: {
+                mainThread: {
+                    status: aotMainResults.length > 0 && aotMainResults.every((result) => result.ok) ? "ok" : "failed",
+                    mode: "import-map",
+                    results: aotMainResults,
+                },
+                worker: {
+                    status: workerAotResults.length > 0 && workerAotResults.every((result) => result.ok) ? "ok" : "failed",
+                    mode: workerSide.mode ?? "unknown",
+                    results: workerAotResults,
+                    error: workerSide.error,
+                },
+            },
         });
     }
 
@@ -95,6 +121,10 @@
         window.__dejavuPublish({
             mainThread: { status: "failed", mode: "import-map", error: String((error && error.stack) || error) },
             worker: { status: "failed", mode: "unknown", error: "not started" },
+            aot: {
+                mainThread: { status: "failed", mode: "import-map", error: "not completed" },
+                worker: { status: "failed", mode: "unknown", error: "not started" },
+            },
         });
     });
 </script>

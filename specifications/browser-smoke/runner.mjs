@@ -66,3 +66,39 @@ export async function runFixtures(fixtures, api) {
     }
     return results;
 }
+
+/**
+ * AOT closure fixtures: import the generated ESM module in this realm and
+ * render it against `@doki-land/dejavu-engine/runtime`. The main thread
+ * imports the verbatim module (the document import map resolves the bare
+ * runtime specifier); the module worker imports the harness-rewritten copy.
+ * Both realms execute the same compiled artifact, so a specifier that fails
+ * to resolve or a runtime mismatch surfaces as a fixture failure.
+ */
+export async function runAotFixtures(fixtures, realm) {
+    const results = [];
+    for (const fixture of fixtures) {
+        try {
+            const context = JSON.parse(await fetchText(fixture.ctxUrl));
+            const expected = await fetchText(fixture.expectedUrl);
+            const moduleUrl = realm === "worker" ? fixture.workerModuleUrl : fixture.moduleUrl;
+            const { render } = await import(moduleUrl);
+            const output = render(context);
+            results.push({
+                name: fixture.name,
+                kind: "aot",
+                ok: output === expected,
+                expected,
+                output,
+            });
+        } catch (error) {
+            results.push({
+                name: fixture.name,
+                kind: "aot",
+                ok: false,
+                error: String((error && error.stack) || error),
+            });
+        }
+    }
+    return results;
+}
