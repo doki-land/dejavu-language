@@ -1,4 +1,4 @@
-//! Dejavu IR v1: types, native AST encode/decode, normalize, and render.
+//! Dejavu IR v0: types, native AST encode/decode, normalize, and render.
 //!
 //! Parsing lives in [`dejavu_language`] (hand-written lexer + recursive descent + miette).
 
@@ -23,7 +23,7 @@ pub use render::{
     CustomError, CustomRegistry, RenderOptions, ResolvedTemplate, TemplateLoader, render_ir, render_ir_opts,
     render_ir_with_loader,
 };
-pub use types::{IrDocument, IrNode, Language, TemplateConfig, default_language};
+pub use types::{IrDocument, IrNode, Language, TemplateConfig, IR_VERSION, default_language};
 
 pub use dejavu_diagnostic::{ArgValue, Diagnostic, RelatedSpan, Severity, Span, Stage, codes};
 
@@ -118,7 +118,7 @@ pub fn diag_load(code: &str) -> IrError {
 
 /// Encode a native T1 AST into an IR document.
 pub fn encode_native(template: &NativeTemplate) -> IrDocument {
-    IrDocument { ir_version: "1.0".into(), language: default_language(), body: native::encode_template(template) }
+    IrDocument { ir_version: IR_VERSION.into(), language: default_language(), body: native::encode_template(template) }
 }
 
 /// Decode IR JSON into typed IR, then to native AST.

@@ -1,5 +1,5 @@
 /**
- * 1.0 合同的 truthiness —— 与 JS falsy 不同：
+ * v0 合同的 truthiness —— 与 JS falsy 不同：
  *
  * - null / undefined → false
  * - "" → false

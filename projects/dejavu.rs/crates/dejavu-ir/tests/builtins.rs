@@ -98,7 +98,7 @@ fn tests_cover_value_model_predicates() {
 #[test]
 fn renderer_reports_unknown_function_and_test() {
     let json = serde_json::json!({
-        "irVersion": "1.0",
+        "irVersion": "v0",
         "language": default_language(),
         "body": { "type": "Template", "children": [{
             "type": "Interpolation",
@@ -114,7 +114,7 @@ fn renderer_reports_unknown_function_and_test() {
     assert_eq!(error_code(render_ir(&doc, &serde_json::json!({})).expect_err("unknown function")), codes::UNKNOWN_FUNCTION);
 
     let json = serde_json::json!({
-        "irVersion": "1.0",
+        "irVersion": "v0",
         "language": default_language(),
         "body": { "type": "Template", "children": [{
             "type": "Interpolation",
@@ -133,7 +133,7 @@ fn renderer_reports_unknown_function_and_test() {
 #[test]
 fn renderer_rejects_member_callee() {
     let json = serde_json::json!({
-        "irVersion": "1.0",
+        "irVersion": "v0",
         "language": default_language(),
         "body": { "type": "Template", "children": [{
             "type": "Interpolation",
@@ -161,7 +161,7 @@ fn renderer_rejects_member_callee() {
 #[test]
 fn renderer_evaluates_functions_and_tests_end_to_end() {
     let json = serde_json::json!({
-        "irVersion": "1.0",
+        "irVersion": "v0",
         "language": default_language(),
         "body": { "type": "Template", "children": [{
             "type": "Interpolation",

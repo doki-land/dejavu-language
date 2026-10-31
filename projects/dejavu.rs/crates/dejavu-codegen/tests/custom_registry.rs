@@ -24,7 +24,7 @@ fn options(custom_registry: Value) -> Value {
 
 fn doc(children: Vec<Value>) -> Value {
     json!({
-        "irVersion": "1.0",
+        "irVersion": "v0",
         "language": {
             "syntaxMode": "template",
             "template": {

@@ -5,7 +5,7 @@ import { runtimeError } from "./errors.js";
 import { valueToString } from "./value.js";
 
 /**
- * Dejavu 1.0 合同过滤器集。
+ * Dejavu v0 合同过滤器集。
  *
  * 与 Rust `dejavu-ir` 的 `registry` 逐项对齐，所有字符串强制转换都走
  * `valueToString`（null → ""），不使用 JS 的 `String()`。

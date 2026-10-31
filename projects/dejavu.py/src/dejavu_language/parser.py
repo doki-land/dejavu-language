@@ -22,7 +22,7 @@ TrimMode = Literal["none", "ws", "nl", "ws_nl", "all"]
 
 def parse_to_ir(source: str, file: str = "template.dejavu") -> dict[str, Any]:
     return {
-        "irVersion": "1.0",
+        "irVersion": "v0",
         "language": {
             "syntaxMode": DEFAULT_LANGUAGE["syntaxMode"],
             "template": dict(DEFAULT_LANGUAGE["template"]),

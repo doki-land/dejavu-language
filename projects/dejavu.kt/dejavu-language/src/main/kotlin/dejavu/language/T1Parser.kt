@@ -6,7 +6,7 @@ import kotlinx.serialization.json.*
 /** Parse T1 template source into Dejavu IR. */
 object T1Parser {
     fun parseToIr(source: String, file: String = "template.dejavu"): JsonObject = buildJsonObject {
-        put("irVersion", "1.0")
+        put("irVersion", "v0")
         put("language", DEFAULT_LANGUAGE)
         put("body", buildJsonObject {
             put("type", "Template")

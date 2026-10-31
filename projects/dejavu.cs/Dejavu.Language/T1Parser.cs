@@ -10,7 +10,7 @@ public static class T1Parser
     {
         return new JsonObject
         {
-            ["irVersion"] = "1.0",
+            ["irVersion"] = "v0",
             ["language"] = IrDefaults.DefaultLanguage.DeepClone(),
             ["body"] = new JsonObject
             {

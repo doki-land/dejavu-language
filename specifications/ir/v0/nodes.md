@@ -6,7 +6,7 @@
 
 | 字段        | 类型       | 说明                     |
 |-------------|------------|--------------------------|
-| `irVersion` | `"1.0"`    | 必须与 schema const 一致 |
+| `irVersion` | `"v0"`     | 必须与 schema const 一致，未知版本显式拒绝 |
 | `language`  | `Language` | 回显解析时配置           |
 | `body`      | `Template` | 根节点                   |
 

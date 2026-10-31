@@ -90,7 +90,7 @@ fn registry_json_lists_every_namespace_entry() {
 
 fn pipe_doc(filter: &str, args: Vec<serde_json::Value>) -> IrDocument {
     let doc = serde_json::json!({
-        "irVersion": "1.0",
+        "irVersion": "v0",
         "language": default_language(),
         "body": { "type": "Template", "children": [{
             "type": "Interpolation",

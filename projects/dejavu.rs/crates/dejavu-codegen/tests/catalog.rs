@@ -48,7 +48,7 @@ fn errors(r: &dejavu_codegen::PrecompileCatalogResult) -> Vec<&dejavu_diagnostic
 
 fn doc(children: Vec<Value>) -> Value {
     json!({
-        "irVersion": "1.0",
+        "irVersion": "v0",
         "language": {
             "syntaxMode": "template",
             "template": {

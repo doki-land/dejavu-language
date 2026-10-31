@@ -49,7 +49,7 @@ fn compile_opts(ir_json: &str, opts_json: &str) -> PrecompileResult {
 
 fn doc(children: Vec<Value>) -> Value {
     json!({
-        "irVersion": "1.0",
+        "irVersion": "v0",
         "language": {
             "syntaxMode": "template",
             "template": {

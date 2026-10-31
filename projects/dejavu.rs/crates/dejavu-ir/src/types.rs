@@ -1,9 +1,14 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+
+/// The only IR contract version accepted on the wire (`/v0` namespace).
+/// Deserialization of any other `irVersion` is rejected explicitly.
+pub const IR_VERSION: &str = "v0";
 
 /// Top-level IR document.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IrDocument {
+    #[serde(deserialize_with = "deserialize_ir_version")]
     pub ir_version: String,
     pub language: Language,
     pub body: IrNode,
@@ -307,4 +312,16 @@ pub struct Span {
 
 fn is_false(v: &bool) -> bool {
     !*v
+}
+
+fn deserialize_ir_version<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = String::deserialize(deserializer)?;
+    if value == IR_VERSION {
+        Ok(value)
+    } else {
+        Err(serde::de::Error::custom(format!("unsupported irVersion {value:?}, expected {IR_VERSION:?}")))
+    }
 }

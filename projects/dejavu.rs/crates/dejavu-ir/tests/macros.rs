@@ -17,7 +17,7 @@ fn error_code(err: IrError) -> String {
 
 fn tpl(children: Vec<Value>) -> IrDocument {
     let doc_json = serde_json::json!({
-        "irVersion": "1.0",
+        "irVersion": "v0",
         "language": default_language(),
         "body": { "type": "Template", "children": children }
     });

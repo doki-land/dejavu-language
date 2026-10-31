@@ -16,7 +16,7 @@
 pub use dejavu_engine::{DejavuEngine, parse, parse_error_diagnostic, render, render_source};
 pub use dejavu_ir::{
     ArgValue, Diagnostic, IrDocument, IrError, IrNode, Language, RelatedSpan, Severity, Span, Stage, TemplateConfig,
-    codes, diag_load, diag_render, normalize_value,
+    IR_VERSION, codes, diag_load, diag_render, normalize_value,
 };
 pub use dejavu_language::{ParseError, ParseResult};
 pub use dejavu_runtime::{

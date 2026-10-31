@@ -44,7 +44,7 @@ The `catalog` JSON string on `renderIr` / `renderSource`:
       "priority": 0,
       "basePath": "templates",
       "files": {
-        "index.dejavu": "{ \"irVersion\": \"1.0\", \"language\": { ... }, \"body\": { ... } }"
+        "index.dejavu": "{ \"irVersion\": \"v0\", \"language\": { ... }, \"body\": { ... } }"
       }
     }
   ]

@@ -2,7 +2,7 @@ import { htmlEscape } from "./escape.js";
 import { isTruthy, valueToString, valuesEqual } from "./value.js";
 
 /**
- * Dejavu 1.0 支持的二元运算符。
+ * Dejavu v0 支持的二元运算符。
  * 与 Rust `dejavu-ir` 的 `eval_binary` 一一对应，**不借用 JS 隐式转换**：
  *
  * - `+`：两侧都是 number 时相加，否则按 `valueToString` 做字符串拼接。

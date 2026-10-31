@@ -12,7 +12,7 @@ Hello, <% account.name %>!
 
 ## ✨ What you get
 
-- One template language surface (Template Contract + IR v1)
+- One template language surface (Template Contract + IR v0)
 - Shared conformance fixtures under `specifications/`
 - Interpolation, `if` / `loop`, `|>` filters, HTML escaping, `safe` / `raw`
 - Inheritance: `extends` / `block` / `super` / `include` + path-v1 loader

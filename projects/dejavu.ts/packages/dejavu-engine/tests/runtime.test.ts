@@ -72,7 +72,7 @@ describe("valueToString", () => {
 });
 
 // ---------------------------------------------------------------------------
-// isTruthy —— Dejavu 1.0 truthiness（不是 JS falsy）
+// isTruthy —— Dejavu v0 truthiness（不是 JS falsy）
 // ---------------------------------------------------------------------------
 describe("isTruthy", () => {
     const falsyCases: unknown[] = [null, undefined, "", false, 0, [], {}];

@@ -67,7 +67,7 @@ fn literals(args: Vec<Value>) -> Vec<Value> {
 
 fn pipe_doc(filter: &str, value: &str, args: Vec<Value>) -> IrDocument {
     let doc = json!({
-        "irVersion": "1.0",
+        "irVersion": "v0",
         "language": default_language(),
         "body": { "type": "Template", "children": [{
             "type": "Interpolation",
@@ -85,7 +85,7 @@ fn pipe_doc(filter: &str, value: &str, args: Vec<Value>) -> IrDocument {
 
 fn call_doc(name: &str, args: Vec<Value>) -> IrDocument {
     let doc = json!({
-        "irVersion": "1.0",
+        "irVersion": "v0",
         "language": default_language(),
         "body": { "type": "Template", "children": [{
             "type": "Interpolation",
@@ -102,7 +102,7 @@ fn call_doc(name: &str, args: Vec<Value>) -> IrDocument {
 
 fn test_doc(name: &str, negated: bool) -> IrDocument {
     let doc = json!({
-        "irVersion": "1.0",
+        "irVersion": "v0",
         "language": default_language(),
         "body": { "type": "Template", "children": [{
             "type": "Stmt.If",
