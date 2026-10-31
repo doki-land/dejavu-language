@@ -88,7 +88,7 @@ public static class IrRenderer
         // 循环元数据：每次迭代在 body 作用域隐式绑定 `forloop`。
         // depth 入口规则：循环入口时可见的 forloop 是对象且其 depth 为 >=1 的
         // 整数则 +1，否则从 1 重启（与 Rust/TS/Python 宿主一致）。
-        scope.TryGetValue("forloop", out var prevMeta);
+        var hadPrevMeta = scope.TryGetValue("forloop", out var prevMeta);
         long depth = 1;
         if (prevMeta is JsonObject prevObj
             && prevObj["depth"] is JsonValue depthValue
@@ -99,7 +99,8 @@ public static class IrRenderer
         }
         for (var i = 0; i < length; i++)
         {
-            scope.TryGetValue(item, out var prev);
+            // 绑定恢复由键是否存在决定：键存在但值为 null 与键缺失不同。
+            var hadPrev = scope.TryGetValue(item, out var prev);
             scope[item] = iterable[i]?.DeepClone();
             scope["forloop"] = new JsonObject
             {
@@ -111,7 +112,7 @@ public static class IrRenderer
                 ["depth"] = depth,
             };
             sb.Append(JoinChildren(node["body"]!.AsArray(), scope, ctl));
-            if (prev is null) scope.Remove(item); else scope[item] = prev;
+            if (hadPrev) scope[item] = prev; else scope.Remove(item);
             // The bound loop consumes the signal once, after the iteration's
             // bindings are restored (normal loop exit).
             var signal = ctl.Signal;
@@ -119,7 +120,7 @@ public static class IrRenderer
             if (signal == "break") break;
             if (signal == "continue") continue;
         }
-        if (prevMeta is null) scope.Remove("forloop"); else scope["forloop"] = prevMeta;
+        if (hadPrevMeta) scope["forloop"] = prevMeta; else scope.Remove("forloop");
         return sb.ToString();
     }
 
