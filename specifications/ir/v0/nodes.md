@@ -74,7 +74,7 @@
 - `forloop` 只在 body 内可见；循环外不绑定（缺失时按普通标识符规则：非 strict 为 `null`，strict 报 `dejavu.template.undefined-variable`）。
 - 嵌套循环：内层迭代的 `forloop` 遮蔽外层，body 结束后恢复外层当前迭代值。
 - `depth` 入口规则：循环入口时，若当前可见 `forloop` 是对象且其 `depth` 为不小于 1 的整数，则新 `depth = depth + 1`，否则 `depth = 1`。宏调用、partial 与 `only` include 交换整个作用域，`depth` 从 1 重启。
-- 同名上下文变量（含上下文自带的 `forloop`）在 body 内被遮蔽，循环后按原值恢复；原本不存在的键被删除。
+- 同名上下文变量（含上下文自带的 `forloop`，以及字面名为 `forloop` 的循环变量）在 body 内被遮蔽，循环后按原值恢复。恢复由**键是否存在**决定：键存在时写回原值（包括 JSON `null`），仅键缺失时删除。上下文 `forloop` 非对象或 `depth` 非法时 `depth` 从 1 重启，原值仍按同一规则恢复。
 - 空数组零次迭代：body 不执行，`forloop` 不绑定。
 
 ### `Stmt.Break` / `Stmt.Continue`
