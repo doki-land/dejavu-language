@@ -42,7 +42,6 @@ pub enum NativeKind {
     },
     For {
         item: String,
-        index: Option<String>,
         iterable: NativeExpr,
         body: Vec<NativeNode>,
         trim: String,
@@ -160,9 +159,8 @@ fn encode_node(n: &NativeNode) -> IrNode {
             trim: trim.clone(),
             span,
         },
-        NativeKind::For { item, index, iterable, body, trim } => IrNode::StmtFor {
+        NativeKind::For { item, iterable, body, trim } => IrNode::StmtFor {
             item: item.clone(),
-            index: index.clone(),
             iterable: Box::new(encode_expr(iterable)),
             body: body.iter().map(encode_node).collect(),
             trim: trim.clone(),
@@ -313,10 +311,9 @@ fn decode_node(n: &IrNode) -> NativeNode {
             },
             span.clone(),
         ),
-        IrNode::StmtFor { item, index, iterable, body, trim, span } => NativeNode::new(
+        IrNode::StmtFor { item, iterable, body, trim, span } => NativeNode::new(
             NativeKind::For {
                 item: item.clone(),
-                index: index.clone(),
                 iterable: decode_expr(iterable),
                 body: body.iter().map(decode_node).collect(),
                 trim: trim.clone(),

@@ -71,10 +71,8 @@ fn stmt_if(t: Value, c: Vec<Value>, ei: Vec<Value>, a: Option<Vec<Value>>) -> Va
     if let Some(a2) = a { o["alternate"] = json!(a2); }
     o
 }
-fn stmt_for(item: &str, idx: Option<&str>, iterable: Value, body: Vec<Value>) -> Value {
-    let mut o = json!({ "type": "Stmt.For", "item": item, "iterable": iterable, "body": body, "trim": "none" });
-    if let Some(i) = idx { o["index"] = json!(i); }
-    o
+fn stmt_for(item: &str, iterable: Value, body: Vec<Value>) -> Value {
+    json!({ "type": "Stmt.For", "item": item, "iterable": iterable, "body": body, "trim": "none" })
 }
 fn stmt_block(n: &str, b: Vec<Value>) -> Value {
     json!({ "type": "Stmt.Block", "name": n, "body": b, "trim": "none" })
@@ -388,7 +386,7 @@ fn mixed_if_for_include_all_nodes_emit() {
             Some(vec![text("NO ")]),
         ),
         text(" items=["),
-        stmt_for("it", Some("i"), ident("items"), vec![interp(ident("it"), false), text(",")]),
+        stmt_for("it", ident("items"), vec![interp(ident("it"), false), text(",")]),
         text("] "),
         stmt_include(lit(json!("include.dejavu"))),
     ]);

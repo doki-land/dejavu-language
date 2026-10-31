@@ -269,10 +269,6 @@
                     "type": "string",
                     "minLength": 1
                 },
-                "index": {
-                    "type": "string",
-                    "minLength": 1
-                },
                 "iterable": {
                     "$ref": "#/$defs/Expr"
                 },

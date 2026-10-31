@@ -1,0 +1,7 @@
+[
+    {
+        "code": "dejavu.template.undefined-variable",
+        "stages": ["render"],
+        "args": { "name": "forloop" }
+    }
+]

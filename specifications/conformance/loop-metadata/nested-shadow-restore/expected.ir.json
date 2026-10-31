@@ -1,0 +1,105 @@
+{
+    "irVersion": "v0",
+    "language": {
+        "syntaxMode": "template",
+        "template": {
+            "codeStart": "<%",
+            "codeEnd": "%>",
+            "commentStart": "<#",
+            "commentEnd": "#>",
+            "supportFilterPipe": true,
+            "legacyFor": false
+        }
+    },
+    "body": {
+        "type": "Template",
+        "children": [
+            {
+                "type": "Stmt.For",
+                "item": "o",
+                "iterable": { "type": "Expr.Identifier", "name": "outer" },
+                "body": [
+                    { "type": "Text", "value": "[" },
+                    {
+                        "type": "Interpolation",
+                        "expression": {
+                            "type": "Expr.Member",
+                            "object": { "type": "Expr.Identifier", "name": "forloop" },
+                            "property": "index"
+                        },
+                        "trim": "none"
+                    },
+                    { "type": "Text", "value": "/" },
+                    {
+                        "type": "Interpolation",
+                        "expression": {
+                            "type": "Expr.Member",
+                            "object": { "type": "Expr.Identifier", "name": "forloop" },
+                            "property": "depth"
+                        },
+                        "trim": "none"
+                    },
+                    { "type": "Text", "value": "]" },
+                    {
+                        "type": "Stmt.For",
+                        "item": "i",
+                        "iterable": { "type": "Expr.Identifier", "name": "inner" },
+                        "body": [
+                            { "type": "Text", "value": "(" },
+                            {
+                                "type": "Interpolation",
+                                "expression": {
+                                    "type": "Expr.Member",
+                                    "object": { "type": "Expr.Identifier", "name": "forloop" },
+                                    "property": "index"
+                                },
+                                "trim": "none"
+                            },
+                            { "type": "Text", "value": "@" },
+                            {
+                                "type": "Interpolation",
+                                "expression": {
+                                    "type": "Expr.Member",
+                                    "object": { "type": "Expr.Identifier", "name": "forloop" },
+                                    "property": "depth"
+                                },
+                                "trim": "none"
+                            },
+                            { "type": "Text", "value": ")" }
+                        ],
+                        "trim": "none"
+                    },
+                    { "type": "Text", "value": "|" },
+                    {
+                        "type": "Interpolation",
+                        "expression": {
+                            "type": "Expr.Member",
+                            "object": { "type": "Expr.Identifier", "name": "forloop" },
+                            "property": "index"
+                        },
+                        "trim": "none"
+                    },
+                    { "type": "Text", "value": "/" },
+                    {
+                        "type": "Interpolation",
+                        "expression": {
+                            "type": "Expr.Member",
+                            "object": { "type": "Expr.Identifier", "name": "forloop" },
+                            "property": "depth"
+                        },
+                        "trim": "none"
+                    },
+                    { "type": "Text", "value": ";" }
+                ],
+                "trim": "none"
+            },
+            { "type": "Text", "value": "<" },
+            {
+                "type": "Interpolation",
+                "expression": { "type": "Expr.Identifier", "name": "forloop" },
+                "trim": "none"
+            },
+            { "type": "Text", "value": ">" }
+        ]
+    }
+}

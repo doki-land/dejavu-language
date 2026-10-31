@@ -47,15 +47,15 @@ fn ident(name: &str) -> Value {
     json!({ "type": "Expr.Identifier", "name": name })
 }
 
-fn stmt_for(item: &str, index: Option<&str>, iterable: Value, body: Vec<Value>) -> Value {
-    let mut obj = json!({
+fn stmt_for(item: &str, iterable: Value, body: Vec<Value>) -> Value {
+    json!({
         "type": "Stmt.For", "item": item, "iterable": iterable,
         "body": body, "trim": "none"
-    });
-    if let Some(i) = index {
-        obj["index"] = json!(i);
-    }
-    obj
+    })
+}
+
+fn member(object: Value, property: &str) -> Value {
+    json!({ "type": "Expr.Member", "object": object, "property": property })
 }
 
 fn compile(ir: &Value, opts_json: Option<&str>) -> String {
@@ -144,14 +144,13 @@ console.log(JSON.stringify({{ value: __value, error: __error, probe: __probe }})
 fn two_loops_in_one_template_load_and_render() {
     let ir = doc(vec![
         text("A["),
-        stmt_for("x", None, ident("xs"), vec![interp(ident("x"), false), text(",")]),
+        stmt_for("x", ident("xs"), vec![interp(ident("x"), false), text(",")]),
         text("]B["),
         stmt_for(
             "y",
-            Some("k"),
             ident("ys"),
             vec![
-                interp(ident("k"), false),
+                interp(member(ident("forloop"), "index0"), false),
                 text("="),
                 interp(ident("y"), false),
                 text(","),
@@ -171,7 +170,7 @@ fn two_loops_in_one_template_load_and_render() {
 fn loop_item_is_restored_after_loop() {
     let ir = doc(vec![
         text("["),
-        stmt_for("item", None, ident("items"), vec![interp(ident("item"), false)]),
+        stmt_for("item", ident("items"), vec![interp(ident("item"), false)]),
         text("]"),
         interp(ident("item"), false),
     ]);
@@ -208,16 +207,14 @@ fn loop_item_is_restored_after_loop() {
 fn nested_loops_do_not_clobber_each_other() {
     let ir = doc(vec![stmt_for(
         "outer",
-        None,
         ident("rows"),
         vec![
             text("("),
             stmt_for(
                 "inner",
-                Some("j"),
                 ident("outer"),
                 vec![
-                    interp(ident("j"), false),
+                    interp(member(ident("forloop"), "index0"), false),
                     text(":"),
                     interp(ident("inner"), false),
                     text(","),
@@ -235,13 +232,63 @@ fn nested_loops_do_not_clobber_each_other() {
         &code,
         "({ rows: [['a','b'], ['c']] })",
         "{}",
-        r#"({ outer: Object.prototype.hasOwnProperty.call(__ctx, 'outer'), inner: Object.prototype.hasOwnProperty.call(__ctx, 'inner'), j: Object.prototype.hasOwnProperty.call(__ctx, 'j') })"#,
+        r#"({ outer: Object.prototype.hasOwnProperty.call(__ctx, 'outer'), inner: Object.prototype.hasOwnProperty.call(__ctx, 'inner'), forloop: Object.prototype.hasOwnProperty.call(__ctx, 'forloop') })"#,
     ) {
         let (rendered, probe) = out.unwrap();
         assert_eq!(rendered, "(0:a,1:b,=>a,b)(0:c,=>c)");
         assert_eq!(probe["outer"], json!(false));
         assert_eq!(probe["inner"], json!(false));
-        assert_eq!(probe["j"], json!(false));
+        assert_eq!(probe["forloop"], json!(false));
+    }
+}
+
+#[test]
+fn forloop_nesting_depth_and_restore() {
+    let ir = doc(vec![stmt_for(
+        "row",
+        ident("rows"),
+        vec![
+            text("["),
+            interp(member(ident("forloop"), "depth"), false),
+            stmt_for(
+                "cell",
+                ident("row"),
+                vec![
+                    interp(member(ident("forloop"), "depth"), false),
+                    text(":"),
+                    interp(member(ident("forloop"), "index"), false),
+                ],
+            ),
+            // After the inner loop the outer `forloop` is visible again.
+            interp(member(ident("forloop"), "depth"), false),
+            text("]"),
+        ],
+    )]);
+    let code = compile(&ir, None);
+
+    if let Some(out) = run_render(
+        &code,
+        "({ rows: [['a','b'], ['c']] })",
+        "{}",
+        "Object.prototype.hasOwnProperty.call(__ctx, 'forloop')",
+    ) {
+        let (rendered, probe) = out.unwrap();
+        assert_eq!(rendered, "[12:12:21][12:11]");
+        assert_eq!(probe, json!(false));
+    }
+}
+
+#[test]
+fn forloop_shadows_and_restores_context_value() {
+    let ir = doc(vec![
+        stmt_for("x", ident("xs"), vec![interp(member(ident("forloop"), "index"), false)]),
+        text("|"),
+        interp(ident("forloop"), false),
+    ]);
+    let code = compile(&ir, None);
+
+    if let Some(out) = run_render(&code, "({ xs: ['a','b'], forloop: 'ctx' })", "{}", "null") {
+        assert_eq!(out.unwrap().0, "12|ctx");
     }
 }
 
@@ -249,10 +296,9 @@ fn nested_loops_do_not_clobber_each_other() {
 fn nested_loops_with_same_item_name_restore_outer_value() {
     let ir = doc(vec![stmt_for(
         "v",
-        None,
         ident("rows"),
         vec![
-            stmt_for("v", None, ident("v"), vec![interp(ident("v"), false)]),
+            stmt_for("v", ident("v"), vec![interp(ident("v"), false)]),
             text("|"),
             interp(ident("v"), false),
         ],

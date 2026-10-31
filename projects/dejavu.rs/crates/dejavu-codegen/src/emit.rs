@@ -753,8 +753,8 @@ pub fn emit_stmt(
         IrNode::StmtIf { test, consequent, else_ifs, alternate, .. } => {
             emit_if(test, consequent, else_ifs, alternate.as_deref(), ctx, out, catalog);
         }
-        IrNode::StmtFor { item, index, iterable, body, .. } => {
-            emit_for(item, index.as_deref(), iterable, body, ctx, out, catalog);
+        IrNode::StmtFor { item, iterable, body, .. } => {
+            emit_for(item, iterable, body, ctx, out, catalog);
         }
         IrNode::StmtRaw { value, .. } => {
             // Raw block: emit literal text into __out.
@@ -1070,7 +1070,6 @@ fn emit_if(
 
 fn emit_for(
     item: &str,
-    index: Option<&str>,
     iterable: &IrNode,
     body: &[IrNode],
     ctx: &mut CodegenCtx,
@@ -1083,6 +1082,10 @@ fn emit_for(
     let it_temp = ctx.next_temp();
     let item_has = format!("{it_temp}_item_has");
     let item_prev = format!("{it_temp}_item_prev");
+    let meta_has = format!("{it_temp}_meta_has");
+    let meta_prev = format!("{it_temp}_meta_prev");
+    let meta_depth = format!("{it_temp}_meta_depth");
+    let len = format!("{it_temp}_len");
 
     out.push_str("{\n");
     out.push_str(&format!("let {it_temp} = {};\n", emit_expr(iterable, ctx)));
@@ -1108,25 +1111,26 @@ fn emit_for(
         json_string(item)
     ));
 
-    let index_saved = index.map(|idx| {
-        let has = format!("{it_temp}_index_has");
-        let prev = format!("{it_temp}_index_prev");
-        out.push_str(&format!(
-            "const {has} = Object.prototype.hasOwnProperty.call(ctx, {});\n",
-            json_string(idx)
-        ));
-        out.push_str(&format!(
-            "const {prev} = {has} ? ctx[{}] : undefined;\n",
-            json_string(idx)
-        ));
-        (idx, has, prev)
-    });
+    // Implicit `forloop` metadata binding (same contract as the JIT
+    // renderer): shadow the slot per iteration, restore it after the loop.
+    // Depth comes from the `forloop` visible at loop entry when its `depth`
+    // is an integer >= 1; anything else restarts at 1.
+    out.push_str(&format!(
+        "const {meta_has} = Object.prototype.hasOwnProperty.call(ctx, \"forloop\");\n"
+    ));
+    out.push_str(&format!(
+        "const {meta_prev} = {meta_has} ? ctx[\"forloop\"] : undefined;\n"
+    ));
+    out.push_str(&format!(
+        "const {meta_depth} = ({meta_prev} !== undefined && {meta_prev} !== null && typeof {meta_prev} === \"object\" && Number.isInteger({meta_prev}.depth) && {meta_prev}.depth >= 1) ? {meta_prev}.depth + 1 : 1;\n"
+    ));
+    out.push_str(&format!("const {len} = {it_temp}.length;\n"));
 
-    out.push_str(&format!("for (let __i = 0; __i < {it_temp}.length; __i++) {{\n"));
+    out.push_str(&format!("for (let __i = 0; __i < {len}; __i++) {{\n"));
     out.push_str(&format!("ctx[{}] = {it_temp}[__i];\n", json_string(item)));
-    if let Some((idx, _, _)) = &index_saved {
-        out.push_str(&format!("ctx[{}] = __i;\n", json_string(idx)));
-    }
+    out.push_str(&format!(
+        "ctx[\"forloop\"] = {{ index: __i + 1, index0: __i, first: __i === 0, last: __i + 1 === {len}, length: {len}, depth: {meta_depth} }};\n"
+    ));
     emit_body(body, ctx, out, catalog);
     out.push_str("}\n");
 
@@ -1137,13 +1141,9 @@ fn emit_for(
         json_string(item),
         json_string(item)
     ));
-    if let Some((idx, has, prev)) = &index_saved {
-        out.push_str(&format!(
-            "if ({has}) ctx[{}] = {prev}; else delete ctx[{}];\n",
-            json_string(idx),
-            json_string(idx)
-        ));
-    }
+    out.push_str(&format!(
+        "if ({meta_has}) ctx[\"forloop\"] = {meta_prev}; else delete ctx[\"forloop\"];\n"
+    ));
     out.push_str("}\n");
 }
 

@@ -1,0 +1,4 @@
+{
+    "items": ["a", "b"],
+    "forloop": { "index": 99, "depth": 2 }
+}

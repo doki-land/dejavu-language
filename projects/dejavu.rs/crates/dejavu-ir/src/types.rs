@@ -144,11 +144,14 @@ pub enum IrNode {
         #[serde(skip_serializing_if = "Option::is_none")]
         span: Option<Span>,
     },
+    /// `loop item in iterable` — body iteration.
+    ///
+    /// Loop metadata (`index`, `index0`, `first`, `last`, `length`, `depth`)
+    /// is bound implicitly as the `forloop` object inside every body
+    /// iteration; it is not part of this node's shape.
     #[serde(rename = "Stmt.For")]
     StmtFor {
         item: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        index: Option<String>,
         iterable: Box<IrNode>,
         body: Vec<IrNode>,
         trim: String,

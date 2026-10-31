@@ -57,9 +57,25 @@
 `loop item in iterable`（当 `language.template.legacyFor` 时也可用遗留 `for`）。
 
 - `item`：循环变量名
-- 可选 `index`
-- `iterable`：表达式
+- `iterable`：表达式（渲染时必须是数组，否则 `dejavu.template.invalid-iterable`）
 - `body[]`
+
+节点形状**不含**索引字段。循环元数据以隐式绑定 `forloop` 出现在每次迭代的作用域中：
+
+| 字段     | 类型    | 含义                                   |
+|----------|---------|----------------------------------------|
+| `index`  | number  | 1 基序号                               |
+| `index0` | number  | 0 基序号                               |
+| `first`  | boolean | 是否首项                               |
+| `last`   | boolean | 是否末项                               |
+| `length` | number  | 总项数                                 |
+| `depth`  | number  | 1 基嵌套层                             |
+
+- `forloop` 只在 body 内可见；循环外不绑定（缺失时按普通标识符规则：非 strict 为 `null`，strict 报 `dejavu.template.undefined-variable`）。
+- 嵌套循环：内层迭代的 `forloop` 遮蔽外层，body 结束后恢复外层当前迭代值。
+- `depth` 入口规则：循环入口时，若当前可见 `forloop` 是对象且其 `depth` 为不小于 1 的整数，则新 `depth = depth + 1`，否则 `depth = 1`。宏调用、partial 与 `only` include 交换整个作用域，`depth` 从 1 重启。
+- 同名上下文变量（含上下文自带的 `forloop`）在 body 内被遮蔽，循环后按原值恢复；原本不存在的键被删除。
+- 空数组零次迭代：body 不执行，`forloop` 不绑定。
 
 ### `Stmt.Block` / `Stmt.Extends` / `Stmt.Include` / `Stmt.Super` / `Stmt.Raw`
 

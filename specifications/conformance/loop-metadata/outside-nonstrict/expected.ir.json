@@ -1,0 +1,26 @@
+{
+    "irVersion": "v0",
+    "language": {
+        "syntaxMode": "template",
+        "template": {
+            "codeStart": "<%",
+            "codeEnd": "%>",
+            "commentStart": "<#",
+            "commentEnd": "#>",
+            "supportFilterPipe": true,
+            "legacyFor": false
+        }
+    },
+    "body": {
+        "type": "Template",
+        "children": [
+            { "type": "Text", "value": "A" },
+            {
+                "type": "Interpolation",
+                "expression": { "type": "Expr.Identifier", "name": "forloop" },
+                "trim": "none"
+            },
+            { "type": "Text", "value": "B" }
+        ]
+    }
+}

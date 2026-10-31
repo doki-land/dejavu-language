@@ -121,7 +121,7 @@ impl Parser<'_> {
             }
         }
 
-        let mut kind = NativeKind::For { item, index: None, iterable, body, trim: trim.as_str().into() };
+        let mut kind = NativeKind::For { item, iterable, body, trim: trim.as_str().into() };
         apply_open_trim(&mut kind, pending, trim_end);
         Ok((NativeNode::new(kind, Some(Span { start: open, end: i })), i))
     }

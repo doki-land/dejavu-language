@@ -627,22 +627,35 @@ impl<'a> Renderer<'a> {
                 }
                 Ok(String::new())
             }
-            IrNode::StmtFor { item, index, iterable, body, .. } => {
+            IrNode::StmtFor { item, iterable, body, .. } => {
                 let iter_val = self.eval(iterable)?;
                 let items = match iter_val {
                     Value::Array(a) => a,
                     other => return Err(diag_render(codes::INVALID_ITERABLE).arg("expected", "array").arg("got", format!("{other:?}"))),
                 };
+                let length = items.len();
+                // Loop metadata depth: an outer `forloop` visible at loop entry
+                // contributes its depth when that is an integer >= 1; anything
+                // else (absent, non-object, non-integer) restarts at 1. Macro,
+                // partial and `only` include boundaries swap the whole scope,
+                // so depth restarts there by construction.
+                let depth = match self.scope.get(FORLOOP_NAME) {
+                    Some(Value::Object(map)) => map
+                        .get("depth")
+                        .and_then(|v| v.as_i64())
+                        .filter(|d| *d >= 1)
+                        .map(|d| d + 1)
+                        .unwrap_or(1),
+                    _ => 1,
+                };
                 let mut out = String::new();
                 for (i, val) in items.into_iter().enumerate() {
                     let prev = self.scope.insert(item.clone(), val);
-                    let prev_idx =
-                        if let Some(idx) = index { self.scope.insert(idx.clone(), Value::Number(i.into())) } else { None };
+                    let meta = forloop_meta(i, length, depth);
+                    let prev_meta = self.scope.insert(FORLOOP_NAME.to_string(), meta);
                     out.push_str(&self.render_list(body)?);
+                    restore(&mut self.scope, FORLOOP_NAME, prev_meta);
                     restore(&mut self.scope, item, prev);
-                    if let Some(idx) = index {
-                        restore(&mut self.scope, idx, prev_idx);
-                    }
                 }
                 Ok(out)
             }
@@ -885,6 +898,22 @@ fn literal_path(node: &IrNode) -> Option<&str> {
         IrNode::ExprLiteral { value: Value::String(s), .. } => Some(s),
         _ => None,
     }
+}
+
+/// Implicit loop-metadata binding name, visible only inside a `loop` body.
+pub const FORLOOP_NAME: &str = "forloop";
+
+/// One iteration's loop metadata: `index` (1-based), `index0` (0-based),
+/// `first`, `last`, `length` (total items) and `depth` (1-based nesting).
+fn forloop_meta(i: usize, length: usize, depth: i64) -> Value {
+    let mut map = serde_json::Map::new();
+    map.insert("index".into(), Value::Number((i + 1).into()));
+    map.insert("index0".into(), Value::Number(i.into()));
+    map.insert("first".into(), Value::Bool(i == 0));
+    map.insert("last".into(), Value::Bool(i + 1 == length));
+    map.insert("length".into(), Value::Number(length.into()));
+    map.insert("depth".into(), Value::Number(depth.into()));
+    Value::Object(map)
 }
 
 fn restore(scope: &mut HashMap<String, Value>, key: &str, prev: Option<Value>) {

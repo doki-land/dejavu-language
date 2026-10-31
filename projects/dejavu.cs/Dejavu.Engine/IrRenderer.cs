@@ -55,24 +55,36 @@ public static class IrRenderer
         var iterable = Eval(node["iterable"]!, scope) as JsonArray
             ?? throw new InvalidOperationException("for iterable must be array");
         var sb = new StringBuilder();
-        var indexName = node["index"]?.GetValue<string>();
-        for (var i = 0; i < iterable.Count; i++)
+        var length = iterable.Count;
+        // 循环元数据：每次迭代在 body 作用域隐式绑定 `forloop`。
+        // depth 入口规则：循环入口时可见的 forloop 是对象且其 depth 为 >=1 的
+        // 整数则 +1，否则从 1 重启（与 Rust/TS/Python 宿主一致）。
+        scope.TryGetValue("forloop", out var prevMeta);
+        long depth = 1;
+        if (prevMeta is JsonObject prevObj
+            && prevObj["depth"] is JsonValue depthValue
+            && depthValue.TryGetValue(out long depthIn)
+            && depthIn >= 1)
+        {
+            depth = depthIn + 1;
+        }
+        for (var i = 0; i < length; i++)
         {
             scope.TryGetValue(item, out var prev);
             scope[item] = iterable[i]?.DeepClone();
-            JsonNode? prevIdx = null;
-            if (indexName is not null)
+            scope["forloop"] = new JsonObject
             {
-                scope.TryGetValue(indexName, out prevIdx);
-                scope[indexName] = JsonValue.Create(i);
-            }
+                ["index"] = i + 1,
+                ["index0"] = i,
+                ["first"] = i == 0,
+                ["last"] = i + 1 == length,
+                ["length"] = length,
+                ["depth"] = depth,
+            };
             sb.Append(JoinChildren(node["body"]!.AsArray(), scope));
             if (prev is null) scope.Remove(item); else scope[item] = prev;
-            if (indexName is not null)
-            {
-                if (prevIdx is null) scope.Remove(indexName); else scope[indexName] = prevIdx;
-            }
         }
+        if (prevMeta is null) scope.Remove("forloop"); else scope["forloop"] = prevMeta;
         return sb.ToString();
     }
 

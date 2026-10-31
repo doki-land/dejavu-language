@@ -64,23 +64,36 @@ def _render_node(node: dict, scope: dict) -> str:
             raise ValueError("for iterable must be array")
         out = []
         item = node["item"]
+        length = len(iterable)
+        # 循环元数据：每次迭代在 body 作用域隐式绑定 `forloop`。
+        # depth 入口规则：循环入口时可见的 forloop 是对象且 depth 为 >=1 的
+        # 整数则 +1，否则从 1 重启（与 Rust/TS 宿主一致）。
+        prev_meta = scope.get("forloop", _MISSING)
+        depth = 1
+        if isinstance(prev_meta, dict):
+            d = prev_meta.get("depth")
+            if isinstance(d, int) and not isinstance(d, bool) and d >= 1:
+                depth = d + 1
         for i, val in enumerate(iterable):
             prev = scope.get(item, _MISSING)
             scope[item] = val
-            idx = node.get("index")
-            prev_idx = scope.get(idx, _MISSING) if idx else _MISSING
-            if idx:
-                scope[idx] = i
+            scope["forloop"] = {
+                "index": i + 1,
+                "index0": i,
+                "first": i == 0,
+                "last": i + 1 == length,
+                "length": length,
+                "depth": depth,
+            }
             out.append("".join(_render_node(c, scope) for c in node["body"]))
             if prev is _MISSING:
                 scope.pop(item, None)
             else:
                 scope[item] = prev
-            if idx:
-                if prev_idx is _MISSING:
-                    scope.pop(idx, None)
-                else:
-                    scope[idx] = prev_idx
+        if prev_meta is _MISSING:
+            scope.pop("forloop", None)
+        else:
+            scope["forloop"] = prev_meta
         return "".join(out)
     if t == "Stmt.Raw":
         return node["value"]

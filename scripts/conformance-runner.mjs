@@ -19,6 +19,7 @@ const IR_SUITES = [
     join(BASE, "values"),
     join(BASE, "functions"),
     join(BASE, "tests"),
+    join(BASE, "loop-metadata"),
 ];
 /** Source-level suites: templates parsed by every host before rendering. */
 const CATALOG_SUITES = [

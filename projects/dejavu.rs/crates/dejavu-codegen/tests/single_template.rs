@@ -3,7 +3,8 @@
 //! Strategy:
 //!
 //! 1. Hand-write minimal IR JSON fixtures (covers Text, Interpolation with
-//!    Pipe, If/ElseIf, For with index, Expr.Member, Expr.Index, Expr.Binary,
+//!    Pipe, If/ElseIf, For with implicit `forloop` metadata, Expr.Member,
+//!    Expr.Index, Expr.Binary,
 //!    Expr.Call, strictUndefined, JS reserved-word identifier).
 //! 2. Call [`precompile_single`].
 //! 3. Assert structural facts using whitespace-normalised substrings so
@@ -127,13 +128,11 @@ fn stmt_elseif(test: Value, body: Vec<Value>) -> Value {
     json!({ "type": "Stmt.ElseIf", "test": test, "consequent": body, "trim": "none" })
 }
 
-fn stmt_for(item: &str, index: Option<&str>, iterable: Value, body: Vec<Value>) -> Value {
-    let mut obj = json!({
+fn stmt_for(item: &str, iterable: Value, body: Vec<Value>) -> Value {
+    json!({
         "type": "Stmt.For", "item": item, "iterable": iterable,
         "body": body, "trim": "none"
-    });
-    if let Some(i) = index { obj["index"] = json!(i); }
-    obj
+    })
 }
 
 fn stmt_block(name: &str, body: Vec<Value>) -> Value {
@@ -272,41 +271,46 @@ fn if_elseif_chain() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn for_with_index() {
+fn for_binds_implicit_forloop_metadata() {
     let ir = doc(vec![stmt_for(
         "item",
-        Some("i"),
         ident("items"),
         vec![text("#"), interp(ident("item"), false)],
     )]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
     assert!(r.contains("let __v = ctx.items;"));
-    assert!(r.contains("for (let __i = 0; __i < __v.length; __i++) {"));
+    assert!(r.contains("for (let __i = 0; __i < __v_len; __i++) {"));
     assert!(r.contains("ctx[\"item\"] = __v[__i];"));
-    assert!(r.contains("ctx[\"i\"] = __i;"));
-    // Loop variables are scoped and restored after the loop.
+    // The six contract fields, bound per iteration.
+    assert!(
+        r.contains("ctx[\"forloop\"] = { index: __i + 1, index0: __i, first: __i === 0, last: __i + 1 === __v_len, length: __v_len, depth: __v_meta_depth };")
+    );
+    // Loop variables and `forloop` are scoped and restored after the loop.
     assert!(r.contains("Object.prototype.hasOwnProperty.call(ctx, \"item\")"));
     assert!(r.contains("if (__v_item_has) ctx[\"item\"] = __v_item_prev; else delete ctx[\"item\"];"));
+    assert!(r.contains("if (__v_meta_has) ctx[\"forloop\"] = __v_meta_prev; else delete ctx[\"forloop\"];"));
 }
 
 #[test]
-fn for_without_index_skips_ctx_index_assignment() {
+fn forloop_depth_follows_the_outer_binding() {
     let ir = doc(vec![stmt_for(
-        "x", None, ident("items"), vec![interp(ident("x"), false)],
+        "x",
+        ident("items"),
+        vec![interp(member(ident("forloop"), "depth"), false)],
     )]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
-    assert!(!r.contains("ctx[\"i\"]"));
-    assert!(r.contains("ctx[\"x\"] = __v[__i];"));
-    assert!(!r.contains("_index_has"));
+    assert!(r.contains(
+        "const __v_meta_depth = (__v_meta_prev !== undefined && __v_meta_prev !== null && typeof __v_meta_prev === \"object\" && Number.isInteger(__v_meta_prev.depth) && __v_meta_prev.depth >= 1) ? __v_meta_prev.depth + 1 : 1;"
+    ));
 }
 
 #[test]
 fn two_loops_in_one_template_get_distinct_scopes() {
     let ir = doc(vec![
-        stmt_for("a", None, ident("xs"), vec![text("x")]),
-        stmt_for("b", Some("i"), ident("ys"), vec![text("y")]),
+        stmt_for("a", ident("xs"), vec![text("x")]),
+        stmt_for("b", ident("ys"), vec![text("y")]),
     ]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
@@ -628,8 +632,8 @@ fn generated_code_runs_in_node_stub() {
         text("Hello, "),
         interp(pipe("escape", ident("name"), vec![]), false),
         text("! items=["),
-        stmt_for("item", Some("i"), ident("items"), vec![
-            interp(ident("i"), false),
+        stmt_for("item", ident("items"), vec![
+            interp(member(ident("forloop"), "index0"), false),
             text(":"),
             interp(ident("item"), false),
             text(" "),
