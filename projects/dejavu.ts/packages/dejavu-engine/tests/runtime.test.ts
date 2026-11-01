@@ -13,6 +13,7 @@ import {
     exprMember,
     exprIndex,
 } from "../src/runtime/index.js";
+import { filterSpec } from "../src/runtime/filter.js";
 
 // ---------------------------------------------------------------------------
 // htmlEscape
@@ -186,6 +187,68 @@ describe("applyFilter", () => {
         expect(() => applyFilter("replace", "a", ["a"])).toThrow(
             "dejavu.template.filter-arity",
         );
+    });
+});
+
+// ---------------------------------------------------------------------------
+// 上下文敏感 escape_* filter 族 —— 逐项对齐 Rust oracle
+// （dejavu.rs/crates/dejavu-ir/tests/context_escape.rs）
+// ---------------------------------------------------------------------------
+describe("context escape filters", () => {
+    it("escape_attr —— 转义 `& < > \" '`，普通字符原样", () => {
+        expect(applyFilter("escape_attr", `<a href="x">'</a>`, [])).toBe(
+            "&lt;a href=&quot;x&quot;&gt;&#39;&lt;/a&gt;",
+        );
+        expect(applyFilter("escape_attr", "home-page_1", [])).toBe("home-page_1");
+    });
+
+    it("escape_url —— allowlist scheme 与相对路径放行并 percent-encode", () => {
+        expect(applyFilter("escape_url", "https://example.com/a b?q=1&x=2", [])).toBe(
+            "https://example.com/a%20b?q=1&x=2",
+        );
+        expect(applyFilter("escape_url", "HTTPS://x", [])).toBe("HTTPS://x");
+        expect(applyFilter("escape_url", "mailto:a@b.c", [])).toBe("mailto:a@b.c");
+        for (const rel of ["/docs/a.md", "?q=1", "#frag", "page.html", ""]) {
+            expect(applyFilter("escape_url", rel, [])).toBe(rel);
+        }
+        expect(applyFilter("escape_url", "/a%20b", [])).toBe("/a%2520b");
+        expect(applyFilter("escape_url", "/é", [])).toBe("/%C3%A9");
+        // head 含空格不构成 scheme：按相对路径放行并编码。
+        expect(applyFilter("escape_url", "java script:alert(1)", [])).toBe(
+            "java%20script:alert(1)",
+        );
+    });
+
+    it("escape_url —— allowlist 外 scheme 与 protocol-relative 拒绝 → null", () => {
+        expect(applyFilter("escape_url", "javascript:alert(1)", [])).toBeNull();
+        expect(applyFilter("escape_url", "//evil.com/x", [])).toBeNull();
+        expect(applyFilter("escape_url", "data:text/html,<script>", [])).toBeNull();
+    });
+
+    it("escape_js —— 引号突破、控制字符与 U+2028 / U+2029", () => {
+        expect(applyFilter("escape_js", '"; alert(1); "', [])).toBe(
+            "\"\\\"; alert(1); \\\"\"",
+        );
+        expect(applyFilter("escape_js", "a\nb\u2028c\u0000d", [])).toBe(
+            '"a\\nb\\u2028c\\u0000d"',
+        );
+        // `< > & '` 不属于 JS 字面量转义集，交给插值自动转义。
+        expect(applyFilter("escape_js", "<&'>", [])).toBe(`"<&'>"`);
+    });
+
+    it("escape_css —— hex 转义带终结空格、反斜杠加倍、非 ASCII 原样", () => {
+        expect(applyFilter("escape_css", "red;color:blue", [])).toBe("red\\3b color\\3a blue");
+        expect(applyFilter("escape_css", "a\nb", [])).toBe("a\\a b");
+        expect(applyFilter("escape_css", "a-b_9", [])).toBe("a-b_9");
+        expect(applyFilter("escape_css", "a\\bé", [])).toBe("a\\\\b\u00e9");
+    });
+
+    it("escape_* 都是 pure —— `safe` 不跨上下文豁免", () => {
+        for (const name of ["escape_attr", "escape_url", "escape_js", "escape_css"]) {
+            expect(filterSpec(name)?.capability).toBe("pure");
+            expect(filterSpec(name)?.minArgs).toBe(0);
+            expect(filterSpec(name)?.maxArgs).toBe(0);
+        }
     });
 });
 

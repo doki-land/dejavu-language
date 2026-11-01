@@ -1,6 +1,6 @@
 import type { CustomRegistry } from "./custom.js";
 import { invokeCustom } from "./custom.js";
-import { htmlEscape } from "./escape.js";
+import { escapeAttr, escapeCss, escapeJs, escapeUrl, htmlEscape } from "./escape.js";
 import { runtimeError } from "./errors.js";
 import { valueToString } from "./value.js";
 
@@ -34,6 +34,10 @@ export const FILTERS: readonly FilterSpec[] = [
     { name: "replace", aliases: [], minArgs: 2, maxArgs: 2, capability: "pure" },
     { name: "escape", aliases: ["e"], minArgs: 0, maxArgs: 0, capability: "safe-output" },
     { name: "safe", aliases: ["raw"], minArgs: 0, maxArgs: 0, capability: "safe-output" },
+    { name: "escape_attr", aliases: [], minArgs: 0, maxArgs: 0, capability: "pure" },
+    { name: "escape_url", aliases: [], minArgs: 0, maxArgs: 0, capability: "pure" },
+    { name: "escape_js", aliases: [], minArgs: 0, maxArgs: 0, capability: "pure" },
+    { name: "escape_css", aliases: [], minArgs: 0, maxArgs: 0, capability: "pure" },
     { name: "date", aliases: [], minArgs: 0, maxArgs: 1, capability: "pure" },
     { name: "slug", aliases: [], minArgs: 0, maxArgs: 0, capability: "pure" },
 ];
@@ -80,6 +84,19 @@ export function applyFilter(
         case "raw":
         case "safe":
             return value;
+
+        case "escape_attr":
+            return escapeAttr(valueToString(value));
+
+        case "escape_url":
+            // 拒绝非法 scheme：返回 null（渲染为空串），与 Rust `Value::Null` 一致。
+            return escapeUrl(valueToString(value));
+
+        case "escape_js":
+            return escapeJs(valueToString(value));
+
+        case "escape_css":
+            return escapeCss(valueToString(value));
 
         case "uppercase":
         case "upper":
