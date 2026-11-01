@@ -1,0 +1,50 @@
+{
+    "irVersion": "v0",
+    "language": {
+        "syntaxMode": "template",
+        "template": {
+            "codeStart": "<%",
+            "codeEnd": "%>",
+            "commentStart": "<#",
+            "commentEnd": "#>",
+            "supportFilterPipe": true,
+            "legacyFor": false
+        }
+    },
+    "body": {
+        "type": "Template",
+        "children": [
+            {
+                "type": "Stmt.If",
+                "test": {
+                    "type": "Expr.Test",
+                    "expression": {
+                        "type": "Expr.Member",
+                        "object": {
+                            "type": "Expr.Identifier",
+                            "name": "user"
+                        },
+                        "property": "nickname"
+                    },
+                    "test": "none",
+                    "arguments": [],
+                    "negated": false
+                },
+                "consequent": [
+                    {
+                        "type": "Text",
+                        "value": "yes"
+                    }
+                ],
+                "elseIfs": [],
+                "trim": "none",
+                "alternate": [
+                    {
+                        "type": "Text",
+                        "value": "no"
+                    }
+                ]
+            }
+        ]
+    }
+}

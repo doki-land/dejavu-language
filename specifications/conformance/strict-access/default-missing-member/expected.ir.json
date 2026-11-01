@@ -1,0 +1,42 @@
+{
+    "irVersion": "v0",
+    "language": {
+        "syntaxMode": "template",
+        "template": {
+            "codeStart": "<%",
+            "codeEnd": "%>",
+            "commentStart": "<#",
+            "commentEnd": "#>",
+            "supportFilterPipe": true,
+            "legacyFor": false
+        }
+    },
+    "body": {
+        "type": "Template",
+        "children": [
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Pipe",
+                    "filter": "default",
+                    "expression": {
+                        "type": "Expr.Member",
+                        "object": {
+                            "type": "Expr.Identifier",
+                            "name": "user"
+                        },
+                        "property": "nickname"
+                    },
+                    "arguments": [
+                        {
+                            "type": "Expr.Literal",
+                            "value": "anon"
+                        }
+                    ]
+                },
+                "trim": "none",
+                "raw": false
+            }
+        ]
+    }
+}

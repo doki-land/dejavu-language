@@ -1,0 +1,35 @@
+{
+    "irVersion": "v0",
+    "language": {
+        "syntaxMode": "template",
+        "template": {
+            "codeStart": "<%",
+            "codeEnd": "%>",
+            "commentStart": "<#",
+            "commentEnd": "#>",
+            "supportFilterPipe": true,
+            "legacyFor": false
+        }
+    },
+    "body": {
+        "type": "Template",
+        "children": [
+            {
+                "type": "Interpolation",
+                "expression": {
+                    "type": "Expr.Index",
+                    "object": {
+                        "type": "Expr.Identifier",
+                        "name": "o"
+                    },
+                    "index": {
+                        "type": "Expr.Literal",
+                        "value": "missing"
+                    }
+                },
+                "trim": "none",
+                "raw": false
+            }
+        ]
+    }
+}

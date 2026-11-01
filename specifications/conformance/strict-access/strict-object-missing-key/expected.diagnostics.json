@@ -1,0 +1,12 @@
+[
+    {
+        "code": "dejavu.template.undefined-index",
+        "stages": [
+            "render"
+        ],
+        "args": {
+            "name": "missing",
+            "path": "o[missing]"
+        }
+    }
+]

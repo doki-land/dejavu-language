@@ -32,8 +32,10 @@ const CATALOG_SUITES = [
     join(BASE, "builtin-expressions"),
     join(BASE, "control-flow-catalog"),
 ];
-/** Diagnostic suites: expected.ir.json + expected.diagnostics.json (`code` / `stage`). */
-const DIAGNOSTIC_SUITES = [join(BASE, "diagnostics")];
+/** Diagnostic suites: expected.ir.json + expected.diagnostics.json (`code` / `stage`).
+ * `strict-access` cases may also carry `expected.out.txt` to pin the rendered
+ * output of positive (no-diagnostic) fixtures. */
+const DIAGNOSTIC_SUITES = [join(BASE, "diagnostics"), join(BASE, "strict-access")];
 /** Catalog diagnostic suites: templates + entry.txt + expected.diagnostics.json. */
 const CATALOG_DIAGNOSTIC_SUITES = [join(BASE, "catalog-diagnostics")];
 /**
@@ -96,11 +98,13 @@ function diagnosticCases() {
         suiteCases(suite).map((name) => {
             const dir = join(suite, name);
             const optionsPath = join(dir, "options.render.json");
+            const outPath = join(dir, "expected.out.txt");
             return {
                 name: relative(BASE, dir),
                 irPath: join(dir, "expected.ir.json"),
                 ctxPath: join(dir, "context.ctx.json"),
                 optionsPath: existsSync(optionsPath) ? optionsPath : undefined,
+                out: existsSync(outPath) ? readFileSync(outPath, "utf8") : undefined,
                 expected: JSON.parse(readFileSync(join(dir, "expected.diagnostics.json"), "utf8")),
             };
         }),
@@ -738,7 +742,15 @@ function main() {
             }
             const pairs = diagnosticPairs(payload);
             keys[adapter.label] = codeKey(pairs);
-            const ok = matchesExpected(pairs, c.expected);
+            let ok = matchesExpected(pairs, c.expected);
+            if (ok && c.out !== undefined) {
+                const output = JSON.parse(payload).output ?? "";
+                ok = normalize(output) === normalize(c.out);
+                if (!ok) {
+                    console.log(`\n    expected output ${JSON.stringify(c.out)}`);
+                    console.log(`    actual output   ${JSON.stringify(output)}`);
+                }
+            }
             if (!ok) failedAny = true;
             process.stdout.write(`[${adapter.label}=${ok ? "OK" : "FAIL"}] `);
         }

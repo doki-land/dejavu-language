@@ -1,0 +1,12 @@
+[
+    {
+        "code": "dejavu.template.undefined-member",
+        "stages": [
+            "render"
+        ],
+        "args": {
+            "name": "profile",
+            "path": "user.profile"
+        }
+    }
+]
