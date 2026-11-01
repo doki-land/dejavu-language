@@ -1,0 +1,5 @@
+A
+<% if x %>
+<% end if %>
+<# note #>
+B

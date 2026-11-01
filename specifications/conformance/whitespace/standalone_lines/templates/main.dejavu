@@ -1,0 +1,12 @@
+A
+<% if x %>
+B
+<% else %>
+C
+<% end if %>
+<# comment #>
+D
+<% loop i in xs %>
+E
+<% end loop %>
+F

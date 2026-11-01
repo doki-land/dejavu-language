@@ -1,0 +1,9 @@
+A
+<% if x _%>
+B
+<% end if %>
+C
+  <%_ if y %>
+D
+<% end if %>
+E
