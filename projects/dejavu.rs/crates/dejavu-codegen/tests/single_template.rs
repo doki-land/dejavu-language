@@ -178,7 +178,7 @@ fn interpolation_plain_emits_html_escape() {
     let ir = doc(vec![interp(ident("name"), false)]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round_body(&res.code);
-    assert!(r.contains("let __v = ctx.name;"));
+    assert!(r.contains("let __v = exprIdent(ctx, \"name\", __strict);"));
     assert!(r.contains("__out.push(htmlEscape(valueToString(__v)));"));
 }
 
@@ -187,7 +187,7 @@ fn interpolation_raw_flag_skips_html_escape() {
     let ir = doc(vec![interp(ident("name"), true)]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round_body(&res.code);
-    assert!(r.contains("let __v = ctx.name;"));
+    assert!(r.contains("let __v = exprIdent(ctx, \"name\", __strict);"));
     assert!(r.contains("__out.push(valueToString(__v));"));
     assert!(!r.contains("htmlEscape"));
 }
@@ -241,7 +241,7 @@ fn if_statement_emits_is_truthy() {
     )]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
-    assert!(r.contains("if (isTruthy(ctx.ok)) {"));
+    assert!(r.contains("if (isTruthy(exprIdent(ctx, \"ok\", __strict))) {"));
     assert!(r.contains("__out.push(\"yes\");"));
     assert!(r.contains("} else {"));
     assert!(r.contains("__out.push(\"no\");"));
@@ -260,9 +260,9 @@ fn if_elseif_chain() {
     )]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
-    assert!(r.contains("if (isTruthy(ctx.a)) {"));
-    assert!(r.contains("else if (isTruthy(ctx.b)) {"));
-    assert!(r.contains("else if (isTruthy(ctx.c)) {"));
+    assert!(r.contains("if (isTruthy(exprIdent(ctx, \"a\", __strict))) {"));
+    assert!(r.contains("else if (isTruthy(exprIdent(ctx, \"b\", __strict))) {"));
+    assert!(r.contains("else if (isTruthy(exprIdent(ctx, \"c\", __strict))) {"));
     assert!(r.contains("} else {"));
 }
 
@@ -279,7 +279,7 @@ fn for_binds_implicit_forloop_metadata() {
     )]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
-    assert!(r.contains("let __v = ctx.items;"));
+    assert!(r.contains("let __v = exprIdent(ctx, \"items\", __strict);"));
     assert!(r.contains("for (let __i = 0; __i < __v_len; __i++) {"));
     assert!(r.contains("ctx[\"item\"] = __v[__i];"));
     // The six contract fields, bound per iteration.
@@ -315,8 +315,8 @@ fn two_loops_in_one_template_get_distinct_scopes() {
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
     // Each loop uses its own iterable temp and block scope.
-    assert!(r.contains("let __v = ctx.xs;"));
-    assert!(r.contains("let __v1 = ctx.ys;"));
+    assert!(r.contains("let __v = exprIdent(ctx, \"xs\", __strict);"));
+    assert!(r.contains("let __v1 = exprIdent(ctx, \"ys\", __strict);"));
     assert!(!r.contains("let __it"));
 }
 
@@ -363,9 +363,9 @@ fn expr_reserved_word_uses_bracket() {
                        interp(ident("await"), false)]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
-    assert!(r.contains("ctx[\"if\"]"));
-    assert!(r.contains("ctx[\"for\"]"));
-    assert!(r.contains("ctx[\"await\"]"));
+    assert!(r.contains("exprIdent(ctx, \"if\", __strict)"));
+    assert!(r.contains("exprIdent(ctx, \"for\", __strict)"));
+    assert!(r.contains("exprIdent(ctx, \"await\", __strict)"));
 }
 
 #[test]
@@ -373,7 +373,7 @@ fn expr_member_emits_helper() {
     let ir = doc(vec![interp(member(ident("user"), "name"), false)]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
-    assert!(r.contains("exprMember(ctx.user, \"name\")"));
+    assert!(r.contains("exprMember(exprIdent(ctx, \"user\", __strict), \"name\", __strict, \"user.name\")"));
 }
 
 #[test]
@@ -381,7 +381,7 @@ fn expr_index_emits_helper() {
     let ir = doc(vec![interp(index(ident("arr"), lit(json!(0))), false)]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
-    assert!(r.contains("exprIndex(ctx.arr, 0)"));
+    assert!(r.contains("exprIndex(exprIdent(ctx, \"arr\", __strict), 0, __strict, \"arr[0]\")"));
 }
 
 #[test]
@@ -398,8 +398,8 @@ fn expr_unary_emits_helper() {
                        interp(unary("!", ident("y")), false)]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
-    assert!(r.contains("unary(\"-\", ctx.x)"));
-    assert!(r.contains("unary(\"!\", ctx.y)"));
+    assert!(r.contains("unary(\"-\", exprIdent(ctx, \"x\", __strict))"));
+    assert!(r.contains("unary(\"!\", exprIdent(ctx, \"y\", __strict))"));
 }
 
 // ---------------------------------------------------------------------------
@@ -450,7 +450,7 @@ fn expr_test_emits_apply_test() {
     let ir = doc(vec![interp(test_node(ident("n"), "even", vec![], false), false)]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round_body(&res.code);
-    assert!(r.contains("applyTest(\"even\", ctx.n, [], false, __custom)"), "{r}");
+    assert!(r.contains("applyTest(\"even\", exprIdent(ctx, \"n\", __strict), [], false, __custom)"), "{r}");
     assert!(res.diagnostics.is_empty(), "{:?}", res.diagnostics);
 }
 
@@ -459,7 +459,7 @@ fn expr_test_negation_and_alias_use_canonical_name() {
     let ir = doc(vec![interp(test_node(ident("v"), "none", vec![], true), false)]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round_body(&res.code);
-    assert!(r.contains("applyTest(\"null\", ctx.v, [], true, __custom)"), "{r}");
+    assert!(r.contains("applyTest(\"null\", exprIdent(ctx, \"v\", __strict), [], true, __custom)"), "{r}");
 }
 
 #[test]
@@ -516,28 +516,30 @@ fn stmt_include_emits_throw_and_diagnostic() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn strict_undefined_injects_check_after_identifier_interp() {
+fn strict_is_a_render_time_option_never_baked_into_codegen() {
     let ir = doc(vec![interp(ident("missing"), false)]);
+    // Even a legacy `strictUndefined` key in codegen options must not change
+    // the module: strict is read from `options.strictUndefined` per render.
     let res = compile_opts(
         &serde_json::to_string(&ir).unwrap(),
         r#"{"strictUndefined": true}"#,
     );
-    let r = round(&res.code);
-    assert!(r.contains(
-        "if (__strict && __v === undefined) throw runtimeError(\"dejavu.template.undefined-variable\", \"missing\", { name: \"missing\" });"
-    ));
+    let plain = compile(&serde_json::to_string(&ir).unwrap());
+    assert_eq!(res.code, plain.code);
+    assert!(res.code.contains("const __strict = options.strictUndefined === true;"));
+    assert!(res.code.contains("let __v = exprIdent(ctx, \"missing\", __strict);"));
 }
 
 #[test]
-fn non_strict_defaults_runtime_strict_off() {
-    let ir = doc(vec![interp(ident("missing"), false)]);
+fn member_and_index_take_runtime_strict_and_path() {
+    let ir = doc(vec![
+        interp(member(ident("user"), "email"), false),
+        interp(index(ident("items"), lit(json!(3))), false),
+    ]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
-    // The check is emitted but gated by `__strict`, whose build-time default
-    // is false here.
-    assert!(res
-        .code
-        .contains("const __strict = options.strictUndefined === undefined ? false : options.strictUndefined === true;"));
-    assert!(res.code.contains("if (__strict && __v === undefined)"));
+    let r = round(&res.code);
+    assert!(r.contains("exprMember(exprIdent(ctx, \"user\", __strict), \"email\", __strict, \"user.email\")"));
+    assert!(r.contains("exprIndex(exprIdent(ctx, \"items\", __strict), 3, __strict, \"items[3]\")"));
 }
 
 // ---------------------------------------------------------------------------
@@ -601,10 +603,10 @@ fn origins_point_each_construct_at_its_template_span() {
         vec![
             LineOrigin { line: 8, start: 0, end: 5 },
             LineOrigin { line: 9, start: 5, end: 15 },
-            // The interpolation emits its (runtime-gated) strict check, so the
-            // following `if` starts one body line later.
-            LineOrigin { line: 12, start: 15, end: 40 },
-            LineOrigin { line: 13, start: 21, end: 24 },
+            // The interpolation is two body lines (eval + push); the `if`
+            // starts on the third.
+            LineOrigin { line: 11, start: 15, end: 40 },
+            LineOrigin { line: 12, start: 21, end: 24 },
         ]
     );
 
@@ -677,8 +679,34 @@ const __rt = {
   unary: (op, a) => {
     switch (op) { case '!': return !a; case '-': return -a; case '+': return +a; default: return null; }
   },
-  exprMember: (obj, prop) => obj == null ? null : obj[prop] ?? null,
-  exprIndex: (arr, i) => arr == null ? null : arr[i] ?? null,
+  exprIdent: (ctx, name, strict) => {
+    if (Object.prototype.hasOwnProperty.call(ctx, name)) return ctx[name];
+    if (strict) throw runtimeError("dejavu.template.undefined-variable", name, { name });
+    return null;
+  },
+  exprMember: (obj, prop, strict, path) => {
+    if (obj == null) return null;
+    if (strict && typeof obj === 'object' && !Array.isArray(obj) && !Object.prototype.hasOwnProperty.call(obj, prop)) {
+      throw runtimeError("dejavu.template.undefined-member", prop, { name: prop, path });
+    }
+    return obj[prop] ?? null;
+  },
+  exprIndex: (arr, i, strict, path) => {
+    if (arr == null) return null;
+    if (Array.isArray(arr)) {
+      if (strict && typeof i === 'number' && Number.isInteger(i) && i >= 0 && i >= arr.length) {
+        throw runtimeError("dejavu.template.undefined-index", String(i), { name: String(i), path });
+      }
+      return arr[i] ?? null;
+    }
+    if (typeof arr === 'object') {
+      if (strict && typeof i === 'string' && !Object.prototype.hasOwnProperty.call(arr, i)) {
+        throw runtimeError("dejavu.template.undefined-index", i, { name: i, path });
+      }
+      return arr[i] ?? null;
+    }
+    return null;
+  },
   runtimeError: (code, detail) => {
     const err = new Error(detail ? `${code}: ${detail}` : code);
     err.code = code;
@@ -686,7 +714,7 @@ const __rt = {
     return err;
   },
 };
-const { htmlEscape, applyFilter, isTruthy, binary, unary, valueToString, exprMember, exprIndex, runtimeError } = __rt;
+const { htmlEscape, applyFilter, isTruthy, binary, unary, valueToString, exprIdent, exprMember, exprIndex, runtimeError } = __rt;
 "#;
 
     // Strip the ESM import/export lines so this runs as a plain script.

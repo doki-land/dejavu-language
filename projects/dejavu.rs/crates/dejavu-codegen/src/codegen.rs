@@ -139,7 +139,7 @@ pub fn precompile_single(
         ),
     }
 
-    let code = build_module(&body_str, &macro_fns, &[], &[], None, opts.strict_undefined, None);
+    let code = build_module(&body_str, &macro_fns, &[], &[], None, None);
     let origins = shift_origins(&ctx.origins, module_header_lines(0, macro_lines(&macro_fns)));
 
     Ok(PrecompileResult {
@@ -275,7 +275,6 @@ pub fn precompile_catalog(
             &template_imports,
             &exports,
             Some(&id_to_deps),
-            opts.strict_undefined,
             Some(&export_name),
         );
         let origins = shift_origins(
@@ -542,12 +541,11 @@ pub(crate) fn build_module(
     template_imports: &[String],
     macro_exports: &[String],
     _dep_map: Option<&HashMap<String, Vec<String>>>,
-    strict_undefined: bool,
     export_name: Option<&str>,
 ) -> String {
     let mut s = String::with_capacity(512 + body.len() + macro_fns.len());
     s.push_str(&format!(
-        "import {{ htmlEscape, applyFilter, isTruthy, binary, unary, valueToString, exprMember, exprIndex, callFunction, applyTest, runtimeError }} from \"{RUNTIME_IMPORT}\";\n"
+        "import {{ htmlEscape, applyFilter, isTruthy, binary, unary, valueToString, exprIdent, exprMember, exprIndex, callFunction, applyTest, runtimeError }} from \"{RUNTIME_IMPORT}\";\n"
     ));
     for imp in template_imports {
         s.push_str(imp);
@@ -557,11 +555,9 @@ pub(crate) fn build_module(
     s.push_str(macro_fns);
     s.push_str("export function render(ctx, options = {}, __partialDepth = 0) {\n");
     s.push_str("  if (!ctx || typeof ctx !== 'object') ctx = {};\n");
-    // Build-time `strictUndefined` is the default; an explicit per-call value
-    // overrides it.
-    s.push_str(&format!(
-        "  const __strict = options.strictUndefined === undefined ? {strict_undefined} : options.strictUndefined === true;\n"
-    ));
+    // Strict is a render-time option only: the generated module never bakes a
+    // build-time default in (same option as JIT / WASM read per render call).
+    s.push_str("  const __strict = options.strictUndefined === true;\n");
     // Host-supplied registry implementations. Passed to every registry call so
     // the generated module never reads module-level state.
     s.push_str("  const __custom = options.custom;\n");

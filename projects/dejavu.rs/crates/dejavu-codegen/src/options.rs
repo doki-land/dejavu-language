@@ -10,11 +10,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CodegenOptions {
-    /// Emit runtime `throw` when an identifier resolves to `undefined`
-    /// (matches dejavu-engine strictUndefined render behaviour).
-    #[serde(default)]
-    pub strict_undefined: bool,
-
     /// Template id / entry id for dependency tracking. If absent we fall back
     /// to `"__entry__"` (single template has no catalog).
     #[serde(default)]

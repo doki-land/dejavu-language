@@ -19,4 +19,4 @@ export type {
     CustomTest,
 } from "./custom.js";
 export { invokeCustom } from "./custom.js";
-export { binary, unary, exprMember, exprIndex } from "./expr.js";
+export { binary, unary, exprIdent, exprMember, exprIndex } from "./expr.js";

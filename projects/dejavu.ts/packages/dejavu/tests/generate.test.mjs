@@ -177,9 +177,9 @@ test("source maps point generated lines at their template spans", async (t) => {
     assert.equal(escapes.length, 2, "one interpolated push per interpolation");
 
     assert.deepEqual(positions.get(lineOf('__out.push("<h1>")')), { source: 0, line: 0, column: 0 });
-    // Interpolation origins attach to the evaluation line, before the strictUndefined guard.
+    // Interpolation origins attach to the evaluation line.
     assert.deepEqual(positions.get(evalLine("__v")), { source: 0, line: 0, column: 4 });
-    assert.deepEqual(positions.get(lineOf("if (isTruthy(ctx.ok))")), { source: 0, line: 1, column: 0 });
+    assert.deepEqual(positions.get(lineOf('if (isTruthy(exprIdent(ctx, "ok", __strict)))')), { source: 0, line: 1, column: 0 });
     assert.deepEqual(positions.get(evalLine("__v1")), { source: 0, line: 2, column: 3 });
 });
 

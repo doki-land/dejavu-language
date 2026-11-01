@@ -239,7 +239,6 @@ function compileEntries(config: ResolvedConfig, catalog: Catalog): GenerateCompi
 
         const result = precompileCatalog(catalog, {
             entryId: canonicalId,
-            strictUndefined: config.render.strictUndefined,
         });
 
         const error = DejavuError.fromDiagnostics(result.diagnostics);

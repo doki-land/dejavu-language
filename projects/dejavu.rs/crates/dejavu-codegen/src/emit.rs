@@ -337,12 +337,12 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
         IrNode::ExprIdentifier { name, .. } => emit_identifier(name),
         IrNode::ExprMember { object, property, .. } => {
             let obj = emit_expr(object, ctx);
-            format!("exprMember({obj}, {})", json_string(property))
+            format!("exprMember({obj}, {}, __strict, {})", json_string(property), json_string(&access_path(node)))
         }
         IrNode::ExprIndex { object, index, .. } => {
             let obj = emit_expr(object, ctx);
             let idx = emit_expr(index, ctx);
-            format!("exprIndex({obj}, {idx})")
+            format!("exprIndex({obj}, {idx}, __strict, {})", json_string(&access_path(node)))
         }
         IrNode::ExprBinary { operator, left, right, .. } => {
             let l = emit_expr(left, ctx);
@@ -655,12 +655,39 @@ fn format_js_number(f: f64) -> String {
     f.to_string()
 }
 
-/// Emit a JS identifier expression. Handles reserved-word escape.
+/// Emit a JS identifier read through the strict-aware runtime helper.
+///
+/// `exprIdent` owns the missing-identifier check (renders `null` when lenient,
+/// throws `dejavu.template.undefined-variable` when the render-time `__strict`
+/// flag is on), matching the interpreter's identifier evaluation.
 pub fn emit_identifier(name: &str) -> String {
-    if is_reserved(name) {
-        format!("ctx[{}]", json_string(name))
-    } else {
-        format!("ctx.{name}")
+    format!("exprIdent(ctx, {}, __strict)", json_string(name))
+}
+
+/// Syntax-level access path for strict undefined member/index args.
+///
+/// Mirrors `dejavu_ir::render::access_path`: identifiers print their name,
+/// member/index chains join with `.` / `[...]`. A literal integer index prints
+/// as its integer string, a literal string index prints as-is, anything
+/// dynamic prints `?`. Non-access expression roots also yield `?`.
+fn access_path(node: &IrNode) -> String {
+    match node {
+        IrNode::ExprIdentifier { name, .. } => name.clone(),
+        IrNode::ExprMember { object, property, .. } => {
+            format!("{}.{}", access_path(object), property)
+        }
+        IrNode::ExprIndex { object, index, .. } => {
+            let label = match index.as_ref() {
+                IrNode::ExprLiteral { value, .. } => match value {
+                    Value::Number(n) if n.as_u64().is_some() => n.to_string(),
+                    Value::String(s) => s.clone(),
+                    _ => "?".to_string(),
+                },
+                _ => "?".to_string(),
+            };
+            format!("{}[{}]", access_path(object), label)
+        }
+        _ => "?".to_string(),
     }
 }
 
@@ -1131,17 +1158,6 @@ fn emit_for(
     out.push_str("{\n");
     out.push_str(&format!("let {it_temp} = {};\n", emit_expr(iterable, ctx)));
 
-    // Strict check is always emitted and gated by the runtime `__strict`
-    // flag, so a caller-supplied `strictUndefined` can override the
-    // build-time default.
-    if let IrNode::ExprIdentifier { name, .. } = iterable {
-        out.push_str(&format!(
-            "if (__strict && {it_temp} === undefined) throw runtimeError(\"dejavu.template.undefined-variable\", {}, {{ name: {} }});\n",
-            json_string(name),
-            json_string(name)
-        ));
-    }
-
     // Save the caller context's own `item` slot before the loop overwrites it.
     out.push_str(&format!(
         "const {item_has} = Object.prototype.hasOwnProperty.call(ctx, {});\n",
@@ -1207,26 +1223,10 @@ fn emit_interpolation(
     // Always eval into a temp for easy strict-check injection.
     let temp = ctx.next_temp();
 
-    // Strict undefined check: when the *top-level expression* is an identifier,
-    // we can name it for the error. Otherwise skip the named hint.
-    //
-    // The check is emitted unconditionally and gated by the runtime `__strict`
-    // flag, so callers can turn strict mode on/off per render call regardless
-    // of the build-time default.
-    let strict_msg = match expression {
-        IrNode::ExprIdentifier { name, .. } => Some(format!(
-            "if (__strict && {temp} === undefined) throw runtimeError(\"dejavu.template.undefined-variable\", {}, {{ name: {} }});",
-            json_string(name),
-            json_string(name)
-        )),
-        _ => None,
-    };
-
+    // Missing-identifier strict reporting lives in the `exprIdent` runtime
+    // helper (and member/index reporting in `exprMember` / `exprIndex`), so
+    // every evaluation site is covered, not just interpolation roots.
     out.push_str(&format!("let {temp} = {expr_fragment};\n"));
-    if let Some(check) = strict_msg {
-        out.push_str(&check);
-        out.push('\n');
-    }
 
     if needs_escape {
         out.push_str(&format!("__out.push(htmlEscape(valueToString({temp})));\n"));
@@ -1415,16 +1415,16 @@ fn emit_not_supported(
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-pub fn emit_expr_test(node: &IrNode, strict: bool) -> (String, Vec<Diagnostic>) {
-    let opts = CodegenOptions { strict_undefined: strict, ..Default::default() };
+pub fn emit_expr_test(node: &IrNode) -> (String, Vec<Diagnostic>) {
+    let opts = CodegenOptions::default();
     let mut ctx = CodegenCtx::new(&opts);
     let out = emit_expr(node, &mut ctx);
     (out, ctx.diagnostics)
 }
 
 #[cfg(test)]
-pub fn emit_body_test(nodes: &[IrNode], strict: bool) -> (String, Vec<Diagnostic>) {
-    let opts = CodegenOptions { strict_undefined: strict, ..Default::default() };
+pub fn emit_body_test(nodes: &[IrNode]) -> (String, Vec<Diagnostic>) {
+    let opts = CodegenOptions::default();
     let mut ctx = CodegenCtx::new(&opts);
     let mut out = String::new();
     emit_body(nodes, &mut ctx, &mut out, None);

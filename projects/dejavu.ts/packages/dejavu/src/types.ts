@@ -128,8 +128,6 @@ export type CustomRegistry = {
 
 /** Options accepted by `precompile`. */
 export type PrecompileOptions = {
-    /** Fail on undefined variables in generated code. */
-    strictUndefined?: boolean;
     /** Entry template id used for dependency tracking. */
     entryId?: string;
     /** Registry capabilities the compiled modules may use. Omit to grant all. */

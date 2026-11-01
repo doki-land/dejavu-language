@@ -345,7 +345,6 @@ export function precompileIrSingle(
     const response = native.precompileIrSingle({
         ir: irJson,
         options: JSON.stringify({
-            strictUndefined: options.strictUndefined ?? false,
             entryId: options.entryId,
             capabilities: options.capabilities,
             customRegistry: options.customRegistry,
@@ -369,7 +368,6 @@ export function precompileCatalog(
         entryIr: entryIrJson,
         catalog: catalogJson,
         options: JSON.stringify({
-            strictUndefined: options.strictUndefined ?? false,
             entryId: options.entryId,
             capabilities: options.capabilities,
             customRegistry: options.customRegistry,

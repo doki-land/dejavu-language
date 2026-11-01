@@ -207,7 +207,6 @@ export function precompile(
         });
     }
     const result = nativePrecompileIrSingle(parseResult.irJson, {
-        strictUndefined: options.strictUndefined,
         entryId: options.entryId,
         customRegistry: options.customRegistry,
     });

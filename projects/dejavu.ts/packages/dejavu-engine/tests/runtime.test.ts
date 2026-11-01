@@ -9,6 +9,7 @@ import {
     applyTest,
     binary,
     unary,
+    exprIdent,
     exprMember,
     exprIndex,
 } from "../src/runtime/index.js";
@@ -277,24 +278,53 @@ describe("unary", () => {
 });
 
 // ---------------------------------------------------------------------------
+// exprIdent
+// ---------------------------------------------------------------------------
+describe("exprIdent", () => {
+    it("存在键 → 值", () => {
+        expect(exprIdent({ name: "alice" }, "name", false)).toBe("alice");
+    });
+
+    it("缺失键 lenient → null", () => {
+        expect(exprIdent({}, "missing", false)).toBeNull();
+    });
+
+    it("缺失键 strict → undefined-variable", () => {
+        expect(() => exprIdent({}, "missing", true)).toThrow(
+            "dejavu.template.undefined-variable: missing",
+        );
+    });
+});
+
+// ---------------------------------------------------------------------------
 // exprMember
 // ---------------------------------------------------------------------------
 describe("exprMember", () => {
     it("obj.property", () => {
-        expect(exprMember({ name: "alice" }, "name")).toBe("alice");
+        expect(exprMember({ name: "alice" }, "name", false, "user.name")).toBe("alice");
     });
 
     it("obj 为 null/undefined → null", () => {
-        expect(exprMember(null, "name")).toBeNull();
-        expect(exprMember(undefined, "name")).toBeNull();
+        expect(exprMember(null, "name", false, "user.name")).toBeNull();
+        expect(exprMember(undefined, "name", false, "user.name")).toBeNull();
     });
 
     it("键不存在 → null", () => {
-        expect(exprMember({ a: 1 }, "b")).toBeNull();
+        expect(exprMember({ a: 1 }, "b", false, "o.b")).toBeNull();
     });
 
     it("值为 undefined 时也返回 null", () => {
-        expect(exprMember({ a: undefined }, "a")).toBeNull();
+        expect(exprMember({ a: undefined }, "a", false, "o.a")).toBeNull();
+    });
+
+    it("缺失成员 strict → undefined-member 带 path", () => {
+        expect(() => exprMember({ a: 1 }, "b", true, "o.b")).toThrow(
+            "dejavu.template.undefined-member: b",
+        );
+    });
+
+    it("null 接收者 strict 仍宽容", () => {
+        expect(exprMember(null, "name", true, "user.name")).toBeNull();
     });
 });
 
@@ -303,26 +333,42 @@ describe("exprMember", () => {
 // ---------------------------------------------------------------------------
 describe("exprIndex", () => {
     it("arr[i]", () => {
-        expect(exprIndex(["a", "b", "c"], 0)).toBe("a");
-        expect(exprIndex(["a", "b", "c"], 2)).toBe("c");
+        expect(exprIndex(["a", "b", "c"], 0, false, "arr[0]")).toBe("a");
+        expect(exprIndex(["a", "b", "c"], 2, false, "arr[2]")).toBe("c");
     });
 
     it("越界 → null", () => {
-        expect(exprIndex(["a", "b", "c"], 100)).toBeNull();
+        expect(exprIndex(["a", "b", "c"], 100, false, "arr[100]")).toBeNull();
     });
 
     it("对象索引（用 String(index)）", () => {
-        expect(exprIndex({ key: "val" }, "key")).toBe("val");
-        expect(exprIndex({ key: "val" }, "missing")).toBeNull();
+        expect(exprIndex({ key: "val" }, "key", false, "o[key]")).toBe("val");
+        expect(exprIndex({ key: "val" }, "missing", false, "o[missing]")).toBeNull();
     });
 
     it("null / undefined → null", () => {
-        expect(exprIndex(null, 0)).toBeNull();
-        expect(exprIndex(undefined, 0)).toBeNull();
+        expect(exprIndex(null, 0, false, "a[0]")).toBeNull();
+        expect(exprIndex(undefined, 0, false, "a[0]")).toBeNull();
     });
 
     it("非数组非对象 → null", () => {
-        expect(exprIndex(42, 0)).toBeNull();
+        expect(exprIndex(42, 0, false, "n[0]")).toBeNull();
+    });
+
+    it("非负整数越界 strict → undefined-index", () => {
+        expect(() => exprIndex(["a"], 5, true, "arr[5]")).toThrow(
+            "dejavu.template.undefined-index: 5",
+        );
+    });
+
+    it("对象字符串键缺失 strict → undefined-index", () => {
+        expect(() => exprIndex({ key: 1 }, "missing", true, "o[missing]")).toThrow(
+            "dejavu.template.undefined-index: missing",
+        );
+    });
+
+    it("负数下标 strict 仍 lenient", () => {
+        expect(exprIndex(["a"], -1, true, "arr[-1]")).toBeNull();
     });
 });
 

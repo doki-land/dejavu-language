@@ -192,14 +192,14 @@ export interface RenderSourceRequest {
 /** Single-template precompile request. */
 export interface PrecompileRequest {
     ir: string;
-    options?: { strictUndefined?: boolean; entryId?: string; capabilities?: string[] };
+    options?: { entryId?: string; capabilities?: string[] };
 }
 
 /** Catalog precompile request. */
 export interface PrecompileCatalogRequest {
     entryIr: string;
     catalog: CatalogSpec;
-    options?: { strictUndefined?: boolean; entryId?: string; capabilities?: string[] };
+    options?: { entryId?: string; capabilities?: string[] };
 }
 
 /** Input accepted by {@link initWasm}. */
@@ -343,7 +343,7 @@ function jsonOrUndefined(value: unknown): string | undefined {
 /**
  * The render wire uses `strict` for the strict-undefined flag, while the
  * author-facing surface keeps the `strictUndefined` vocabulary shared with the
- * codegen options and the AOT runtime.
+ * AOT runtime's per-render option. Strict is never a codegen option.
  */
 function encodeRenderOptions(options: RenderOptions | undefined): string | undefined {
     if (options === undefined) return undefined;

@@ -1,4 +1,4 @@
-//! AOT loop scoping and build-time `strictUndefined` tests.
+//! AOT loop scoping and render-time `strictUndefined` tests.
 //!
 //! These cover two codegen semantic defects:
 //!
@@ -6,8 +6,10 @@
 //!    (two loops → SyntaxError) and wrote loop variables into `ctx` without
 //!    restoring them afterwards (leaking into the caller context and nested
 //!    includes).
-//! 2. `build_module` ignored `CodegenOptions.strict_undefined`, hard-coding
-//!    the runtime `__strict` flag to the per-call option only.
+//! 2. `build_module` used to bake `CodegenOptions.strict_undefined` into the
+//!    generated `__strict` default. Strict is a render-time option only: the
+//!    module reads `options.strictUndefined` per call and never freezes a
+//!    build-time value (same option as JIT / WASM).
 //!
 //! Generated modules are executed under a small Node.js runtime stub (same
 //! pattern as `single_template.rs`); if Node is unavailable the runtime half
@@ -58,6 +60,14 @@ fn member(object: Value, property: &str) -> Value {
     json!({ "type": "Expr.Member", "object": object, "property": property })
 }
 
+fn lit(value: Value) -> Value {
+    json!({ "type": "Expr.Literal", "value": value })
+}
+
+fn index(object: Value, idx: Value) -> Value {
+    json!({ "type": "Expr.Index", "object": object, "index": idx })
+}
+
 fn compile(ir: &Value, opts_json: Option<&str>) -> String {
     precompile_single(&serde_json::to_string(ir).unwrap(), opts_json)
         .expect("compile should succeed")
@@ -76,8 +86,37 @@ const __rt = {
   applyFilter: (name, v) => v,
   binary: (op, l, r) => (op === '+' ? (typeof l === 'string' || typeof r === 'string' ? String(l) + String(r) : l + r) : null),
   unary: (op, a) => (op === '!' ? !a : null),
-  exprMember: (o, p) => o == null ? null : (o[p] === undefined ? null : o[p]),
-  exprIndex: (o, i) => o == null ? null : (o[i] === undefined ? null : o[i]),
+  exprIdent: (ctx, name, strict) => {
+    if (Object.prototype.hasOwnProperty.call(ctx, name)) return ctx[name];
+    if (strict) throw runtimeError("dejavu.template.undefined-variable", name, { name });
+    return null;
+  },
+  exprMember: (o, p, strict, path) => {
+    if (o == null) return null;
+    if (strict && typeof o === 'object' && !Array.isArray(o) && !Object.prototype.hasOwnProperty.call(o, p)) {
+      throw runtimeError("dejavu.template.undefined-member", p, { name: p, path });
+    }
+    const v = o[p];
+    return v === undefined ? null : v;
+  },
+  exprIndex: (o, i, strict, path) => {
+    if (o == null) return null;
+    if (Array.isArray(o)) {
+      if (strict && typeof i === 'number' && Number.isInteger(i) && i >= 0 && i >= o.length) {
+        throw runtimeError("dejavu.template.undefined-index", String(i), { name: String(i), path });
+      }
+      const v = o[Number(i) | 0];
+      return v === undefined ? null : v;
+    }
+    if (typeof o === 'object') {
+      if (strict && typeof i === 'string' && !Object.prototype.hasOwnProperty.call(o, i)) {
+        throw runtimeError("dejavu.template.undefined-index", i, { name: i, path });
+      }
+      const v = o[String(i)];
+      return v === undefined ? null : v;
+    }
+    return null;
+  },
   runtimeError: (code, detail) => {
     const err = new Error(detail ? `${code}: ${detail}` : code);
     err.code = code;
@@ -85,7 +124,7 @@ const __rt = {
     return err;
   },
 };
-const { htmlEscape, applyFilter, isTruthy, binary, unary, valueToString, exprMember, exprIndex, runtimeError } = __rt;
+const { htmlEscape, applyFilter, isTruthy, binary, unary, valueToString, exprIdent, exprMember, exprIndex, runtimeError } = __rt;
 "#;
 
 /// `Some(Ok((rendered, probe)))`, `Some(Err(message))`, or `None` when Node is
@@ -311,25 +350,26 @@ fn nested_loops_with_same_item_name_restore_outer_value() {
 }
 
 // ---------------------------------------------------------------------------
-// Defect 2: build-time strictUndefined + per-call override
+// Defect 2 (fixed): strict is a render-time option only — codegen never bakes
+// a default in, and the per-call option is the single switch.
 // ---------------------------------------------------------------------------
 
 #[test]
-fn strict_undefined_build_flag_applies_when_call_omits_option() {
+fn build_time_strict_flag_is_ignored_and_call_default_is_lenient() {
     let ir = doc(vec![interp(ident("missing"), false)]);
     let code = compile(&ir, Some(r#"{"strictUndefined": true}"#));
 
-    assert!(code.contains(
-        "const __strict = options.strictUndefined === undefined ? true : options.strictUndefined === true;"
-    ));
+    // The generated module reads the caller's option verbatim; a build-time
+    // `strictUndefined` must not appear anywhere in the emitted default.
+    assert!(code.contains("const __strict = options.strictUndefined === true;"));
+    assert!(!code.contains("=== undefined"));
     if let Some(out) = run_render(&code, "({})", "{}", "null") {
-        let err = out.expect_err("missing variable should throw");
-        assert!(err.contains("dejavu.template.undefined-variable: missing"), "{err}");
+        assert_eq!(out.unwrap().0, "", "call without strict option stays lenient");
     }
 }
 
 #[test]
-fn call_time_strict_true_overrides_build_time_false() {
+fn call_time_strict_true_throws_undefined_variable() {
     let ir = doc(vec![interp(ident("missing"), false)]);
     let code = compile(&ir, None);
 
@@ -340,9 +380,9 @@ fn call_time_strict_true_overrides_build_time_false() {
 }
 
 #[test]
-fn call_time_strict_false_overrides_build_time_true() {
+fn call_time_strict_false_renders_lenient() {
     let ir = doc(vec![interp(ident("missing"), false)]);
-    let code = compile(&ir, Some(r#"{"strictUndefined": true}"#));
+    let code = compile(&ir, None);
 
     if let Some(out) = run_render(&code, "({})", "{ strictUndefined: false }", "null") {
         let (rendered, _) = out.unwrap();
@@ -351,11 +391,41 @@ fn call_time_strict_false_overrides_build_time_true() {
 }
 
 #[test]
-fn build_time_strict_false_and_call_time_default_render_empty() {
-    let ir = doc(vec![interp(ident("missing"), false)]);
+fn call_time_strict_true_flags_missing_member_and_index() {
+    let ir = doc(vec![
+        interp(member(ident("user"), "nickname"), false),
+        text("|"),
+        interp(index(ident("items"), lit(json!(3))), false),
+    ]);
     let code = compile(&ir, None);
 
-    if let Some(out) = run_render(&code, "({})", "{}", "null") {
-        assert_eq!(out.unwrap().0, "");
+    if let Some(out) = run_render(
+        &code,
+        "({ user: { name: 'a' }, items: ['x'] })",
+        "{ strictUndefined: true }",
+        "null",
+    ) {
+        let err = out.expect_err("strict member access should throw");
+        assert!(err.contains("dejavu.template.undefined-member: nickname"), "{err}");
+    }
+
+    if let Some(out) = run_render(
+        &code,
+        "({ user: { nickname: 'n' }, items: ['x'] })",
+        "{ strictUndefined: true }",
+        "null",
+    ) {
+        let err = out.expect_err("strict index access should throw");
+        assert!(err.contains("dejavu.template.undefined-index: 3"), "{err}");
+    }
+
+    // Lenient default: both missing accesses collapse to empty segments.
+    if let Some(out) = run_render(
+        &code,
+        "({ user: { name: 'a' }, items: ['x'] })",
+        "{}",
+        "null",
+    ) {
+        assert_eq!(out.unwrap().0, "|");
     }
 }

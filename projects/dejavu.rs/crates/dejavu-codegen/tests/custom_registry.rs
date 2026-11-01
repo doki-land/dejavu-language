@@ -98,7 +98,7 @@ fn custom_filter_compiles_and_renders() {
     assert!(res.diagnostics.is_empty(), "{:?}", res.diagnostics);
     let body = round_body(&res.code);
     assert!(
-        body.contains("applyFilter(\"shout\", ctx.name, [], __custom)"),
+        body.contains("applyFilter(\"shout\", exprIdent(ctx, \"name\", __strict), [], __custom)"),
         "{body}"
     );
 
@@ -106,6 +106,7 @@ fn custom_filter_compiles_and_renders() {
 const __rt = {
   htmlEscape: (s) => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),
   valueToString: (v) => (v == null) ? '' : String(v),
+  exprIdent: (ctx, name) => (Object.prototype.hasOwnProperty.call(ctx, name) ? ctx[name] : null),
   applyFilter: (name, v, args, custom) => {
     const impl = custom && custom.filter && custom.filter[name];
     if (impl) return impl(v, args);
@@ -113,7 +114,7 @@ const __rt = {
   },
   runtimeError: (code, detail) => new Error(detail ? `${code}: ${detail}` : code),
 };
-const { htmlEscape, valueToString, applyFilter, runtimeError } = __rt;
+const { htmlEscape, valueToString, exprIdent, applyFilter, runtimeError } = __rt;
 "#;
     let mut lines: Vec<&str> = res.code.lines().collect();
     lines.retain(|l| !l.trim().starts_with("import ") && !l.trim().starts_with("export const "));
@@ -138,7 +139,7 @@ fn custom_filter_alias_emits_canonical_name() {
     );
     assert!(res.diagnostics.is_empty(), "{:?}", res.diagnostics);
     let body = round_body(&res.code);
-    assert!(body.contains("applyFilter(\"shout\", ctx.name, [], __custom)"), "{body}");
+    assert!(body.contains("applyFilter(\"shout\", exprIdent(ctx, \"name\", __strict), [], __custom)"), "{body}");
     assert!(!body.contains("applyFilter(\"loud\""), "{body}");
 }
 
@@ -220,7 +221,7 @@ fn custom_function_and_test_use_canonical_names() {
     );
     assert!(res.diagnostics.is_empty(), "{:?}", res.diagnostics);
     let body = round_body(&res.code);
-    assert!(body.contains("applyTest(\"evenish\", ctx.n, [], false, __custom)"), "{body}");
+    assert!(body.contains("applyTest(\"evenish\", exprIdent(ctx, \"n\", __strict), [], false, __custom)"), "{body}");
 }
 
 #[test]

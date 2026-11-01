@@ -104,8 +104,13 @@ const __rt = {
     switch (op) { case '+': return l + r; default: return null; }
   },
   unary: (op, a) => { switch (op) { case '!': return !a; default: return null; } },
-  exprMember: (o, p) => o == null ? null : o[p] ?? null,
-  exprIndex: (a, i) => a == null ? null : a[i] ?? null,
+  exprIdent: (ctx, name, strict) => {
+    if (Object.prototype.hasOwnProperty.call(ctx, name)) return ctx[name];
+    if (strict) throw runtimeError("dejavu.template.undefined-variable", name, { name });
+    return null;
+  },
+  exprMember: (o, p, strict) => o == null ? null : o[p] ?? null,
+  exprIndex: (a, i, strict) => a == null ? null : a[i] ?? null,
   runtimeError: (code, detail, args) => {
     const err = new Error(detail ? `${code}: ${detail}` : code);
     err.code = code;
@@ -114,7 +119,7 @@ const __rt = {
     return err;
   },
 };
-const { htmlEscape, applyFilter, isTruthy, binary, unary, valueToString, exprMember, exprIndex, runtimeError } = __rt;
+const { htmlEscape, applyFilter, isTruthy, binary, unary, valueToString, exprIdent, exprMember, exprIndex, runtimeError } = __rt;
 "#;
 
 fn stub_for(modules: &[dejavu_codegen::GeneratedModule]) -> Option<String> {
@@ -397,7 +402,7 @@ fn mixed_if_for_include_all_nodes_emit() {
     assert_eq!(res.modules.len(), 2);
     let entry_m = &res.modules[0];
     let r = round(&entry_m.code);
-    assert!(r.contains("if (isTruthy(ctx.ok))"));
+    assert!(r.contains("if (isTruthy(exprIdent(ctx, \"ok\", __strict)))"));
     assert!(r.contains("for (let __i = 0; __i < "));
     assert!(r.contains("ctx[\"it\"] = "));
     assert!(r.contains("_internal"));
@@ -532,7 +537,7 @@ fn include_with_merges_explicit_context_at_aot() {
     );
     assert!(errors(&res).is_empty(), "errors: {:?}", errors(&res));
     let r = round(&res.modules[0].code);
-    assert!(r.contains("Object.assign({}, ctx, ctx.card)"), "code: {r}");
+    assert!(r.contains("Object.assign({}, ctx, exprIdent(ctx, \"card\", __strict))"), "code: {r}");
 
     if let Some(out) = run_modules_in_node(
         &res.modules,

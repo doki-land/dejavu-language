@@ -190,7 +190,8 @@ pub struct ResolveResponse {
 pub struct PrecompileSingleRequest {
     /// 入口模板的 IR JSON。
     pub ir: String,
-    /// `{ strictUndefined?: bool, entryId?: string }` JSON。
+    /// `{ entryId?: string, capabilities?: string[], customRegistry?: [] }` JSON。
+    /// strict 是 render 期选项，不进入 codegen。
     pub options: Option<String>,
 }
 
@@ -247,7 +248,8 @@ pub struct PrecompileCatalogRequest {
     pub entry_ir: String,
     /// Catalog 规格 JSON（`{ roots: [{name, files: {path: ir_json}}], extensions? }`）。
     pub catalog: String,
-    /// `{ strictUndefined?: bool, entryId?: string }` JSON。
+    /// `{ entryId?: string, capabilities?: string[], customRegistry?: [] }` JSON。
+    /// strict 是 render 期选项，不进入 codegen。
     pub options: Option<String>,
 }
 
