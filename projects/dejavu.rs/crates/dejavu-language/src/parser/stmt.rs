@@ -6,7 +6,7 @@ use dejavu_ir::{NativeExpr, NativeImportName, NativeKind, NativeNode, NativePara
 
 use super::expr::parse_expr;
 use super::stmt_head::{CodeHead, classify_code};
-use super::Parser;
+use super::{Parser, STANDALONE_RIGHT, trim_first_text, trim_last_text};
 use crate::error::ParseError;
 use crate::lexer::TrimMode;
 use crate::token::CodeToken;
@@ -20,43 +20,70 @@ impl Parser<'_> {
         test_base: usize,
         trim: TrimMode,
         trim_end: TrimMode,
-        pending: Option<&str>,
-    ) -> Result<(NativeNode, usize), ParseError> {
+        pending: Vec<&'static str>,
+    ) -> Result<(NativeNode, usize, Vec<&'static str>), ParseError> {
         let test = parse_expr(self.source, self.file, test_base, test_src)?;
-        let (consequent, i2) = self.parse_until(i, &["else if", "else", "end if"])?;
+        let (mut consequent, i2) = self.parse_until(i, &["else if", "else", "end if"])?;
         i = i2;
-        let mut else_ifs = Vec::new();
-        let mut alternate = None;
+        let mut else_ifs: Vec<(NativeExpr, Vec<NativeNode>)> = Vec::new();
+        let mut alternate: Option<Vec<NativeNode>> = None;
+        let mut closer_pending: Vec<&'static str> = Vec::new();
 
         loop {
-            let (code, code_span, next_i) = self.peek_code(i)?;
-            let trimmed = code.trim();
-            let content_base = code_span.start + (code.len() - code.trim_start().len());
+            let tag = self.scan_tag(i)?;
+            let trimmed = tag.inner.trim();
+            let content_base = tag.inner_range.start + (tag.inner.len() - tag.inner.trim_start().len());
             let head = classify_code(self.source, self.file, trimmed, content_base)?;
+            // Closers never carry markers (rejected upstream), so standalone
+            // depends only on the line position.
+            let (sa_left, sa_right) = self.standalone_sides(i, tag.next, TrimMode::None, TrimMode::None);
             match head {
                 CodeHead::ElseIf { test_src, test_base } => {
-                    i = next_i;
+                    if sa_left {
+                        trim_branch_tail(&mut consequent, &mut else_ifs, &mut alternate);
+                    }
+                    i = tag.next;
                     let t = parse_expr(self.source, self.file, test_base, test_src)?;
-                    let (body, i3) = self.parse_until(i, &["else if", "else", "end if"])?;
+                    let (mut body, i3) = self.parse_until(i, &["else if", "else", "end if"])?;
+                    if sa_right {
+                        trim_first_text(&mut body);
+                    }
                     else_ifs.push((t, body));
                     i = i3;
                 }
                 CodeHead::Else => {
-                    i = next_i;
-                    let (body, i3) = self.parse_until(i, &["end if"])?;
+                    if sa_left {
+                        trim_branch_tail(&mut consequent, &mut else_ifs, &mut alternate);
+                    }
+                    i = tag.next;
+                    let (mut body, i3) = self.parse_until(i, &["end if"])?;
+                    if sa_right {
+                        trim_first_text(&mut body);
+                    }
                     alternate = Some(body);
                     i = i3;
-                    let (end_code, end_span, end_i) = self.peek_code(i)?;
-                    let end_trim = end_code.trim();
-                    let end_base = end_span.start + (end_code.len() - end_code.trim_start().len());
+                    let end_tag = self.scan_tag(i)?;
+                    let end_trim = end_tag.inner.trim();
+                    let end_base =
+                        end_tag.inner_range.start + (end_tag.inner.len() - end_tag.inner.trim_start().len());
                     match classify_code(self.source, self.file, end_trim, end_base)? {
-                        CodeHead::EndIf => i = end_i,
+                        CodeHead::EndIf => {
+                            let (e_left, e_right) =
+                                self.standalone_sides(i, end_tag.next, TrimMode::None, TrimMode::None);
+                            if e_left {
+                                trim_branch_tail(&mut consequent, &mut else_ifs, &mut alternate);
+                            }
+                            if e_right {
+                                closer_pending.extend_from_slice(&STANDALONE_RIGHT);
+                            }
+                            i = end_tag.next;
+                        }
                         _ => {
                             return Err(ParseError::at(
                                 self.source,
                                 self.file,
-                                end_span.start,
-                                end_span.len(),
+                                end_tag.inner_range.start,
+                                end_tag.inner_range.len(),
                                 "expected `end if`",
                                 "expected end if",
                             )
@@ -66,15 +93,21 @@ impl Parser<'_> {
                     break;
                 }
                 CodeHead::EndIf => {
-                    i = next_i;
+                    if sa_left {
+                        trim_branch_tail(&mut consequent, &mut else_ifs, &mut alternate);
+                    }
+                    if sa_right {
+                        closer_pending.extend_from_slice(&STANDALONE_RIGHT);
+                    }
+                    i = tag.next;
                     break;
                 }
                 other => {
                     return Err(ParseError::at(
                         self.source,
                         self.file,
-                        code_span.start,
-                        code_span.len(),
+                        tag.inner_range.start,
+                        tag.inner_range.len(),
                         format!("expected if closer, got `{other:?}`"),
                         "unexpected",
                     )
@@ -84,8 +117,8 @@ impl Parser<'_> {
         }
 
         let mut kind = NativeKind::If { test, consequent, else_ifs, alternate, trim: trim.as_str().into() };
-        apply_open_trim(&mut kind, pending, trim_end);
-        Ok((NativeNode::new(kind, Some(Span { start: open, end: i })), i))
+        apply_open_trim(&mut kind, &pending, trim_end);
+        Ok((NativeNode::new(kind, Some(Span { start: open, end: i })), i, closer_pending))
     }
 
     pub(crate) fn parse_loop(
@@ -97,23 +130,33 @@ impl Parser<'_> {
         iter_base: usize,
         trim: TrimMode,
         trim_end: TrimMode,
-        pending: Option<&str>,
-    ) -> Result<(NativeNode, usize), ParseError> {
+        pending: Vec<&'static str>,
+    ) -> Result<(NativeNode, usize, Vec<&'static str>), ParseError> {
         let iterable = parse_expr(self.source, self.file, iter_base, iter_src)?;
 
-        let (body, i2) = self.parse_until(i, &["end loop"])?;
+        let (mut body, i2) = self.parse_until(i, &["end loop"])?;
         i = i2;
-        let (end_code, end_span, end_i) = self.peek_code(i)?;
-        let end_trim = end_code.trim();
-        let end_base = end_span.start + (end_code.len() - end_code.trim_start().len());
+        let end_tag = self.scan_tag(i)?;
+        let end_trim = end_tag.inner.trim();
+        let end_base = end_tag.inner_range.start + (end_tag.inner.len() - end_tag.inner.trim_start().len());
+        let mut closer_pending = Vec::new();
         match classify_code(self.source, self.file, end_trim, end_base)? {
-            CodeHead::EndLoop => i = end_i,
+            CodeHead::EndLoop => {
+                let (sa_left, sa_right) = self.standalone_sides(i, end_tag.next, TrimMode::None, TrimMode::None);
+                if sa_left {
+                    trim_last_text(&mut body);
+                }
+                if sa_right {
+                    closer_pending.extend_from_slice(&STANDALONE_RIGHT);
+                }
+                i = end_tag.next;
+            }
             _ => {
                 return Err(ParseError::at(
                     self.source,
                     self.file,
-                    end_span.start,
-                    end_span.len(),
+                    end_tag.inner_range.start,
+                    end_tag.inner_range.len(),
                     "expected `end loop`",
                     "expected end loop",
                 )
@@ -122,8 +165,8 @@ impl Parser<'_> {
         }
 
         let mut kind = NativeKind::For { item, iterable, body, trim: trim.as_str().into() };
-        apply_open_trim(&mut kind, pending, trim_end);
-        Ok((NativeNode::new(kind, Some(Span { start: open, end: i })), i))
+        apply_open_trim(&mut kind, &pending, trim_end);
+        Ok((NativeNode::new(kind, Some(Span { start: open, end: i })), i, closer_pending))
     }
 
     pub(crate) fn parse_partial(
@@ -134,22 +177,32 @@ impl Parser<'_> {
         params_base: usize,
         trim: TrimMode,
         trim_end: TrimMode,
-        pending: Option<&str>,
-    ) -> Result<(NativeNode, usize), ParseError> {
+        pending: Vec<&'static str>,
+    ) -> Result<(NativeNode, usize, Vec<&'static str>), ParseError> {
         let params = parse_params(self.source, self.file, params_src, params_base)?;
-        let (body, i2) = self.parse_until(i, &["end partial"])?;
+        let (mut body, i2) = self.parse_until(i, &["end partial"])?;
         i = i2;
-        let (end_code, end_span, end_i) = self.peek_code(i)?;
-        let end_trim = end_code.trim();
-        let end_base = end_span.start + (end_code.len() - end_code.trim_start().len());
+        let end_tag = self.scan_tag(i)?;
+        let end_trim = end_tag.inner.trim();
+        let end_base = end_tag.inner_range.start + (end_tag.inner.len() - end_tag.inner.trim_start().len());
+        let mut closer_pending = Vec::new();
         match classify_code(self.source, self.file, end_trim, end_base)? {
-            CodeHead::EndPartial => i = end_i,
+            CodeHead::EndPartial => {
+                let (sa_left, sa_right) = self.standalone_sides(i, end_tag.next, TrimMode::None, TrimMode::None);
+                if sa_left {
+                    trim_last_text(&mut body);
+                }
+                if sa_right {
+                    closer_pending.extend_from_slice(&STANDALONE_RIGHT);
+                }
+                i = end_tag.next;
+            }
             _ => {
                 return Err(ParseError::at(
                     self.source,
                     self.file,
-                    end_span.start,
-                    end_span.len(),
+                    end_tag.inner_range.start,
+                    end_tag.inner_range.len(),
                     "expected `end partial`",
                     "expected end partial",
                 )
@@ -158,11 +211,10 @@ impl Parser<'_> {
         }
 
         let mut kind = NativeKind::Partial { params, body, trim: trim.as_str().into() };
-        apply_open_trim(&mut kind, pending, trim_end);
-        Ok((NativeNode::new(kind, Some(Span { start: open, end: i })), i))
+        apply_open_trim(&mut kind, &pending, trim_end);
+        Ok((NativeNode::new(kind, Some(Span { start: open, end: i })), i, closer_pending))
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn parse_import(
         &self,
         open: usize,
@@ -170,10 +222,8 @@ impl Parser<'_> {
         path: String,
         names: Vec<(String, Option<String>)>,
         trim: TrimMode,
-        trim_end: TrimMode,
-        pending: Option<&str>,
     ) -> (NativeNode, usize) {
-        let mut kind = NativeKind::Import {
+        let kind = NativeKind::Import {
             path,
             names: names
                 .into_iter()
@@ -181,7 +231,6 @@ impl Parser<'_> {
                 .collect(),
             trim: trim.as_str().into(),
         };
-        apply_open_trim(&mut kind, pending, trim_end);
         (NativeNode::new(kind, Some(Span { start: open, end: i })), i)
     }
 
@@ -194,8 +243,8 @@ impl Parser<'_> {
         params_base: usize,
         trim: TrimMode,
         trim_end: TrimMode,
-        pending: Option<&str>,
-    ) -> Result<(NativeNode, usize), ParseError> {
+        pending: Vec<&'static str>,
+    ) -> Result<(NativeNode, usize, Vec<&'static str>), ParseError> {
         let params = if params_src.trim().is_empty() {
             Vec::new()
         } else {
@@ -212,19 +261,29 @@ impl Parser<'_> {
             )
             .with_code(codes::PARSE_UNEXPECTED_TOKEN));
         }
-        let (body, i2) = self.parse_until(i, &["end macro"])?;
+        let (mut body, i2) = self.parse_until(i, &["end macro"])?;
         i = i2;
-        let (end_code, end_span, end_i) = self.peek_code(i)?;
-        let end_trim = end_code.trim();
-        let end_base = end_span.start + (end_code.len() - end_code.trim_start().len());
+        let end_tag = self.scan_tag(i)?;
+        let end_trim = end_tag.inner.trim();
+        let end_base = end_tag.inner_range.start + (end_tag.inner.len() - end_tag.inner.trim_start().len());
+        let mut closer_pending = Vec::new();
         match classify_code(self.source, self.file, end_trim, end_base)? {
-            CodeHead::EndMacro => i = end_i,
+            CodeHead::EndMacro => {
+                let (sa_left, sa_right) = self.standalone_sides(i, end_tag.next, TrimMode::None, TrimMode::None);
+                if sa_left {
+                    trim_last_text(&mut body);
+                }
+                if sa_right {
+                    closer_pending.extend_from_slice(&STANDALONE_RIGHT);
+                }
+                i = end_tag.next;
+            }
             _ => {
                 return Err(ParseError::at(
                     self.source,
                     self.file,
-                    end_span.start,
-                    end_span.len(),
+                    end_tag.inner_range.start,
+                    end_tag.inner_range.len(),
                     "expected `end macro`",
                     "expected end macro",
                 )
@@ -233,8 +292,8 @@ impl Parser<'_> {
         }
 
         let mut kind = NativeKind::Macro { name, params, body, trim: trim.as_str().into() };
-        apply_open_trim(&mut kind, pending, trim_end);
-        Ok((NativeNode::new(kind, Some(Span { start: open, end: i })), i))
+        apply_open_trim(&mut kind, &pending, trim_end);
+        Ok((NativeNode::new(kind, Some(Span { start: open, end: i })), i, closer_pending))
     }
 
     /// Parse `call name(args)` or `call(a, b) name(args)` … `end call`.
@@ -251,8 +310,8 @@ impl Parser<'_> {
         params_src: Option<(&str, usize)>,
         trim: TrimMode,
         trim_end: TrimMode,
-        pending: Option<&str>,
-    ) -> Result<(NativeNode, usize), ParseError> {
+        pending: Vec<&'static str>,
+    ) -> Result<(NativeNode, usize, Vec<&'static str>), ParseError> {
         let params = match params_src {
             Some((src, base)) => parse_caller_params(self.source, self.file, src, base)?,
             None => Vec::new(),
@@ -268,7 +327,7 @@ impl Parser<'_> {
             },
             _ => return Err(call_err("`call` requires `name(args)`")),
         };
-        let (body, i2) = self.parse_until(i, &["end call"])?;
+        let (mut body, i2) = self.parse_until(i, &["end call"])?;
         i = i2;
         if i >= self.source.len() {
             return Err(ParseError::at(
@@ -281,17 +340,27 @@ impl Parser<'_> {
             )
             .with_code(codes::PARSE_UNCLOSED_BLOCK));
         }
-        let (end_code, end_span, end_i) = self.peek_code(i)?;
-        let end_trim = end_code.trim();
-        let end_base = end_span.start + (end_code.len() - end_code.trim_start().len());
+        let end_tag = self.scan_tag(i)?;
+        let end_trim = end_tag.inner.trim();
+        let end_base = end_tag.inner_range.start + (end_tag.inner.len() - end_tag.inner.trim_start().len());
+        let mut closer_pending = Vec::new();
         match classify_code(self.source, self.file, end_trim, end_base)? {
-            CodeHead::EndCall => i = end_i,
+            CodeHead::EndCall => {
+                let (sa_left, sa_right) = self.standalone_sides(i, end_tag.next, TrimMode::None, TrimMode::None);
+                if sa_left {
+                    trim_last_text(&mut body);
+                }
+                if sa_right {
+                    closer_pending.extend_from_slice(&STANDALONE_RIGHT);
+                }
+                i = end_tag.next;
+            }
             _ => {
                 return Err(ParseError::at(
                     self.source,
                     self.file,
-                    end_span.start,
-                    end_span.len(),
+                    end_tag.inner_range.start,
+                    end_tag.inner_range.len(),
                     "expected `end call`",
                     "expected end call",
                 )
@@ -300,8 +369,8 @@ impl Parser<'_> {
         }
 
         let mut kind = NativeKind::Call { name, arguments, params, body, trim: trim.as_str().into() };
-        apply_open_trim(&mut kind, pending, trim_end);
-        Ok((NativeNode::new(kind, Some(Span { start: open, end: i })), i))
+        apply_open_trim(&mut kind, &pending, trim_end);
+        Ok((NativeNode::new(kind, Some(Span { start: open, end: i })), i, closer_pending))
     }
 
     pub(crate) fn parse_block(
@@ -311,21 +380,31 @@ impl Parser<'_> {
         name: String,
         trim: TrimMode,
         trim_end: TrimMode,
-        pending: Option<&str>,
-    ) -> Result<(NativeNode, usize), ParseError> {
-        let (body, i2) = self.parse_until(i, &["end block"])?;
+        pending: Vec<&'static str>,
+    ) -> Result<(NativeNode, usize, Vec<&'static str>), ParseError> {
+        let (mut body, i2) = self.parse_until(i, &["end block"])?;
         i = i2;
-        let (end_code, end_span, end_i) = self.peek_code(i)?;
-        let end_trim = end_code.trim();
-        let end_base = end_span.start + (end_code.len() - end_code.trim_start().len());
+        let end_tag = self.scan_tag(i)?;
+        let end_trim = end_tag.inner.trim();
+        let end_base = end_tag.inner_range.start + (end_tag.inner.len() - end_tag.inner.trim_start().len());
+        let mut closer_pending = Vec::new();
         match classify_code(self.source, self.file, end_trim, end_base)? {
-            CodeHead::EndBlock => i = end_i,
+            CodeHead::EndBlock => {
+                let (sa_left, sa_right) = self.standalone_sides(i, end_tag.next, TrimMode::None, TrimMode::None);
+                if sa_left {
+                    trim_last_text(&mut body);
+                }
+                if sa_right {
+                    closer_pending.extend_from_slice(&STANDALONE_RIGHT);
+                }
+                i = end_tag.next;
+            }
             _ => {
                 return Err(ParseError::at(
                     self.source,
                     self.file,
-                    end_span.start,
-                    end_span.len(),
+                    end_tag.inner_range.start,
+                    end_tag.inner_range.len(),
                     "expected `end block`",
                     "expected end block",
                 )
@@ -334,21 +413,34 @@ impl Parser<'_> {
         }
 
         let mut kind = NativeKind::Block { name, body, trim: trim.as_str().into() };
-        apply_open_trim(&mut kind, pending, trim_end);
-        Ok((NativeNode::new(kind, Some(Span { start: open, end: i })), i))
+        apply_open_trim(&mut kind, &pending, trim_end);
+        Ok((NativeNode::new(kind, Some(Span { start: open, end: i })), i, closer_pending))
+    }
+}
+
+/// Standalone left of an `else` / `else if` / `end if` closer trims the tail
+/// of the branch that has just been completed.
+fn trim_branch_tail(
+    consequent: &mut Vec<NativeNode>,
+    else_ifs: &mut [(NativeExpr, Vec<NativeNode>)],
+    alternate: &mut Option<Vec<NativeNode>>,
+) {
+    if let Some(alt) = alternate.as_mut() {
+        trim_last_text(alt);
+    } else if let Some((_, body)) = else_ifs.last_mut() {
+        trim_last_text(body);
+    } else {
+        trim_last_text(consequent);
     }
 }
 
 /// Apply the right-side trim of an opening tag to the first text node the tag
 /// introduces. Inherited pending trims from a previous tag are applied first.
-fn apply_open_trim(kind: &mut NativeKind, pending: Option<&str>, trim_end: TrimMode) {
-    let levels: Vec<&str> = pending
-        .into_iter()
-        .chain(match trim_end {
-            TrimMode::None => None,
-            other => Some(other.as_str()),
-        })
-        .collect();
+fn apply_open_trim(kind: &mut NativeKind, pending: &[&str], trim_end: TrimMode) {
+    let mut levels: Vec<&str> = pending.to_vec();
+    if trim_end != TrimMode::None {
+        levels.push(trim_end.as_str());
+    }
     if levels.is_empty() {
         return;
     }

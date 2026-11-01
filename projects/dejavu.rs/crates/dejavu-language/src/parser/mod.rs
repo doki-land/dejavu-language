@@ -294,14 +294,6 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
     None
 }
 
-    /// Peek at a code block starting at index `i`.
-    /// Returns `(code_inner, content_span_in_source, index_after_close)`.
-    /// Uses configured delimiters.
-    pub(crate) fn peek_code(&self, i: usize) -> Result<(String, std::ops::Range<usize>, usize), ParseError> {
-        let tag = self.scan_tag(i)?;
-        Ok((tag.inner, tag.inner_range, tag.next))
-    }
-
     /// Scan one code tag, including the whitespace-control markers on both ends.
     pub(crate) fn scan_tag(&self, i: usize) -> Result<TagScan, ParseError> {
         let ds = &self.delimiters;
@@ -358,6 +350,49 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
         self.parse_body(i, stop)
     }
 
+    /// Decide whether a tag qualifies for standalone line removal on each side.
+    ///
+    /// A side qualifies only when the tag carries no explicit trim marker on
+    /// that side (markers take precedence and suppress standalone) and the
+    /// surrounding line holds nothing but spaces/tabs between the delimiter
+    /// and the line break (or the source edge).
+    pub(crate) fn standalone_sides(
+        &self,
+        open: usize,
+        next: usize,
+        trim_left: TrimMode,
+        trim_right: TrimMode,
+    ) -> (bool, bool) {
+        let bytes = self.source.as_bytes();
+        let left = trim_left == TrimMode::None && {
+            let mut k = open;
+            loop {
+                if k == 0 {
+                    break true;
+                }
+                match bytes[k - 1] {
+                    b' ' | b'\t' => k -= 1,
+                    b'\n' | b'\r' => break true,
+                    _ => break false,
+                }
+            }
+        };
+        let right = trim_right == TrimMode::None && {
+            let mut k = next;
+            loop {
+                if k >= bytes.len() {
+                    break true;
+                }
+                match bytes[k] {
+                    b' ' | b'\t' => k += 1,
+                    b'\n' | b'\r' => break true,
+                    _ => break false,
+                }
+            }
+        };
+        (left, right)
+    }
+
     fn parse_body(&self, mut i: usize, stop: &[&str]) -> Result<(Vec<NativeNode>, usize), ParseError> {
         let mut children = Vec::new();
         let bytes = self.source.as_bytes();
@@ -368,8 +403,9 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
         let cs = &ds.code_start;
         let cms = &ds.comment_start;
         let cme = &ds.comment_end;
-        // Right-side trim of the previous tag, waiting for the next text node.
-        let mut pending: Option<&'static str> = None;
+        // Right-side trim levels of the previous tag (explicit marker and/or
+        // standalone line removal), waiting for the next text node.
+        let mut pending: Vec<&'static str> = Vec::new();
 
         while i < self.source.len() {
             if self.source[i..].starts_with(cs) && !stop.is_empty() {
@@ -387,10 +423,18 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
                 if let Some(end) = self.source[i + cms_len..].find(cme) {
                     let inner = &self.source[i + cms_len..i + cms_len + end];
                     let next = i + cms_len + end + cme_len;
+                    let (sa_left, sa_right) =
+                        self.standalone_sides(i, next, TrimMode::None, TrimMode::None);
+                    if sa_left {
+                        trim_last_text(&mut children);
+                    }
                     children.push(NativeNode::new(
                         NativeKind::Comment(inner.to_string()),
                         Some(Span { start: i, end: next }),
                     ));
+                    if sa_right {
+                        pending.extend_from_slice(&STANDALONE_RIGHT);
+                    }
                     i = next;
                     continue;
                 }
@@ -406,7 +450,7 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
                     && TrimMode::from_byte(bytes[after_open]).is_none()
                     && bytes[after_open] == b'!'
                 {
-                    push_text(&mut children, cs.clone(), i, after_open + 1, pending.take());
+                    push_text(&mut children, cs.clone(), i, after_open + 1, &mut pending);
                     i = after_open + 1;
                     continue;
                 }
@@ -422,15 +466,32 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
                     return Ok((children, open));
                 }
 
+                // Standalone line removal applies to every pure directive tag;
+                // expression slots always emit their value and keep the line.
+                let (sa_left, sa_right) = match &head {
+                    CodeHead::Expr { .. } => (false, false),
+                    _ => self.standalone_sides(open, next_i, tag.trim_left, tag.trim_right),
+                };
+                if sa_left {
+                    trim_last_text(&mut children);
+                }
+
                 match head {
                     CodeHead::If { test_src, test_base } => {
-                        let (node, new_i) =
-                            self.parse_if(open, next_i, test_src, test_base, tag.trim_left, tag.trim_right, pending.take())?;
+                        if sa_right {
+                            pending.extend_from_slice(&STANDALONE_RIGHT);
+                        }
+                        let (node, new_i, after) =
+                            self.parse_if(open, next_i, test_src, test_base, tag.trim_left, tag.trim_right, std::mem::take(&mut pending))?;
+                        pending = after;
                         children.push(node);
                         i = new_i;
                     }
                     CodeHead::Loop { item, iter_src, iter_base } => {
-                        let (node, new_i) = self.parse_loop(
+                        if sa_right {
+                            pending.extend_from_slice(&STANDALONE_RIGHT);
+                        }
+                        let (node, new_i, after) = self.parse_loop(
                             open,
                             next_i,
                             item,
@@ -438,8 +499,9 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
                             iter_base,
                             tag.trim_left,
                             tag.trim_right,
-                            pending.take(),
+                            std::mem::take(&mut pending),
                         )?;
+                        pending = after;
                         children.push(node);
                         i = new_i;
                     }
@@ -449,7 +511,10 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
                             NativeKind::Extends { parent, trim: tag.trim_left.as_str().into() },
                             Some(Span { start: open, end: next_i }),
                         ));
-                        pending = right_trim(tag.trim_right);
+                        pending = right_levels(tag.trim_right);
+                        if sa_right {
+                            pending.extend_from_slice(&STANDALONE_RIGHT);
+                        }
                         i = next_i;
                     }
                     CodeHead::Include { path_src, path_base, with_src, with_base, only } => {
@@ -462,43 +527,53 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
                             NativeKind::Include { path, with, only, trim: tag.trim_left.as_str().into() },
                             Some(Span { start: open, end: next_i }),
                         ));
-                        pending = right_trim(tag.trim_right);
+                        pending = right_levels(tag.trim_right);
+                        if sa_right {
+                            pending.extend_from_slice(&STANDALONE_RIGHT);
+                        }
                         i = next_i;
                     }
                     CodeHead::Block { name } => {
-                        let (node, new_i) =
-                            self.parse_block(open, next_i, name, tag.trim_left, tag.trim_right, pending.take())?;
+                        if sa_right {
+                            pending.extend_from_slice(&STANDALONE_RIGHT);
+                        }
+                        let (node, new_i, after) =
+                            self.parse_block(open, next_i, name, tag.trim_left, tag.trim_right, std::mem::take(&mut pending))?;
+                        pending = after;
                         children.push(node);
                         i = new_i;
                     }
                     CodeHead::Partial { params_src, params_base } => {
-                        let (node, new_i) = self.parse_partial(
+                        if sa_right {
+                            pending.extend_from_slice(&STANDALONE_RIGHT);
+                        }
+                        let (node, new_i, after) = self.parse_partial(
                             open,
                             next_i,
                             params_src,
                             params_base,
                             tag.trim_left,
                             tag.trim_right,
-                            pending.take(),
+                            std::mem::take(&mut pending),
                         )?;
+                        pending = after;
                         children.push(node);
                         i = new_i;
                     }
                     CodeHead::From { path, names } => {
-                        let (node, new_i) = self.parse_import(
-                            open,
-                            next_i,
-                            path,
-                            names,
-                            tag.trim_left,
-                            tag.trim_right,
-                            pending.take(),
-                        );
+                        let (node, new_i) = self.parse_import(open, next_i, path, names, tag.trim_left);
                         children.push(node);
+                        pending = right_levels(tag.trim_right);
+                        if sa_right {
+                            pending.extend_from_slice(&STANDALONE_RIGHT);
+                        }
                         i = new_i;
                     }
                     CodeHead::Macro { name, params_src, params_base } => {
-                        let (node, new_i) = self.parse_macro(
+                        if sa_right {
+                            pending.extend_from_slice(&STANDALONE_RIGHT);
+                        }
+                        let (node, new_i, after) = self.parse_macro(
                             open,
                             next_i,
                             name,
@@ -506,13 +581,17 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
                             params_base,
                             tag.trim_left,
                             tag.trim_right,
-                            pending.take(),
+                            std::mem::take(&mut pending),
                         )?;
+                        pending = after;
                         children.push(node);
                         i = new_i;
                     }
                     CodeHead::Call { src, base, params } => {
-                        let (node, new_i) = self.parse_call(
+                        if sa_right {
+                            pending.extend_from_slice(&STANDALONE_RIGHT);
+                        }
+                        let (node, new_i, after) = self.parse_call(
                             open,
                             next_i,
                             src,
@@ -520,8 +599,9 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
                             params,
                             tag.trim_left,
                             tag.trim_right,
-                            pending.take(),
+                            std::mem::take(&mut pending),
                         )?;
+                        pending = after;
                         children.push(node);
                         i = new_i;
                     }
@@ -530,7 +610,10 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
                             NativeKind::Super { trim: tag.trim_left.as_str().into() },
                             Some(Span { start: open, end: next_i }),
                         ));
-                        pending = right_trim(tag.trim_right);
+                        pending = right_levels(tag.trim_right);
+                        if sa_right {
+                            pending.extend_from_slice(&STANDALONE_RIGHT);
+                        }
                         i = next_i;
                     }
                     CodeHead::Break | CodeHead::Continue => {
@@ -540,7 +623,10 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
                             NativeKind::Continue { trim: tag.trim_left.as_str().into() }
                         };
                         children.push(NativeNode::new(kind, Some(Span { start: open, end: next_i })));
-                        pending = right_trim(tag.trim_right);
+                        pending = right_levels(tag.trim_right);
+                        if sa_right {
+                            pending.extend_from_slice(&STANDALONE_RIGHT);
+                        }
                         i = next_i;
                     }
                     CodeHead::EndIf
@@ -586,7 +672,7 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
                             },
                             Some(Span { start: open, end: next_i }),
                         ));
-                        pending = right_trim(tag.trim_right);
+                        pending = right_levels(tag.trim_right);
                         i = next_i;
                     }
                 }
@@ -603,12 +689,12 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
             };
             match next {
                 Some(n) if n > i => {
-                    push_text(&mut children, self.source[i..n].to_string(), i, n, pending.take());
+                    push_text(&mut children, self.source[i..n].to_string(), i, n, &mut pending);
                     i = n;
                 }
                 Some(_) => i += 1,
                 None => {
-                    push_text(&mut children, self.source[i..].to_string(), i, self.source.len(), pending.take());
+                    push_text(&mut children, self.source[i..].to_string(), i, self.source.len(), &mut pending);
                     // Report the end-of-input position so callers that expect a
                     // closer (`end call`, `end macro`, …) can produce an
                     // "unclosed block" diagnostic instead of "expected code open".
@@ -622,20 +708,51 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
     }
 }
 
-/// Convert a closer marker into the level string consumed by the next text node.
-fn right_trim(mode: TrimMode) -> Option<&'static str> {
+/// Convert a closer marker into the levels consumed by the next text node.
+fn right_levels(mode: TrimMode) -> Vec<&'static str> {
     match mode {
-        TrimMode::None => None,
-        other => Some(other.as_str()),
+        TrimMode::None => Vec::new(),
+        other => vec![other.as_str()],
     }
 }
 
-/// Append a text node, applying a pending right-side trim from the previous tag.
-fn push_text(children: &mut Vec<NativeNode>, mut value: String, start: usize, end: usize, pending: Option<&str>) {
-    if let Some(level) = pending {
+/// The strips a standalone tag's right side applies to the following text:
+/// the rest of its own line (horizontal whitespace) plus exactly one break.
+pub(crate) const STANDALONE_RIGHT: [&str; 2] = ["ws", "nl"];
+
+/// Append a text node, applying pending right-side trims from previous tags.
+fn push_text(
+    children: &mut Vec<NativeNode>,
+    mut value: String,
+    start: usize,
+    end: usize,
+    pending: &mut Vec<&'static str>,
+) {
+    for level in pending.drain(..) {
         dejavu_ir::trim::trim_prefix(&mut value, level);
     }
     children.push(NativeNode::new(NativeKind::Text(value), Some(Span { start, end })));
+}
+
+/// Standalone left side: drop the trailing horizontal whitespace of the
+/// preceding text node (the tag's own indentation).
+pub(crate) fn trim_last_text(children: &mut Vec<NativeNode>) {
+    if let Some(last) = children.last_mut() {
+        if let NativeKind::Text(value) = &mut last.kind {
+            dejavu_ir::trim::trim_suffix(value, "ws");
+        }
+    }
+}
+
+/// Standalone right side applied to a just-parsed branch body: drop the
+/// leading horizontal whitespace plus one line break of the first text node.
+pub(crate) fn trim_first_text(children: &mut [NativeNode]) {
+    if let Some(first) = children.first_mut() {
+        if let NativeKind::Text(value) = &mut first.kind {
+            dejavu_ir::trim::trim_prefix(value, "ws");
+            dejavu_ir::trim::trim_prefix(value, "nl");
+        }
+    }
 }
 
 /// `else` / `else if` / `end *` closers do not own whitespace markers.
