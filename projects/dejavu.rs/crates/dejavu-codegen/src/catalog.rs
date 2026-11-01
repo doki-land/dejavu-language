@@ -9,9 +9,8 @@
 
 use std::collections::{HashMap, HashSet};
 
-use dejavu_diagnostic::{codes, Diagnostic, Severity, Stage};
-use dejavu_ir::{CatalogRoot, IrDocument, IrNode, TemplateCatalog};
-use dejavu_ir::types::PartialParam;
+use dejavu_diagnostic::{Diagnostic, Severity, Stage, codes};
+use dejavu_ir::{CatalogRoot, IrDocument, IrNode, TemplateCatalog, types::PartialParam};
 
 // ---------------------------------------------------------------------------
 // Catalog JSON wire format
@@ -46,14 +45,10 @@ struct RootJson {
 
 /// Parse a catalog JSON string into a fully-resolved [`TemplateCatalog`].
 pub fn parse_catalog_json(json: &str) -> Result<TemplateCatalog, String> {
-    let cj: CatalogJson = serde_json::from_str(json)
-        .map_err(|e| format!("invalid catalog JSON: {e}"))?;
+    let cj: CatalogJson = serde_json::from_str(json).map_err(|e| format!("invalid catalog JSON: {e}"))?;
 
-    let extensions = if cj.extensions.is_empty() {
-        vec![".dejavu".to_string(), ".yarte".to_string(), String::new()]
-    } else {
-        cj.extensions
-    };
+    let extensions =
+        if cj.extensions.is_empty() { vec![".dejavu".to_string(), ".yarte".to_string(), String::new()] } else { cj.extensions };
 
     let mut roots = Vec::with_capacity(cj.roots.len());
     for r in cj.roots {
@@ -62,8 +57,7 @@ pub fn parse_catalog_json(json: &str) -> Result<TemplateCatalog, String> {
         let mut root = CatalogRoot::new(r.name.clone(), scheme, priority);
         root.base_path = r.base_path;
         for (path, ir_json) in r.files {
-            let doc: IrDocument = serde_json::from_str(&ir_json)
-                .map_err(|e| format!("invalid IR JSON for {}: {}", path, e))?;
+            let doc: IrDocument = serde_json::from_str(&ir_json).map_err(|e| format!("invalid IR JSON for {}: {}", path, e))?;
             root.insert(path, doc);
         }
         roots.push(root);
@@ -84,13 +78,50 @@ fn is_js_reserved(name: &str) -> bool {
     static RESERVED: Lazy<HashSet<&'static str>> = Lazy::new(|| {
         let mut s = HashSet::new();
         for w in [
-            "break", "case", "catch", "class", "const", "continue", "debugger",
-            "default", "delete", "do", "else", "enum", "export", "extends",
-            "false", "finally", "for", "function", "if", "import", "in",
-            "instanceof", "new", "null", "return", "super", "switch", "this",
-            "throw", "true", "try", "typeof", "var", "void", "while", "with",
-            "yield", "await", "implements", "interface", "package", "private",
-            "protected", "public",
+            "break",
+            "case",
+            "catch",
+            "class",
+            "const",
+            "continue",
+            "debugger",
+            "default",
+            "delete",
+            "do",
+            "else",
+            "enum",
+            "export",
+            "extends",
+            "false",
+            "finally",
+            "for",
+            "function",
+            "if",
+            "import",
+            "in",
+            "instanceof",
+            "new",
+            "null",
+            "return",
+            "super",
+            "switch",
+            "this",
+            "throw",
+            "true",
+            "try",
+            "typeof",
+            "var",
+            "void",
+            "while",
+            "with",
+            "yield",
+            "await",
+            "implements",
+            "interface",
+            "package",
+            "private",
+            "protected",
+            "public",
         ] {
             s.insert(w);
         }
@@ -108,16 +139,7 @@ fn is_js_reserved(name: &str) -> bool {
 ///
 /// Example: `"main:index"` → `"main__index"`, `"partial:footer"` → `"partial__footer"`
 pub fn sanitize_id(id: &str) -> String {
-    let mut s: String = id
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '_' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect();
+    let mut s: String = id.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' }).collect();
     if let Some(first) = s.chars().next() {
         if first.is_ascii_digit() {
             s.insert(0, '_');
@@ -160,10 +182,7 @@ pub fn extract_path_literal(node: &IrNode) -> Option<String> {
 /// `include` edge reports `dejavu.template.circular-include` with the
 /// `a -> b -> a` path. Both match the interpreter's load-stage diagnostics so
 /// AOT and JIT agree on `code` and `args`. `Ok(())` when no cycle is present.
-pub fn detect_cycle(
-    catalog: &TemplateCatalog,
-    entry_id: &str,
-) -> Result<(), Diagnostic> {
+pub fn detect_cycle(catalog: &TemplateCatalog, entry_id: &str) -> Result<(), Diagnostic> {
     let mut state: HashMap<String, CycleState> = HashMap::new();
     let mut path: Vec<String> = Vec::new();
     detect_cycle_inner(catalog, entry_id, &mut state, &mut path)
@@ -219,8 +238,14 @@ fn detect_cycle_inner(
 /// The declaration must be a direct child of the template body, matching how
 /// the parser and the interpreter identify a partial.
 pub(crate) fn is_partial_template(catalog: &TemplateCatalog, id: &str) -> bool {
-    let Some((root_name, path)) = split_canonical(id) else { return false };
-    let Some(doc) = catalog_document(catalog, root_name, path) else { return false };
+    let Some((root_name, path)) = split_canonical(id)
+    else {
+        return false;
+    };
+    let Some(doc) = catalog_document(catalog, root_name, path)
+    else {
+        return false;
+    };
     matches!(
         &doc.body,
         IrNode::Template { children, .. } if children.iter().any(|n| matches!(n, IrNode::StmtPartial { .. }))
@@ -278,16 +303,18 @@ enum EdgeKind {
 /// `from ... import` edges are followed for reachability but excluded from
 /// cycle detection: ESM function declarations are hoisted, so two templates
 /// may import each other's macros the way the interpreter allows.
-fn collect_edges(
-    catalog: &TemplateCatalog,
-    id: &str,
-    follow_imports: bool,
-) -> Vec<(String, Option<EdgeKind>)> {
+fn collect_edges(catalog: &TemplateCatalog, id: &str, follow_imports: bool) -> Vec<(String, Option<EdgeKind>)> {
     let mut out = Vec::new();
-    let Some((root_name, path)) = split_canonical(id) else { return out };
+    let Some((root_name, path)) = split_canonical(id)
+    else {
+        return out;
+    };
     // Find the right root + path in catalog.
     let doc = catalog_document(catalog, root_name, path);
-    let Some(doc) = doc else { return out };
+    let Some(doc) = doc
+    else {
+        return out;
+    };
     collect_edges_from_doc(catalog, doc, id, follow_imports, &mut out);
     out
 }
@@ -379,10 +406,7 @@ fn push_ref_edge(
 /// of the **topmost** parent — that's where the render body should start from
 /// when flattening the entry template. If the entry has no extends it returns
 /// the entry itself.
-pub fn collect_blocks(
-    catalog: &TemplateCatalog,
-    entry_id: &str,
-) -> Result<String, Diagnostic> {
+pub fn collect_blocks(catalog: &TemplateCatalog, entry_id: &str) -> Result<String, Diagnostic> {
     let mut cur = entry_id.to_string();
     let mut topmost = entry_id.to_string();
     loop {
@@ -391,10 +415,11 @@ pub fn collect_blocks(
             ExtendsRef::Dynamic => return Err(extends_path_not_literal(&cur)),
             ExtendsRef::Literal(lit) => lit,
         };
-        let hit = catalog
-            .resolve_ref(&parent_ref, Some(&cur))
-            .map_err(|d| d.template_id(&cur))?;
-        let Some(parent_id) = catalog.canonical_id(&hit) else { break };
+        let hit = catalog.resolve_ref(&parent_ref, Some(&cur)).map_err(|d| d.template_id(&cur))?;
+        let Some(parent_id) = catalog.canonical_id(&hit)
+        else {
+            break;
+        };
         topmost = parent_id.clone();
         cur = parent_id;
     }
@@ -418,16 +443,24 @@ pub fn collect_block_chains(
             ExtendsRef::Dynamic => return Err(extends_path_not_literal(&cur)),
             ExtendsRef::Literal(lit) => lit,
         };
-        let hit = catalog.resolve_ref(&r, Some(&cur))
-            .map_err(|d| d.template_id(&cur))?;
-        let Some(id) = catalog.canonical_id(&hit) else { break };
+        let hit = catalog.resolve_ref(&r, Some(&cur)).map_err(|d| d.template_id(&cur))?;
+        let Some(id) = catalog.canonical_id(&hit)
+        else {
+            break;
+        };
         chain.push(id.clone());
         cur = id;
     }
     let mut chains: HashMap<String, Vec<Vec<IrNode>>> = HashMap::new();
     for id in &chain {
-        let Some((root_name, path)) = split_canonical(id) else { continue };
-        let Some(doc) = catalog_document(catalog, root_name, path) else { continue };
+        let Some((root_name, path)) = split_canonical(id)
+        else {
+            continue;
+        };
+        let Some(doc) = catalog_document(catalog, root_name, path)
+        else {
+            continue;
+        };
         if let IrNode::Template { children, .. } = &doc.body {
             for c in children {
                 if let IrNode::StmtBlock { name, body, .. } = c {
@@ -454,8 +487,14 @@ enum ExtendsRef {
 
 /// Classify the `Stmt.Extends.parent` of a template.
 fn doc_extends_ref(catalog: &TemplateCatalog, id: &str) -> ExtendsRef {
-    let Some((root_name, path)) = split_canonical(id) else { return ExtendsRef::None };
-    let Some(doc) = catalog_document(catalog, root_name, path) else { return ExtendsRef::None };
+    let Some((root_name, path)) = split_canonical(id)
+    else {
+        return ExtendsRef::None;
+    };
+    let Some(doc) = catalog_document(catalog, root_name, path)
+    else {
+        return ExtendsRef::None;
+    };
     if let IrNode::Template { children, .. } = &doc.body {
         for c in children {
             if let IrNode::StmtExtends { parent, .. } = c {
@@ -486,11 +525,7 @@ pub fn split_canonical(id: &str) -> Option<(&str, &str)> {
     Some((root, &rest[1..]))
 }
 
-fn catalog_document<'a>(
-    catalog: &'a TemplateCatalog,
-    root_name: &str,
-    path: &str,
-) -> Option<&'a IrDocument> {
+fn catalog_document<'a>(catalog: &'a TemplateCatalog, root_name: &str, path: &str) -> Option<&'a IrDocument> {
     for r in &catalog.roots {
         if r.name == root_name {
             return r.files.get(path);
@@ -505,14 +540,13 @@ fn catalog_document<'a>(
 
 /// Walk include + extends edges and return the set of all canonical ids
 /// transitively reachable from `entry_id` (including `entry_id` itself).
-pub fn collect_all_reachable(
-    catalog: &TemplateCatalog,
-    entry_id: &str,
-) -> HashSet<String> {
+pub fn collect_all_reachable(catalog: &TemplateCatalog, entry_id: &str) -> HashSet<String> {
     let mut seen: HashSet<String> = HashSet::new();
     let mut stack: Vec<String> = vec![entry_id.to_string()];
     while let Some(id) = stack.pop() {
-        if !seen.insert(id.clone()) { continue; }
+        if !seen.insert(id.clone()) {
+            continue;
+        }
         for (next, _) in collect_edges(catalog, &id, true) {
             if !seen.contains(&next) {
                 stack.push(next);
@@ -536,11 +570,7 @@ pub fn collect_all_reachable(
 /// `skip_macro_bodies` excludes `Stmt.Macro` bodies: a declaration produces no
 /// output in the enclosing render body, so calls inside it only matter once the
 /// macro itself is reachable.
-pub(crate) fn collect_macro_calls(
-    nodes: &[IrNode],
-    skip_macro_bodies: bool,
-    out: &mut HashSet<String>,
-) {
+pub(crate) fn collect_macro_calls(nodes: &[IrNode], skip_macro_bodies: bool, out: &mut HashSet<String>) {
     for node in nodes {
         collect_macro_calls_node(node, skip_macro_bodies, out);
     }
@@ -551,7 +581,8 @@ fn collect_macro_calls_node(node: &IrNode, skip_macro_bodies: bool, out: &mut Ha
         IrNode::ExprCall { callee, arguments, .. } => {
             if let IrNode::ExprIdentifier { name, .. } = callee.as_ref() {
                 out.insert(name.clone());
-            } else {
+            }
+            else {
                 collect_macro_calls_node(callee, skip_macro_bodies, out);
             }
             collect_macro_calls(arguments, skip_macro_bodies, out);

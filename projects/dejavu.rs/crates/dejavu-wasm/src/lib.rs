@@ -11,10 +11,11 @@
 use std::collections::BTreeMap;
 
 use dejavu_diagnostic::{Diagnostic, Severity, Stage, codes};
-use dejavu_ir::registry::{CapabilitySet, CustomEntry, Namespace};
 use dejavu_ir::{
-    CatalogRoot, CustomError, CustomRegistry, IrDocument, IrError, RenderOptions, ResolveRoot, TemplateCatalog,
-    TemplateLoader, render_ir_opts, resolve_ref,
+    CatalogRoot, CustomError, CustomRegistry, IrDocument, IrError, RenderOptions, ResolveRoot, TemplateCatalog, TemplateLoader,
+    WarningSink,
+    registry::{CapabilitySet, CustomEntry, Namespace},
+    render_ir_opts, resolve_ref,
 };
 use js_sys::{JSON, Reflect};
 use serde::{Deserialize, Serialize};
@@ -251,14 +252,11 @@ pub fn parse_ir(request_json: &str) -> String {
     match parsed {
         Ok(document) => match serde_json::to_string(&document) {
             Ok(ir) => respond(&IrResponse { ir: Some(ir), diagnostics: Vec::new() }),
-            Err(error) => {
-                respond(&IrResponse { ir: None, diagnostics: vec![to_wire(&json_diag(error.to_string()))] })
-            }
+            Err(error) => respond(&IrResponse { ir: None, diagnostics: vec![to_wire(&json_diag(error.to_string()))] }),
         },
-        Err(error) => respond(&IrResponse {
-            ir: None,
-            diagnostics: vec![to_wire(&dejavu_engine::parse_error_diagnostic(error))],
-        }),
+        Err(error) => {
+            respond(&IrResponse { ir: None, diagnostics: vec![to_wire(&dejavu_engine::parse_error_diagnostic(error))] })
+        }
     }
 }
 
@@ -275,9 +273,7 @@ pub fn normalize_ir(request_json: &str) -> String {
             Err(error) => failure_ir(json_diag(error.to_string())),
         },
         Err(error) => match error {
-            IrError::Diagnostic(diagnostic) => {
-                respond(&IrResponse { ir: None, diagnostics: vec![to_wire(&diagnostic)] })
-            }
+            IrError::Diagnostic(diagnostic) => respond(&IrResponse { ir: None, diagnostics: vec![to_wire(&diagnostic)] }),
             IrError::Json(error) => failure_ir(json_diag(error.to_string())),
         },
     }
@@ -362,9 +358,7 @@ pub fn resolve_template_ref(request_json: &str) -> String {
             files: root.files,
         })
         .collect();
-    let extensions = request.extensions.unwrap_or_else(|| {
-        DEFAULT_EXTENSIONS.iter().map(|s| s.to_string()).collect()
-    });
+    let extensions = request.extensions.unwrap_or_else(|| DEFAULT_EXTENSIONS.iter().map(|s| s.to_string()).collect());
 
     match resolve_ref(&roots, &extensions, &request.reference, request.from.as_deref()) {
         Ok(hit) => respond(&ResolveResponse {
@@ -380,11 +374,9 @@ pub fn resolve_template_ref(request_json: &str) -> String {
 pub fn precompile_ir_single(request_json: &str) -> String {
     let request: PrecompileSingleRequest = match from_request(request_json) {
         Ok(request) => request,
-        Err(diagnostic) => return respond(&PrecompileSingleResponse {
-            module: None,
-            diagnostics: vec![diagnostic],
-            entry_id: String::new(),
-        }),
+        Err(diagnostic) => {
+            return respond(&PrecompileSingleResponse { module: None, diagnostics: vec![diagnostic], entry_id: String::new() });
+        }
     };
     match dejavu_codegen::precompile_single(&request.ir, request.options.as_deref()) {
         Ok(result) => respond(&PrecompileSingleResponse {
@@ -412,12 +404,14 @@ pub fn precompile_ir_single(request_json: &str) -> String {
 pub fn precompile_catalog_api(request_json: &str) -> String {
     let request: PrecompileCatalogRequest = match from_request(request_json) {
         Ok(request) => request,
-        Err(diagnostic) => return respond(&PrecompileCatalogResponse {
-            modules: Vec::new(),
-            manifest: None,
-            diagnostics: vec![diagnostic],
-            entry_id: String::new(),
-        }),
+        Err(diagnostic) => {
+            return respond(&PrecompileCatalogResponse {
+                modules: Vec::new(),
+                manifest: None,
+                diagnostics: vec![diagnostic],
+                entry_id: String::new(),
+            });
+        }
     };
     match dejavu_codegen::precompile_catalog(&request.entry_ir, &request.catalog, request.options.as_deref()) {
         Ok(result) => respond(&PrecompileCatalogResponse {
@@ -528,14 +522,19 @@ fn render_document(
         None => CapabilitySet::all(),
     };
     let custom: Option<&dyn CustomRegistry> = custom.map(|registry| registry as &dyn CustomRegistry);
-    let options = RenderOptions { strict_undefined: wire.strict, name: wire.name, capabilities, custom };
+    let warnings = WarningSink::new();
+    let options =
+        RenderOptions { strict_undefined: wire.strict, name: wire.name, capabilities, custom, warnings: Some(&warnings) };
     let mut loader_state = catalog_state.as_ref().map(dejavu_ir::CatalogLoader::new);
     let loader: Option<&mut dyn TemplateLoader> = match loader_state.as_mut() {
         Some(loader) => Some(loader),
         None => None,
     };
     match render_ir_opts(document, &context, options, loader) {
-        Ok(output) => respond(&RenderResponse { output: Some(output), diagnostics: Vec::new() }),
+        Ok(output) => {
+            let diagnostics = warnings.take().iter().map(to_wire).collect();
+            respond(&RenderResponse { output: Some(output), diagnostics })
+        }
         Err(error) => respond(&RenderResponse { output: None, diagnostics: vec![to_wire(&ir_error_diagnostic(error))] }),
     }
 }
@@ -561,16 +560,19 @@ struct JsCustomRegistry {
 
 impl JsCustomRegistry {
     fn from_value(value: Option<JsValue>) -> Result<Option<Self>, Diagnostic> {
-        let Some(value) = value else { return Ok(None) };
+        let Some(value) = value
+        else {
+            return Ok(None);
+        };
         if value.is_undefined() || value.is_null() {
             return Ok(None);
         }
         let entries_value = get_property(&value, "entries")?;
         let entries: Vec<CustomEntry> = if entries_value.is_undefined() || entries_value.is_null() {
             Vec::new()
-        } else {
-            let text = JSON::stringify(&entries_value)
-                .map_err(|error| json_diag(js_error_message(&error)))?;
+        }
+        else {
+            let text = JSON::stringify(&entries_value).map_err(|error| json_diag(js_error_message(&error)))?;
             serde_json::from_str(&String::from(text))
                 .map_err(|error| json_diag(format!("invalid registry entries: {error}")))?
         };
@@ -582,31 +584,23 @@ impl JsCustomRegistry {
         }))
     }
 
-    fn invoke(
-        &self,
-        namespace: Namespace,
-        name: &str,
-        arguments: &js_sys::Array,
-    ) -> Result<JsValue, CustomError> {
+    fn invoke(&self, namespace: Namespace, name: &str, arguments: &js_sys::Array) -> Result<JsValue, CustomError> {
         let object = match namespace {
             Namespace::Filter => self.filter.as_ref(),
             Namespace::Function => self.function.as_ref(),
             Namespace::Test => self.test.as_ref(),
         };
-        let Some(object) = object else {
-            return Err(CustomError::new(format!(
-                "host registry has no `{}` implementations",
-                namespace.as_str()
-            )));
+        let Some(object) = object
+        else {
+            return Err(CustomError::new(format!("host registry has no `{}` implementations", namespace.as_str())));
         };
-        let implementation = Reflect::get(object, &JsValue::from_str(name))
-            .map_err(|error| CustomError::new(js_error_message(&error)))?;
+        let implementation =
+            Reflect::get(object, &JsValue::from_str(name)).map_err(|error| CustomError::new(js_error_message(&error)))?;
         if !implementation.is_function() {
             return Err(CustomError::new(format!("host registry has no `{name}` implementation")));
         }
         let function: js_sys::Function = implementation.unchecked_into();
-        Reflect::apply(&function, object, arguments)
-            .map_err(|error| CustomError::new(js_error_message(&error)))
+        Reflect::apply(&function, object, arguments).map_err(|error| CustomError::new(js_error_message(&error)))
     }
 }
 
@@ -695,9 +689,7 @@ fn build_catalog(raw: &str) -> Result<TemplateCatalog, Diagnostic> {
         roots.push(root);
     }
 
-    let extensions = spec.extensions.unwrap_or_else(|| {
-        DEFAULT_EXTENSIONS.iter().map(|s| s.to_string()).collect()
-    });
+    let extensions = spec.extensions.unwrap_or_else(|| DEFAULT_EXTENSIONS.iter().map(|s| s.to_string()).collect());
     Ok(TemplateCatalog::new(roots, extensions))
 }
 
@@ -725,10 +717,7 @@ fn ir_error_diagnostic(error: IrError) -> Diagnostic {
 }
 
 fn to_wire_origins(origins: &[dejavu_codegen::LineOrigin]) -> Vec<GeneratedOriginWire> {
-    origins
-        .iter()
-        .map(|origin| GeneratedOriginWire { line: origin.line, start: origin.start, end: origin.end })
-        .collect()
+    origins.iter().map(|origin| GeneratedOriginWire { line: origin.line, start: origin.start, end: origin.end }).collect()
 }
 
 fn to_wire(diagnostic: &Diagnostic) -> DiagnosticWire {

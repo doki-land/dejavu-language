@@ -145,12 +145,9 @@ fn encode_node(n: &NativeNode) -> IrNode {
     match &n.kind {
         NativeKind::Text(v) => IrNode::Text { value: v.clone(), span },
         NativeKind::Comment(v) => IrNode::Comment { value: v.clone(), span },
-        NativeKind::Interpolation { expression, trim, raw } => IrNode::Interpolation {
-            expression: Box::new(encode_expr(expression)),
-            trim: trim.clone(),
-            raw: *raw,
-            span,
-        },
+        NativeKind::Interpolation { expression, trim, raw } => {
+            IrNode::Interpolation { expression: Box::new(encode_expr(expression)), trim: trim.clone(), raw: *raw, span }
+        }
         NativeKind::If { test, consequent, else_ifs, alternate, trim } => IrNode::StmtIf {
             test: Box::new(encode_expr(test)),
             consequent: consequent.iter().map(encode_node).collect(),
@@ -174,33 +171,21 @@ fn encode_node(n: &NativeNode) -> IrNode {
             trim: trim.clone(),
             span,
         },
-        NativeKind::Block { name, body, trim } => IrNode::StmtBlock {
-            name: name.clone(),
-            body: body.iter().map(encode_node).collect(),
-            trim: trim.clone(),
-            span,
-        },
+        NativeKind::Block { name, body, trim } => {
+            IrNode::StmtBlock { name: name.clone(), body: body.iter().map(encode_node).collect(), trim: trim.clone(), span }
+        }
         NativeKind::Partial { params, body, trim } => IrNode::StmtPartial {
             params: params
                 .iter()
-                .map(|p| crate::types::PartialParam {
-                    name: p.name.clone(),
-                    default: p.default.as_ref().map(encode_expr),
-                })
+                .map(|p| crate::types::PartialParam { name: p.name.clone(), default: p.default.as_ref().map(encode_expr) })
                 .collect(),
             body: body.iter().map(encode_node).collect(),
             trim: trim.clone(),
             span,
         },
         NativeKind::Import { path, names, trim } => IrNode::StmtImport {
-            path: Box::new(IrNode::ExprLiteral {
-                value: serde_json::Value::String(path.clone()),
-                span: span.clone(),
-            }),
-            names: names
-                .iter()
-                .map(|n| crate::types::ImportName { name: n.name.clone(), alias: n.alias.clone() })
-                .collect(),
+            path: Box::new(IrNode::ExprLiteral { value: serde_json::Value::String(path.clone()), span: span.clone() }),
+            names: names.iter().map(|n| crate::types::ImportName { name: n.name.clone(), alias: n.alias.clone() }).collect(),
             trim: trim.clone(),
             span,
         },
@@ -208,10 +193,7 @@ fn encode_node(n: &NativeNode) -> IrNode {
             name: name.clone(),
             params: params
                 .iter()
-                .map(|p| crate::types::PartialParam {
-                    name: p.name.clone(),
-                    default: p.default.as_ref().map(encode_expr),
-                })
+                .map(|p| crate::types::PartialParam { name: p.name.clone(), default: p.default.as_ref().map(encode_expr) })
                 .collect(),
             body: body.iter().map(encode_node).collect(),
             trim: trim.clone(),
@@ -222,10 +204,7 @@ fn encode_node(n: &NativeNode) -> IrNode {
             arguments: arguments.iter().map(encode_expr).collect(),
             params: params
                 .iter()
-                .map(|p| PartialParam {
-                    name: p.name.clone(),
-                    default: p.default.as_ref().map(encode_expr),
-                })
+                .map(|p| PartialParam { name: p.name.clone(), default: p.default.as_ref().map(encode_expr) })
                 .collect(),
             body: body.iter().map(encode_node).collect(),
             trim: trim.clone(),
@@ -331,11 +310,7 @@ fn decode_node(n: &IrNode) -> NativeNode {
             span.clone(),
         ),
         IrNode::StmtBlock { name, body, trim, span } => NativeNode::new(
-            NativeKind::Block {
-                name: name.clone(),
-                body: body.iter().map(decode_node).collect(),
-                trim: trim.clone(),
-            },
+            NativeKind::Block { name: name.clone(), body: body.iter().map(decode_node).collect(), trim: trim.clone() },
             span.clone(),
         ),
         IrNode::StmtPartial { params, body, trim, span } => NativeNode::new(
@@ -368,10 +343,7 @@ fn decode_node(n: &IrNode) -> NativeNode {
                 ),
                 // Non-literal paths cannot be represented in the native AST;
                 // the renderer/codegen reject them with a structured error.
-                None => NativeNode::new(
-                    NativeKind::Text(format!("/* unsupported dynamic import {path:?} */")),
-                    span.clone(),
-                ),
+                None => NativeNode::new(NativeKind::Text(format!("/* unsupported dynamic import {path:?} */")), span.clone()),
             }
         }
         IrNode::StmtMacro { name, params, body, trim, span } => NativeNode::new(
@@ -399,10 +371,9 @@ fn decode_node(n: &IrNode) -> NativeNode {
             },
             span.clone(),
         ),
-        IrNode::StmtExtends { parent, trim, span } => NativeNode::new(
-            NativeKind::Extends { parent: decode_expr(parent), trim: trim.clone() },
-            span.clone(),
-        ),
+        IrNode::StmtExtends { parent, trim, span } => {
+            NativeNode::new(NativeKind::Extends { parent: decode_expr(parent), trim: trim.clone() }, span.clone())
+        }
         IrNode::StmtInclude { path, with, only, trim, span } => NativeNode::new(
             NativeKind::Include {
                 path: decode_expr(path),
@@ -449,9 +420,9 @@ fn decode_expr(n: &IrNode) -> NativeExpr {
         IrNode::ExprUnary { operator, argument, .. } => {
             NativeExpr::Unary { operator: operator.clone(), argument: Box::new(decode_expr(argument)) }
         }
-        IrNode::ExprObject { entries, .. } => NativeExpr::Object {
-            entries: entries.iter().map(|e| (e.key.clone(), decode_expr(&e.value))).collect(),
-        },
+        IrNode::ExprObject { entries, .. } => {
+            NativeExpr::Object { entries: entries.iter().map(|e| (e.key.clone(), decode_expr(&e.value))).collect() }
+        }
         IrNode::ExprPipe { expression, filter, arguments, .. } => NativeExpr::Pipe {
             expression: Box::new(decode_expr(expression)),
             filter: filter.clone(),

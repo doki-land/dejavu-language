@@ -1,7 +1,10 @@
 //! path-v1 catalog 解析合同。
 
-use dejavu_ir::catalog::{ResolveRoot, posix_normalize, resolve_ref};
-use dejavu_ir::{Diagnostic, TemplateCatalog, codes};
+use dejavu_ir::{
+    Diagnostic, TemplateCatalog,
+    catalog::{ResolveRoot, posix_normalize, resolve_ref},
+    codes,
+};
 
 fn root(name: &str, scheme: &str, priority: i32, files: &[&str]) -> ResolveRoot {
     ResolveRoot { name: name.into(), scheme: scheme.into(), priority, files: files.iter().map(|f| (*f).to_string()).collect() }
@@ -44,22 +47,13 @@ fn bare_ref_ambiguous_at_equal_priority_is_rejected() {
     let err = resolve_ref(&roots, &extensions(), "index", None).unwrap_err();
     assert_eq!(err.code, codes::TEMPLATE_AMBIGUOUS_REF);
     assert_eq!(err.args.get("priority").cloned(), Some(0.0.into()));
-    assert_eq!(
-        err.args.get("roots").cloned(),
-        Some(vec!["app".into(), "theme".into()].into())
-    );
-    assert_eq!(
-        err.args.get("candidates").cloned(),
-        Some(vec!["app:index.dejavu".into(), "theme:index.dejavu".into()].into())
-    );
+    assert_eq!(err.args.get("roots").cloned(), Some(vec!["app".into(), "theme".into()].into()));
+    assert_eq!(err.args.get("candidates").cloned(), Some(vec!["app:index.dejavu".into(), "theme:index.dejavu".into()].into()));
 }
 
 #[test]
 fn bare_ref_single_hit_wins_even_with_peer_roots() {
-    let roots = vec![
-        root("app", "app", 0, &["index.dejavu"]),
-        root("theme", "theme", 0, &["layout.dejavu"]),
-    ];
+    let roots = vec![root("app", "app", 0, &["index.dejavu"]), root("theme", "theme", 0, &["layout.dejavu"])];
     let hit = resolve_ref(&roots, &extensions(), "index", None).unwrap();
     assert_eq!(hit.root_index, 0);
 }

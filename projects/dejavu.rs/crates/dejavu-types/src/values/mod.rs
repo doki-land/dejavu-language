@@ -56,7 +56,8 @@ impl Value {
             Value::Array(items) => {
                 if let Some(first) = items.first() {
                     DejavuType::Array(Box::new(first.get_type()))
-                } else {
+                }
+                else {
                     DejavuType::Array(Box::new(DejavuType::Any))
                 }
             }
@@ -414,9 +415,11 @@ impl Context {
             serde_json::Value::Number(n) => {
                 if let Some(i) = n.as_i64() {
                     Value::Integer(i)
-                } else if let Some(f) = n.as_f64() {
+                }
+                else if let Some(f) = n.as_f64() {
                     Value::Decimal(f)
-                } else {
+                }
+                else {
                     Value::String(n.to_string())
                 }
             }
@@ -465,7 +468,8 @@ impl Context {
                         Value::Integer(i) => *i,
                         _ => 0,
                     }
-                } else {
+                }
+                else {
                     0
                 };
 
@@ -474,7 +478,8 @@ impl Context {
                         Value::Integer(i) => *i,
                         _ => start + 1,
                     }
-                } else {
+                }
+                else {
                     start + 1
                 };
 
@@ -483,7 +488,8 @@ impl Context {
                         Value::Integer(i) => *i.max(&1),
                         _ => 1,
                     }
-                } else {
+                }
+                else {
                     1
                 };
 
@@ -494,7 +500,8 @@ impl Context {
                         result.push(Value::Integer(current));
                         current += step;
                     }
-                } else if start > end && step < 0 {
+                }
+                else if start > end && step < 0 {
                     let mut current = start;
                     while current > end {
                         result.push(Value::Integer(current));
@@ -514,7 +521,8 @@ impl Context {
                         Value::Object(obj) => Ok(Value::Integer(obj.len() as i64)),
                         _ => Ok(Value::Integer(0)),
                     }
-                } else {
+                }
+                else {
                     Ok(Value::Integer(0))
                 }
             }
@@ -526,7 +534,8 @@ impl Context {
                             Value::String(s) => s.as_str(),
                             _ => "",
                         }
-                    } else {
+                    }
+                    else {
                         ""
                     };
 
@@ -537,7 +546,8 @@ impl Context {
                         }
                         _ => Ok(Value::String("".to_string())),
                     }
-                } else {
+                }
+                else {
                     Ok(Value::String("".to_string()))
                 }
             }
@@ -549,7 +559,8 @@ impl Context {
                         Value::Decimal(f) => Ok(Value::Decimal(f.abs())),
                         _ => Ok(args[0].clone()),
                     }
-                } else {
+                }
+                else {
                     Ok(Value::Null)
                 }
             }
@@ -567,7 +578,8 @@ impl Context {
                         }
                     }
                     Ok(max_val)
-                } else {
+                }
+                else {
                     Ok(Value::Null)
                 }
             }
@@ -585,7 +597,8 @@ impl Context {
                         }
                     }
                     Ok(min_val)
-                } else {
+                }
+                else {
                     Ok(Value::Null)
                 }
             }
@@ -609,7 +622,8 @@ impl Context {
                             Value::String(s) => s.as_str(),
                             _ => "",
                         }
-                    } else {
+                    }
+                    else {
                         ""
                     };
 
@@ -620,7 +634,8 @@ impl Context {
                         }
                         _ => Ok(Value::Array(Vec::new())),
                     }
-                } else {
+                }
+                else {
                     Ok(Value::Array(Vec::new()))
                 }
             }
@@ -635,7 +650,8 @@ impl Context {
                         Value::String(s) => {
                             if let Ok(i) = s.parse::<i64>() {
                                 Ok(Value::Integer(i))
-                            } else {
+                            }
+                            else {
                                 Ok(Value::Integer(0))
                             }
                         }
@@ -644,7 +660,8 @@ impl Context {
                         Value::Bool(b) => Ok(Value::Integer(if *b { 1 } else { 0 })),
                         _ => Ok(Value::Integer(0)),
                     }
-                } else {
+                }
+                else {
                     Ok(Value::Integer(0))
                 }
             }
@@ -655,7 +672,8 @@ impl Context {
                         Value::String(s) => {
                             if let Ok(f) = s.parse::<f64>() {
                                 Ok(Value::Decimal(f))
-                            } else {
+                            }
+                            else {
                                 Ok(Value::Decimal(0.0))
                             }
                         }
@@ -664,7 +682,8 @@ impl Context {
                         Value::Bool(b) => Ok(Value::Decimal(if *b { 1.0 } else { 0.0 })),
                         _ => Ok(Value::Decimal(0.0)),
                     }
-                } else {
+                }
+                else {
                     Ok(Value::Decimal(0.0))
                 }
             }
@@ -690,7 +709,8 @@ impl Context {
     pub fn translate(&self, key: &str, args: Option<&HashMap<String, String>>) -> DejavuResult<String> {
         if let Some(provider) = self.translation_provider() {
             provider.translate(key, args, provider.get_locale())
-        } else {
+        }
+        else {
             Ok(key.to_string())
         }
     }

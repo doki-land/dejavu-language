@@ -28,11 +28,8 @@ fn round(s: &str) -> String {
 /// `round` of everything after the `import` lines — useful when we want to
 /// inspect whether runtime helpers are *called*, not just *imported*.
 fn round_body(s: &str) -> String {
-    let body = s
-        .lines()
-        .skip_while(|l| l.trim_start().starts_with("import ") || l.trim().is_empty())
-        .collect::<Vec<_>>()
-        .join("\n");
+    let body =
+        s.lines().skip_while(|l| l.trim_start().starts_with("import ") || l.trim().is_empty()).collect::<Vec<_>>().join("\n");
     round(&body)
 }
 
@@ -75,9 +72,13 @@ fn interp(expression: Value, raw: bool) -> Value {
     json!({ "type": "Interpolation", "expression": expression, "trim": "none", "raw": raw })
 }
 
-fn ident(name: &str) -> Value { json!({ "type": "Expr.Identifier", "name": name }) }
+fn ident(name: &str) -> Value {
+    json!({ "type": "Expr.Identifier", "name": name })
+}
 
-fn lit(value: Value) -> Value { json!({ "type": "Expr.Literal", "value": value }) }
+fn lit(value: Value) -> Value {
+    json!({ "type": "Expr.Literal", "value": value })
+}
 
 fn member(object: Value, property: &str) -> Value {
     json!({ "type": "Expr.Member", "object": object, "property": property })
@@ -110,17 +111,14 @@ fn test_node(expression: Value, test: &str, args: Vec<Value>, negated: bool) -> 
     })
 }
 
-fn stmt_if(
-    test: Value,
-    consequent: Vec<Value>,
-    else_ifs: Vec<Value>,
-    alternate: Option<Vec<Value>>,
-) -> Value {
+fn stmt_if(test: Value, consequent: Vec<Value>, else_ifs: Vec<Value>, alternate: Option<Vec<Value>>) -> Value {
     let mut obj = json!({
         "type": "Stmt.If", "test": test,
         "consequent": consequent, "elseIfs": else_ifs, "trim": "none"
     });
-    if let Some(alt) = alternate { obj["alternate"] = json!(alt); }
+    if let Some(alt) = alternate {
+        obj["alternate"] = json!(alt);
+    }
     obj
 }
 
@@ -233,12 +231,7 @@ fn interpolation_pipe_uppercase_still_escapes() {
 
 #[test]
 fn if_statement_emits_is_truthy() {
-    let ir = doc(vec![stmt_if(
-        ident("ok"),
-        vec![text("yes")],
-        vec![],
-        Some(vec![text("no")]),
-    )]);
+    let ir = doc(vec![stmt_if(ident("ok"), vec![text("yes")], vec![], Some(vec![text("no")]))]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
     assert!(r.contains("if (isTruthy(exprIdent(ctx, \"ok\", __strict))) {"));
@@ -252,10 +245,7 @@ fn if_elseif_chain() {
     let ir = doc(vec![stmt_if(
         ident("a"),
         vec![text("a")],
-        vec![
-            stmt_elseif(ident("b"), vec![text("b")]),
-            stmt_elseif(ident("c"), vec![text("c")]),
-        ],
+        vec![stmt_elseif(ident("b"), vec![text("b")]), stmt_elseif(ident("c"), vec![text("c")])],
         Some(vec![text("fallback")]),
     )]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
@@ -272,11 +262,7 @@ fn if_elseif_chain() {
 
 #[test]
 fn for_binds_implicit_forloop_metadata() {
-    let ir = doc(vec![stmt_for(
-        "item",
-        ident("items"),
-        vec![text("#"), interp(ident("item"), false)],
-    )]);
+    let ir = doc(vec![stmt_for("item", ident("items"), vec![text("#"), interp(ident("item"), false)])]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
     assert!(r.contains("let __v = exprIdent(ctx, \"items\", __strict);"));
@@ -294,11 +280,7 @@ fn for_binds_implicit_forloop_metadata() {
 
 #[test]
 fn forloop_depth_follows_the_outer_binding() {
-    let ir = doc(vec![stmt_for(
-        "x",
-        ident("items"),
-        vec![interp(member(ident("forloop"), "depth"), false)],
-    )]);
+    let ir = doc(vec![stmt_for("x", ident("items"), vec![interp(member(ident("forloop"), "depth"), false)])]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
     assert!(r.contains(
@@ -308,10 +290,7 @@ fn forloop_depth_follows_the_outer_binding() {
 
 #[test]
 fn two_loops_in_one_template_get_distinct_scopes() {
-    let ir = doc(vec![
-        stmt_for("a", ident("xs"), vec![text("x")]),
-        stmt_for("b", ident("ys"), vec![text("y")]),
-    ]);
+    let ir = doc(vec![stmt_for("a", ident("xs"), vec![text("x")]), stmt_for("b", ident("ys"), vec![text("y")])]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
     // Each loop uses its own iterable temp and block scope.
@@ -326,8 +305,7 @@ fn two_loops_in_one_template_get_distinct_scopes() {
 
 #[test]
 fn expr_literal_number_string() {
-    let ir = doc(vec![interp(lit(json!(42)), false), text(" "),
-                       interp(lit(json!("hi")), false)]);
+    let ir = doc(vec![interp(lit(json!(42)), false), text(" "), interp(lit(json!("hi")), false)]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
     assert!(r.contains("let __v = 42;"));
@@ -336,9 +314,13 @@ fn expr_literal_number_string() {
 
 #[test]
 fn expr_literal_null_bool() {
-    let ir = doc(vec![interp(lit(json!(null)), false), text(" "),
-                       interp(lit(json!(true)), false), text(" "),
-                       interp(lit(json!(false)), false)]);
+    let ir = doc(vec![
+        interp(lit(json!(null)), false),
+        text(" "),
+        interp(lit(json!(true)), false),
+        text(" "),
+        interp(lit(json!(false)), false),
+    ]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
     assert!(r.contains("null"));
@@ -358,9 +340,8 @@ fn expr_literal_object_array() {
 
 #[test]
 fn expr_reserved_word_uses_bracket() {
-    let ir = doc(vec![interp(ident("if"), false), text(" "),
-                       interp(ident("for"), false), text(" "),
-                       interp(ident("await"), false)]);
+    let ir =
+        doc(vec![interp(ident("if"), false), text(" "), interp(ident("for"), false), text(" "), interp(ident("await"), false)]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
     assert!(r.contains("exprIdent(ctx, \"if\", __strict)"));
@@ -394,8 +375,7 @@ fn expr_binary_emits_helper() {
 
 #[test]
 fn expr_unary_emits_helper() {
-    let ir = doc(vec![interp(unary("-", ident("x")), false), text(" "),
-                       interp(unary("!", ident("y")), false)]);
+    let ir = doc(vec![interp(unary("-", ident("x")), false), text(" "), interp(unary("!", ident("y")), false)]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
     assert!(r.contains("unary(\"-\", exprIdent(ctx, \"x\", __strict))"));
@@ -418,20 +398,14 @@ fn expr_call_unknown_function_is_rejected() {
 
 #[test]
 fn expr_call_member_callee_stays_closed() {
-    let ir = doc(vec![interp(
-        call(member(ident("user"), "format"), vec![]),
-        false,
-    )]);
+    let ir = doc(vec![interp(call(member(ident("user"), "format"), vec![]), false)]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     assert_eq!(res.diagnostics[0].code, "dejavu.template.calls-not-supported");
 }
 
 #[test]
 fn expr_call_builtin_emits_call_function() {
-    let ir = doc(vec![interp(
-        call(ident("range"), vec![lit(json!(0)), lit(json!(3))]),
-        false,
-    )]);
+    let ir = doc(vec![interp(call(ident("range"), vec![lit(json!(0)), lit(json!(3))]), false)]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round_body(&res.code);
     assert!(r.contains("callFunction(\"range\", [0, 3], __custom)"), "{r}");
@@ -471,10 +445,7 @@ fn expr_test_unknown_name_is_diagnostic() {
 
 #[test]
 fn expr_test_arity_violation_is_diagnostic() {
-    let ir = doc(vec![interp(
-        test_node(ident("v"), "empty", vec![lit(json!(1))], false),
-        false,
-    )]);
+    let ir = doc(vec![interp(test_node(ident("v"), "empty", vec![lit(json!(1))], false), false)]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     assert_eq!(res.diagnostics[0].code, "dejavu.template.test-arity");
 }
@@ -488,9 +459,7 @@ fn stmt_block_emits_throw_and_diagnostic() {
     let ir = doc(vec![stmt_block("head", vec![text("x")])]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
-    assert!(r.contains(
-        "throw runtimeError(\"dejavu.compile.not-supported-in-single-template\", \"Stmt.Block (head)\")"
-    ));
+    assert!(r.contains("throw runtimeError(\"dejavu.compile.not-supported-in-single-template\", \"Stmt.Block (head)\")"));
     assert_eq!(res.diagnostics.len(), 1);
     assert!(res.diagnostics[0].message.as_ref().unwrap().contains("Stmt.Block"));
 }
@@ -520,10 +489,7 @@ fn strict_is_a_render_time_option_never_baked_into_codegen() {
     let ir = doc(vec![interp(ident("missing"), false)]);
     // Even a legacy `strictUndefined` key in codegen options must not change
     // the module: strict is read from `options.strictUndefined` per render.
-    let res = compile_opts(
-        &serde_json::to_string(&ir).unwrap(),
-        r#"{"strictUndefined": true}"#,
-    );
+    let res = compile_opts(&serde_json::to_string(&ir).unwrap(), r#"{"strictUndefined": true}"#);
     let plain = compile(&serde_json::to_string(&ir).unwrap());
     assert_eq!(res.code, plain.code);
     assert!(res.code.contains("const __strict = options.strictUndefined === true;"));
@@ -532,10 +498,7 @@ fn strict_is_a_render_time_option_never_baked_into_codegen() {
 
 #[test]
 fn member_and_index_take_runtime_strict_and_path() {
-    let ir = doc(vec![
-        interp(member(ident("user"), "email"), false),
-        interp(index(ident("items"), lit(json!(3))), false),
-    ]);
+    let ir = doc(vec![interp(member(ident("user"), "email"), false), interp(index(ident("items"), lit(json!(3))), false)]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
     let r = round(&res.code);
     assert!(r.contains("exprMember(exprIdent(ctx, \"user\", __strict), \"email\", __strict, \"user.email\")"));
@@ -569,8 +532,7 @@ fn entry_id_default_is_entry() {
 #[test]
 fn entry_id_from_options() {
     let ir = doc(vec![]);
-    let res = compile_opts(&serde_json::to_string(&ir).unwrap(),
-                           r#"{"entryId":"theme:layout.dejavu"}"#);
+    let res = compile_opts(&serde_json::to_string(&ir).unwrap(), r#"{"entryId":"theme:layout.dejavu"}"#);
     assert_eq!(res.entry_id, "theme:layout.dejavu");
 }
 
@@ -589,11 +551,7 @@ fn origins_point_each_construct_at_its_template_span() {
     let ir = doc(vec![
         spanned(text("hello"), 0, 5),
         spanned(interp(ident("name"), false), 5, 15),
-        spanned(
-            stmt_if(ident("ok"), vec![spanned(text("yes"), 21, 24)], vec![], None),
-            15,
-            40,
-        ),
+        spanned(stmt_if(ident("ok"), vec![spanned(text("yes"), 21, 24)], vec![], None), 15, 40),
     ]);
     let res = compile(&serde_json::to_string(&ir).unwrap());
 
@@ -634,12 +592,11 @@ fn generated_code_runs_in_node_stub() {
         text("Hello, "),
         interp(pipe("escape", ident("name"), vec![]), false),
         text("! items=["),
-        stmt_for("item", ident("items"), vec![
-            interp(member(ident("forloop"), "index0"), false),
-            text(":"),
-            interp(ident("item"), false),
-            text(" "),
-        ]),
+        stmt_for(
+            "item",
+            ident("items"),
+            vec![interp(member(ident("forloop"), "index0"), false), text(":"), interp(ident("item"), false), text(" ")],
+        ),
         text("] count="),
         interp(binary("+", ident("count"), lit(json!(1))), false),
     ]);
@@ -722,9 +679,7 @@ const { htmlEscape, applyFilter, isTruthy, binary, unary, valueToString, exprIde
     js_lines.retain(|l| !l.trim().starts_with("import ") && !l.trim().starts_with("export const "));
     let body = js_lines.join("\n").replace("export function render", "function render");
 
-    let full = format!(
-        "{node_stub}\n{body}\nconsole.log(render({{ name: '<world>', items: ['a','b'], count: 10 }}, {{}}));"
-    );
+    let full = format!("{node_stub}\n{body}\nconsole.log(render({{ name: '<world>', items: ['a','b'], count: 10 }}, {{}}));");
 
     match std::process::Command::new("node").args(["-e", &full]).output() {
         Ok(o) if o.status.success() => {

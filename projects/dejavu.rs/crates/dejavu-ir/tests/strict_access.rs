@@ -4,9 +4,7 @@
 //! 把三类缺失访问各报一个独立 code；null 接收者仍宽容；链在第一个缺失环节
 //! 报错；默认 lenient 输出零变化。
 
-use dejavu_ir::{
-    IrDocument, IrError, RenderOptions, ArgValue, codes, default_language, render_ir_opts,
-};
+use dejavu_ir::{ArgValue, IrDocument, IrError, RenderOptions, codes, default_language, render_ir_opts};
 use serde_json::Value;
 
 fn tpl_ir(children: Vec<serde_json::Value>) -> IrDocument {
@@ -52,11 +50,7 @@ fn literal_str(s: &str) -> serde_json::Value {
 
 fn render(expr: serde_json::Value, ctx: Value, strict: bool) -> Result<String, IrError> {
     let doc = tpl_ir(vec![interpolation(expr)]);
-    let opts = RenderOptions {
-        strict_undefined: strict,
-        name: Some("t".into()),
-        ..Default::default()
-    };
+    let opts = RenderOptions { strict_undefined: strict, name: Some("t".into()), ..Default::default() };
     render_ir_opts(&doc, &ctx, opts, None)
 }
 
@@ -90,13 +84,7 @@ fn strict_missing_member_reports_undefined_member_with_path() {
     let ctx = ctx_json(serde_json::json!({ "user": { "name": "a" } }));
     let (code, args) = err_code(render(member(identifier("user"), "email"), ctx, true).unwrap_err());
     assert_eq!(code, codes::UNDEFINED_MEMBER);
-    assert_eq!(
-        args,
-        vec![
-            ("name".into(), "email".into()),
-            ("path".into(), "user.email".into()),
-        ]
-    );
+    assert_eq!(args, vec![("name".into(), "email".into()), ("path".into(), "user.email".into()),]);
 }
 
 #[test]
@@ -104,23 +92,15 @@ fn strict_index_out_of_bounds_reports_undefined_index() {
     let ctx = ctx_json(serde_json::json!({ "items": [1, 2] }));
     let (code, args) = err_code(render(index(identifier("items"), literal_num(5)), ctx, true).unwrap_err());
     assert_eq!(code, codes::UNDEFINED_INDEX);
-    assert_eq!(
-        args,
-        vec![("name".into(), "5".into()), ("path".into(), "items[5]".into())]
-    );
+    assert_eq!(args, vec![("name".into(), "5".into()), ("path".into(), "items[5]".into())]);
 }
 
 #[test]
 fn strict_object_missing_key_reports_undefined_index() {
     let ctx = ctx_json(serde_json::json!({ "user": { "name": "a" } }));
-    let (code, args) = err_code(
-        render(index(identifier("user"), literal_str("email")), ctx, true).unwrap_err(),
-    );
+    let (code, args) = err_code(render(index(identifier("user"), literal_str("email")), ctx, true).unwrap_err());
     assert_eq!(code, codes::UNDEFINED_INDEX);
-    assert_eq!(
-        args,
-        vec![("name".into(), "email".into()), ("path".into(), "user[email]".into())]
-    );
+    assert_eq!(args, vec![("name".into(), "email".into()), ("path".into(), "user[email]".into())]);
 }
 
 #[test]
@@ -130,10 +110,7 @@ fn strict_chain_reports_at_first_missing_link() {
     let expr = member(member(member(identifier("a"), "b"), "c"), "d");
     let (code, args) = err_code(render(expr, ctx, true).unwrap_err());
     assert_eq!(code, codes::UNDEFINED_MEMBER);
-    assert_eq!(
-        args,
-        vec![("name".into(), "c".into()), ("path".into(), "a.b.c".into())]
-    );
+    assert_eq!(args, vec![("name".into(), "c".into()), ("path".into(), "a.b.c".into())]);
 }
 
 #[test]
@@ -173,12 +150,7 @@ fn strict_non_lookup_indexes_stay_lenient() {
 fn strict_dynamic_index_path_uses_question_label() {
     // `items[i]` where `i` is an identifier that exists → path label `?`.
     let ctx = ctx_json(serde_json::json!({ "items": [1], "i": 4 }));
-    let (code, args) = err_code(
-        render(index(identifier("items"), identifier("i")), ctx, true).unwrap_err(),
-    );
+    let (code, args) = err_code(render(index(identifier("items"), identifier("i")), ctx, true).unwrap_err());
     assert_eq!(code, codes::UNDEFINED_INDEX);
-    assert_eq!(
-        args,
-        vec![("name".into(), "4".into()), ("path".into(), "items[?]".into())]
-    );
+    assert_eq!(args, vec![("name".into(), "4".into()), ("path".into(), "items[?]".into())]);
 }

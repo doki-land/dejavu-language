@@ -1,6 +1,6 @@
+use boost_fs::temp::create_folder;
 use dejavu_config::DejavuConfig;
 use std::path::PathBuf;
-use boost_fs::temp::create_folder;
 
 #[test]
 fn test_new_config() {

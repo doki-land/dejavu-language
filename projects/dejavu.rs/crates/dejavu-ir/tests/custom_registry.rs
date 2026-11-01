@@ -1,10 +1,10 @@
 //! Host-supplied registry descriptions: wire shape, conflict rejection and the
 //! merged cross-host dump.
 
-use dejavu_ir::registry::{CustomEntry, Namespace, validate_custom_entries};
 use dejavu_ir::{
-    ArgValue, Capability, CustomError, CustomRegistry, IrDocument, IrError, RenderOptions, Stage, codes,
-    default_language, render_ir_opts,
+    ArgValue, Capability, CustomError, CustomRegistry, IrDocument, IrError, RenderOptions, Stage, codes, default_language,
+    registry::{CustomEntry, Namespace, validate_custom_entries},
+    render_ir_opts,
 };
 use serde_json::{Value, json};
 
@@ -131,12 +131,7 @@ fn host() -> Host {
 }
 
 fn render(doc: &IrDocument, custom: &dyn CustomRegistry, capabilities: dejavu_ir::CapabilitySet) -> Result<String, IrError> {
-    render_ir_opts(
-        doc,
-        &json!({}),
-        RenderOptions { capabilities, custom: Some(custom), ..Default::default() },
-        None,
-    )
+    render_ir_opts(doc, &json!({}), RenderOptions { capabilities, custom: Some(custom), ..Default::default() }, None)
 }
 
 fn code(err: IrError) -> String {
@@ -203,7 +198,10 @@ fn host_failures_surface_as_custom_invocation_for_every_namespace() {
     ];
     for (namespace, doc) in cases {
         let err = render(&doc, &host, dejavu_ir::CapabilitySet::all()).expect_err("host failure");
-        let IrError::Diagnostic(diagnostic) = err else { panic!("expected diagnostic") };
+        let IrError::Diagnostic(diagnostic) = err
+        else {
+            panic!("expected diagnostic")
+        };
         assert_eq!(diagnostic.code, codes::CUSTOM_INVOCATION, "{namespace}");
         assert_eq!(arg_string(&diagnostic, "namespace"), namespace);
         assert_eq!(arg_string(&diagnostic, "message"), "host exploded");
@@ -215,12 +213,14 @@ fn conflicting_registration_is_rejected_before_rendering() {
     let host = Host::new(vec![entry(Namespace::Filter, "uppercase", &[], 0, 0, Capability::Pure)]);
     let doc = pipe_doc("uppercase", "x", vec![]);
     let err = render(&doc, &host, dejavu_ir::CapabilitySet::all()).expect_err("conflict");
-    let IrError::Diagnostic(diagnostic) = err else { panic!("expected diagnostic") };
+    let IrError::Diagnostic(diagnostic) = err
+    else {
+        panic!("expected diagnostic")
+    };
     assert_eq!(diagnostic.code, codes::REGISTRY_CONFLICT);
     assert_eq!(diagnostic.stage, Stage::Host);
     assert_eq!(arg_string(&diagnostic, "namespace"), "filter");
 }
-
 
 fn arg_string(diagnostic: &dejavu_ir::Diagnostic, key: &str) -> String {
     match diagnostic.args.get(key) {

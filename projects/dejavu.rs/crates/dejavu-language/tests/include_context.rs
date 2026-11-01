@@ -6,7 +6,8 @@ use dejavu_language::parse;
 
 fn include_node(source: &str) -> IrNode {
     let doc: IrDocument = parse(source).expect("parse");
-    let IrNode::Template { children, .. } = doc.body else {
+    let IrNode::Template { children, .. } = doc.body
+    else {
         panic!("expected Template body");
     };
     children.into_iter().find(|c| matches!(c, IrNode::StmtInclude { .. })).expect("Stmt.Include")
@@ -14,7 +15,8 @@ fn include_node(source: &str) -> IrNode {
 
 #[test]
 fn plain_include_inherits_context() {
-    let IrNode::StmtInclude { with, only, .. } = include_node(r#"<% include "partial.dejavu" %>"#) else {
+    let IrNode::StmtInclude { with, only, .. } = include_node(r#"<% include "partial.dejavu" %>"#)
+    else {
         unreachable!()
     };
     assert!(with.is_none());
@@ -23,8 +25,7 @@ fn plain_include_inherits_context() {
 
 #[test]
 fn include_with_expression_merges_context() {
-    let IrNode::StmtInclude { path, with, only, .. } =
-        include_node(r#"<% include "partial.dejavu" with card %>"#)
+    let IrNode::StmtInclude { path, with, only, .. } = include_node(r#"<% include "partial.dejavu" with card %>"#)
     else {
         unreachable!()
     };
@@ -35,8 +36,7 @@ fn include_with_expression_merges_context() {
 
 #[test]
 fn include_with_path_expression_is_not_consumed_by_modifier() {
-    let IrNode::StmtInclude { path, with, only, .. } =
-        include_node("<% include page.partial with page.slot %>")
+    let IrNode::StmtInclude { path, with, only, .. } = include_node("<% include page.partial with page.slot %>")
     else {
         unreachable!()
     };
@@ -47,7 +47,8 @@ fn include_with_path_expression_is_not_consumed_by_modifier() {
 
 #[test]
 fn include_only_isolates_context() {
-    let IrNode::StmtInclude { with, only, .. } = include_node(r#"<% include "p" only %>"#) else {
+    let IrNode::StmtInclude { with, only, .. } = include_node(r#"<% include "p" only %>"#)
+    else {
         unreachable!()
     };
     assert!(with.is_none());

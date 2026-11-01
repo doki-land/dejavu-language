@@ -1,10 +1,13 @@
 //! Runtime semantics of the built-in `function` and `test` namespaces.
 
-use dejavu_ir::registry::{
-    Capability, CapabilitySet, FunctionLookupError, TestLookupError, function_spec, test_spec, validate_function,
-    validate_test,
+use dejavu_ir::{
+    IrError, call_function, call_test, codes, default_language,
+    registry::{
+        Capability, CapabilitySet, FunctionLookupError, TestLookupError, function_spec, test_spec, validate_function,
+        validate_test,
+    },
+    render_ir,
 };
-use dejavu_ir::{IrError, call_function, call_test, codes, default_language, render_ir};
 use std::collections::HashSet;
 
 #[test]
@@ -151,9 +154,7 @@ fn renderer_rejects_member_callee() {
     });
     let doc = serde_json::from_value(json).expect("parse ir json");
     assert_eq!(
-        error_code(
-            render_ir(&doc, &serde_json::json!({"user": {"format": "x"}})).expect_err("member callee")
-        ),
+        error_code(render_ir(&doc, &serde_json::json!({"user": {"format": "x"}})).expect_err("member callee")),
         codes::CALLS_NOT_SUPPORTED
     );
 }
@@ -201,8 +202,7 @@ fn capability_allowlist_gates_functions_and_tests() {
         .expect_err("denied function");
     assert_eq!(error_code(err), codes::CAPABILITY_NOT_ALLOWED);
 
-    let err = call_test("empty", &serde_json::json!([1]), &[], false, CapabilitySet::none())
-        .expect_err("denied test");
+    let err = call_test("empty", &serde_json::json!([1]), &[], false, CapabilitySet::none()).expect_err("denied test");
     assert_eq!(error_code(err), codes::CAPABILITY_NOT_ALLOWED);
 }
 

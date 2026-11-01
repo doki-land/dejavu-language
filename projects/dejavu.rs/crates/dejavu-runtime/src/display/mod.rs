@@ -105,7 +105,8 @@ where
             DisplayValue::Unsafe(ref t) => {
                 if self.config.enabled {
                     write!(EscapeWriter { fmt, escaper: &self.escaper, config: &self.config }, "{t}")
-                } else {
+                }
+                else {
                     t.fmt(fmt)
                 }
             }

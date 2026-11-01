@@ -15,15 +15,14 @@
 
 pub use dejavu_engine::{DejavuEngine, parse, parse_error_diagnostic, render, render_source};
 pub use dejavu_ir::{
-    ArgValue, Diagnostic, IrDocument, IrError, IrNode, Language, RelatedSpan, Severity, Span, Stage, TemplateConfig,
-    IR_VERSION, codes, diag_load, diag_render, normalize_value,
+    ArgValue, Diagnostic, IR_VERSION, IrDocument, IrError, IrNode, Language, RelatedSpan, Severity, Span, Stage,
+    TemplateConfig, codes, diag_load, diag_render, normalize_value,
 };
 pub use dejavu_language::{ParseError, ParseResult};
 pub use dejavu_runtime::{
-    EscapeDisplay, Escaper, HtmlEscapeConfig, Template, escape, escape_with_config, safe_html_attribute_escape,
-    safe_html_escape,
+    EscapeDisplay, Escaper, HtmlEscapeConfig, Template, escape, escape_with_config, escaper, looper,
+    safe_html_attribute_escape, safe_html_escape,
 };
-pub use dejavu_runtime::{escaper, looper};
 pub use dejavu_types::{Context, Value};
 
 /// Canonical user-facing facade (same role as `Dejavu` in other host languages).
@@ -51,11 +50,7 @@ impl Dejavu {
     }
 
     /// Parse then render with explicit Language config (custom delimiters).
-    pub fn render_source_with(
-        source: &str,
-        ctx: &serde_json::Value,
-        language: &Language,
-    ) -> Result<String, IrError> {
+    pub fn render_source_with(source: &str, ctx: &serde_json::Value, language: &Language) -> Result<String, IrError> {
         let doc = Self::parse_with(source, language).map_err(|e| IrError::from(parse_error_diagnostic(e)))?;
         render(&doc, ctx)
     }

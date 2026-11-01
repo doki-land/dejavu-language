@@ -358,7 +358,8 @@ impl fmt::Display for CompileError {
             CompileError::CodeGenError { message, line, column } => {
                 if let (Some(line), Some(column)) = (line, column) {
                     write!(f, "❌ 编译错误: 代码生成失败 (第{}行, 第{}列): {}", line, column, message)
-                } else {
+                }
+                else {
                     write!(f, "❌ 编译错误: 代码生成失败: {}", message)
                 }
             }
@@ -368,7 +369,8 @@ impl fmt::Display for CompileError {
             CompileError::MissingTemplateDeclaration { line, column } => {
                 if let (Some(line), Some(column)) = (line, column) {
                     write!(f, "❌ 编译错误: 缺少模板声明 (第{}行, 第{}列)", line, column)
-                } else {
+                }
+                else {
                     write!(f, "❌ 编译错误: 缺少模板声明")
                 }
             }
@@ -378,49 +380,56 @@ impl fmt::Display for CompileError {
             CompileError::UndefinedVariable { name, line, column } => {
                 if let (Some(line), Some(column)) = (line, column) {
                     write!(f, "❌ 编译错误: 未定义的变量 '{}' (第{}行, 第{}列)", name, line, column)
-                } else {
+                }
+                else {
                     write!(f, "❌ 编译错误: 未定义的变量: {}", name)
                 }
             }
             CompileError::InvalidExpression { message, line, column } => {
                 if let (Some(line), Some(column)) = (line, column) {
                     write!(f, "❌ 编译错误: 无效的表达式 (第{}行, 第{}列): {}", line, column, message)
-                } else {
+                }
+                else {
                     write!(f, "❌ 编译错误: 无效的表达式: {}", message)
                 }
             }
             CompileError::MismatchedBlock { expected, found, line, column } => {
                 if let (Some(line), Some(column)) = (line, column) {
                     write!(f, "❌ 编译错误: 块标签不匹配 (第{}行, 第{}列): 期望 '{}', 找到 '{}'", line, column, expected, found)
-                } else {
+                }
+                else {
                     write!(f, "❌ 编译错误: 块标签不匹配: 期望 '{}', 找到 '{}'", expected, found)
                 }
             }
             CompileError::MissingTranslationKey { key, line, column } => {
                 if let (Some(line), Some(column)) = (line, column) {
                     write!(f, "❌ 编译错误: 缺少翻译键 '{}' (第{}行, 第{}列)", key, line, column)
-                } else {
+                }
+                else {
                     write!(f, "❌ 编译错误: 缺少翻译键: {}", key)
                 }
             }
             CompileError::UntranslatedString { string, line, column } => {
                 if let (Some(line), Some(column)) = (line, column) {
                     write!(f, "❌ 编译错误: 未翻译的字符串 '{}' (第{}行, 第{}列)", string, line, column)
-                } else {
+                }
+                else {
                     write!(f, "❌ 编译错误: 未翻译的字符串: {}", string)
                 }
             }
             CompileError::MissingRequiredParameter { parameter, key, line, column } => {
                 if let (Some(line), Some(column)) = (line, column) {
                     write!(f, "❌ 编译错误: 翻译键 '{}' 缺少必填参数 '{}' (第{}行, 第{}列)", key, parameter, line, column)
-                } else {
+                }
+                else {
                     write!(f, "❌ 编译错误: 翻译键 '{}' 缺少必填参数 '{}'", key, parameter)
                 }
             }
             CompileError::UnknownParameter { parameter, key, line, column } => {
                 if let (Some(line), Some(column)) = (line, column) {
                     write!(f, "❌ 编译错误: 翻译键 '{}' 存在未知参数 '{}' (第{}行, 第{}列)", key, parameter, line, column)
-                } else {
+                }
+                else {
                     write!(f, "❌ 编译错误: 翻译键 '{}' 存在未知参数 '{}'", key, parameter)
                 }
             }
@@ -475,7 +484,8 @@ impl fmt::Display for TypeCheckError {
             TypeCheckError::TypeMismatch { expected, found, message, line, column, suggestion } => {
                 let location = if let (Some(line), Some(column)) = (line, column) {
                     format!(" (第{}行, 第{}列)", line, column)
-                } else {
+                }
+                else {
                     String::new()
                 };
                 let mut error_msg = format!("类型不匹配{location}: 期望 {}, 找到 {}", expected, found);
@@ -490,7 +500,8 @@ impl fmt::Display for TypeCheckError {
             TypeCheckError::UndefinedVariable { name, line, column, suggestion } => {
                 let location = if let (Some(line), Some(column)) = (line, column) {
                     format!(" (第{}行, 第{}列)", line, column)
-                } else {
+                }
+                else {
                     String::new()
                 };
                 let mut error_msg = format!("未定义的变量 '{}'{}", name, location);
@@ -502,7 +513,8 @@ impl fmt::Display for TypeCheckError {
             TypeCheckError::UndefinedFunction { name, line, column, suggestion } => {
                 let location = if let (Some(line), Some(column)) = (line, column) {
                     format!(" (第{}行, 第{}列)", line, column)
-                } else {
+                }
+                else {
                     String::new()
                 };
                 let mut error_msg = format!("未定义的函数 '{}'{}", name, location);
@@ -514,7 +526,8 @@ impl fmt::Display for TypeCheckError {
             TypeCheckError::UndefinedProperty { object, property, line, column, suggestion } => {
                 let location = if let (Some(line), Some(column)) = (line, column) {
                     format!(" (第{}行, 第{}列)", line, column)
-                } else {
+                }
+                else {
                     String::new()
                 };
                 let mut error_msg = format!("对象 '{}' 上不存在属性 '{}'{}", object, property, location);
@@ -526,7 +539,8 @@ impl fmt::Display for TypeCheckError {
             TypeCheckError::InvalidOperation { operation, operand_type, line, column, suggestion } => {
                 let location = if let (Some(line), Some(column)) = (line, column) {
                     format!(" (第{}行, 第{}列)", line, column)
-                } else {
+                }
+                else {
                     String::new()
                 };
                 let mut error_msg = format!("对类型 '{}' 执行操作 '{}' 无效{}", operand_type, operation, location);
@@ -538,7 +552,8 @@ impl fmt::Display for TypeCheckError {
             TypeCheckError::ArgumentCountMismatch { function, expected, got, line, column, suggestion } => {
                 let location = if let (Some(line), Some(column)) = (line, column) {
                     format!(" (第{}行, 第{}列)", line, column)
-                } else {
+                }
+                else {
                     String::new()
                 };
                 let mut error_msg = format!("函数 '{}' 参数数量不匹配{location}: 期望 {}, 得到 {}", function, expected, got);
@@ -550,7 +565,8 @@ impl fmt::Display for TypeCheckError {
             TypeCheckError::IndexOutOfBounds { index, length, line, column, suggestion } => {
                 let location = if let (Some(line), Some(column)) = (line, column) {
                     format!(" (第{}行, 第{}列)", line, column)
-                } else {
+                }
+                else {
                     String::new()
                 };
                 let mut error_msg = format!("索引越界{location}: 索引 {} 超出长度 {}", index, length);
@@ -562,7 +578,8 @@ impl fmt::Display for TypeCheckError {
             TypeCheckError::DivisionByZero { line, column, suggestion } => {
                 let location = if let (Some(line), Some(column)) = (line, column) {
                     format!(" (第{}行, 第{}列)", line, column)
-                } else {
+                }
+                else {
                     String::new()
                 };
                 let mut error_msg = format!("除以零错误{}", location);
@@ -574,7 +591,8 @@ impl fmt::Display for TypeCheckError {
             TypeCheckError::InvalidTypeAnnotation { annotation, line, column, suggestion } => {
                 let location = if let (Some(line), Some(column)) = (line, column) {
                     format!(" (第{}行, 第{}列)", line, column)
-                } else {
+                }
+                else {
                     String::new()
                 };
                 let mut error_msg = format!("无效的类型注解 '{}'{}", annotation, location);
@@ -586,7 +604,8 @@ impl fmt::Display for TypeCheckError {
             TypeCheckError::TypeInferenceFailed { expression, line, column, suggestion } => {
                 let location = if let (Some(line), Some(column)) = (line, column) {
                     format!(" (第{}行, 第{}列)", line, column)
-                } else {
+                }
+                else {
                     String::new()
                 };
                 let mut error_msg = format!("类型推断失败{location}: 无法推断表达式 '{}' 的类型", expression);

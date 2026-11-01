@@ -5,13 +5,16 @@ mod stmt;
 mod stmt_head;
 
 use dejavu_diagnostic::codes;
-use dejavu_ir::types::Span;
-use dejavu_ir::{IrDocument, Language, NativeKind, NativeNode, NativeTemplate, TemplateConfig, default_language, encode_native};
+use dejavu_ir::{
+    IrDocument, Language, NativeKind, NativeNode, NativeTemplate, TemplateConfig, default_language, encode_native, types::Span,
+};
 use expr::parse_expr;
 use stmt_head::{CodeHead, classify_code, head_stop_kind};
 
-use crate::error::{ParseError, ParseResult};
-use crate::lexer::TrimMode;
+use crate::{
+    error::{ParseError, ParseResult},
+    lexer::TrimMode,
+};
 
 pub struct Parser<'a> {
     pub(crate) source: &'a str,
@@ -41,10 +44,18 @@ impl From<&TemplateConfig> for Delimiters {
 
 impl Delimiters {
     /// Byte length of the code start delimiter (for fast `.starts_with` checks).
-    pub(crate) fn code_start_len(&self) -> usize { self.code_start.len() }
-    pub(crate) fn code_end_len(&self) -> usize { self.code_end.len() }
-    pub(crate) fn comment_start_len(&self) -> usize { self.comment_start.len() }
-    pub(crate) fn comment_end_len(&self) -> usize { self.comment_end.len() }
+    pub(crate) fn code_start_len(&self) -> usize {
+        self.code_start.len()
+    }
+    pub(crate) fn code_end_len(&self) -> usize {
+        self.code_end.len()
+    }
+    pub(crate) fn comment_start_len(&self) -> usize {
+        self.comment_start.len()
+    }
+    pub(crate) fn comment_end_len(&self) -> usize {
+        self.comment_end.len()
+    }
 }
 
 /// One scanned code tag: interior text plus the trim markers on both sides.
@@ -83,11 +94,7 @@ impl<'a> Parser<'a> {
                 NativeKind::Break { .. } | NativeKind::Continue { .. } => {
                     if loop_depth == 0 {
                         let kind = if matches!(node.kind, NativeKind::Break { .. }) { "break" } else { "continue" };
-                        let (start, len) = node
-                            .span
-                            .as_ref()
-                            .map(|s| (s.start, (s.end - s.start).max(1)))
-                            .unwrap_or((0, 1));
+                        let (start, len) = node.span.as_ref().map(|s| (s.start, (s.end - s.start).max(1))).unwrap_or((0, 1));
                         return Err(ParseError::at(
                             self.source,
                             self.file,
@@ -130,10 +137,7 @@ impl<'a> Parser<'a> {
         for child in children {
             if let NativeKind::Partial { .. } = &child.kind {
                 if declared.is_some() {
-                    return Err(self.partial_layout_error(
-                        child,
-                        "only one `partial` declaration is allowed per template",
-                    ));
+                    return Err(self.partial_layout_error(child, "only one `partial` declaration is allowed per template"));
                 }
                 declared = Some(child);
             }
@@ -183,8 +187,20 @@ impl<'a> Parser<'a> {
                 NativeKind::Macro { name, .. } => {
                     if matches!(
                         name.as_str(),
-                        "if" | "else" | "for" | "loop" | "block" | "partial" | "macro" | "end" | "include"
-                            | "extends" | "super" | "raw" | "call" | "caller" | "from"
+                        "if" | "else"
+                            | "for"
+                            | "loop"
+                            | "block"
+                            | "partial"
+                            | "macro"
+                            | "end"
+                            | "include"
+                            | "extends"
+                            | "super"
+                            | "raw"
+                            | "call"
+                            | "caller"
+                            | "from"
                     ) {
                         return Err(self.partial_layout_error(child, "macro name cannot be a control keyword"));
                     }
@@ -197,16 +213,10 @@ impl<'a> Parser<'a> {
                     for imported in names {
                         let local = imported.alias.as_deref().unwrap_or(&imported.name);
                         if local == "caller" {
-                            return Err(self.partial_layout_error(
-                                child,
-                                "`caller` is reserved for the caller block",
-                            ));
+                            return Err(self.partial_layout_error(child, "`caller` is reserved for the caller block"));
                         }
                         if seen.contains(&local) {
-                            return Err(self.partial_layout_error(
-                                child,
-                                "duplicate macro/import name in one template",
-                            ));
+                            return Err(self.partial_layout_error(child, "duplicate macro/import name in one template"));
                         }
                         seen.push(local);
                     }
@@ -227,72 +237,76 @@ impl<'a> Parser<'a> {
             .with_code(codes::PARSE_UNEXPECTED_TOKEN)
     }
 
-/// Find the first `partial` declaration anywhere inside a sibling list.
-///
-/// Used by layout validation: a `partial` may only be a top-level statement of
-/// its own template, never nested inside control flow.
-fn find_partial(nodes: &[NativeNode]) -> Option<&NativeNode> {
-    for node in nodes {
-        match &node.kind {
-            NativeKind::Partial { .. } => return Some(node),
-            NativeKind::If { consequent, else_ifs, alternate, .. } => {
-                if let Some(hit) = Self::find_partial(consequent) {
-                    return Some(hit);
+    /// Find the first `partial` declaration anywhere inside a sibling list.
+    ///
+    /// Used by layout validation: a `partial` may only be a top-level statement of
+    /// its own template, never nested inside control flow.
+    fn find_partial(nodes: &[NativeNode]) -> Option<&NativeNode> {
+        for node in nodes {
+            match &node.kind {
+                NativeKind::Partial { .. } => return Some(node),
+                NativeKind::If { consequent, else_ifs, alternate, .. } => {
+                    if let Some(hit) = Self::find_partial(consequent) {
+                        return Some(hit);
+                    }
+                    for (_, body) in else_ifs {
+                        if let Some(hit) = Self::find_partial(body) {
+                            return Some(hit);
+                        }
+                    }
+                    if let Some(body) = alternate {
+                        if let Some(hit) = Self::find_partial(body) {
+                            return Some(hit);
+                        }
+                    }
                 }
-                for (_, body) in else_ifs {
+                NativeKind::For { body, .. }
+                | NativeKind::Block { body, .. }
+                | NativeKind::Macro { body, .. }
+                | NativeKind::Call { body, .. } => {
                     if let Some(hit) = Self::find_partial(body) {
                         return Some(hit);
                     }
                 }
-                if let Some(body) = alternate {
-                    if let Some(hit) = Self::find_partial(body) {
-                        return Some(hit);
-                    }
-                }
+                _ => {}
             }
-            NativeKind::For { body, .. } | NativeKind::Block { body, .. } | NativeKind::Macro { body, .. }
-            | NativeKind::Call { body, .. } => {
-                if let Some(hit) = Self::find_partial(body) {
-                    return Some(hit);
-                }
-            }
-            _ => {}
         }
+        None
     }
-    None
-}
 
-/// Find the first `macro` declaration or `from ... import` inside a control-flow body.
-fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
-    for node in nodes {
-        match &node.kind {
-            NativeKind::Macro { .. } | NativeKind::Import { .. } => return Some(node),
-            NativeKind::If { consequent, else_ifs, alternate, .. } => {
-                if let Some(hit) = Self::find_macro(consequent) {
-                    return Some(hit);
+    /// Find the first `macro` declaration or `from ... import` inside a control-flow body.
+    fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
+        for node in nodes {
+            match &node.kind {
+                NativeKind::Macro { .. } | NativeKind::Import { .. } => return Some(node),
+                NativeKind::If { consequent, else_ifs, alternate, .. } => {
+                    if let Some(hit) = Self::find_macro(consequent) {
+                        return Some(hit);
+                    }
+                    for (_, body) in else_ifs {
+                        if let Some(hit) = Self::find_macro(body) {
+                            return Some(hit);
+                        }
+                    }
+                    if let Some(body) = alternate {
+                        if let Some(hit) = Self::find_macro(body) {
+                            return Some(hit);
+                        }
+                    }
                 }
-                for (_, body) in else_ifs {
+                NativeKind::For { body, .. }
+                | NativeKind::Block { body, .. }
+                | NativeKind::Partial { body, .. }
+                | NativeKind::Call { body, .. } => {
                     if let Some(hit) = Self::find_macro(body) {
                         return Some(hit);
                     }
                 }
-                if let Some(body) = alternate {
-                    if let Some(hit) = Self::find_macro(body) {
-                        return Some(hit);
-                    }
-                }
+                _ => {}
             }
-            NativeKind::For { body, .. } | NativeKind::Block { body, .. } | NativeKind::Partial { body, .. }
-            | NativeKind::Call { body, .. } => {
-                if let Some(hit) = Self::find_macro(body) {
-                    return Some(hit);
-                }
-            }
-            _ => {}
         }
+        None
     }
-    None
-}
 
     /// Scan one code tag, including the whitespace-control markers on both ends.
     pub(crate) fn scan_tag(&self, i: usize) -> Result<TagScan, ParseError> {
@@ -322,15 +336,8 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
         }
         let rest = &self.source[j..];
         let end = rest.find(&ds.code_end).ok_or_else(|| {
-            ParseError::at(
-                self.source,
-                self.file,
-                i,
-                start_len,
-                "unclosed code block",
-                "opens here",
-            )
-            .with_code(codes::PARSE_UNCLOSED_BLOCK)
+            ParseError::at(self.source, self.file, i, start_len, "unclosed code block", "opens here")
+                .with_code(codes::PARSE_UNCLOSED_BLOCK)
         })?;
         // Closing marker: the byte right before the close delimiter.
         let mut inner_end = j + end;
@@ -356,13 +363,7 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
     /// that side (markers take precedence and suppress standalone) and the
     /// surrounding line holds nothing but spaces/tabs between the delimiter
     /// and the line break (or the source edge).
-    pub(crate) fn standalone_sides(
-        &self,
-        open: usize,
-        next: usize,
-        trim_left: TrimMode,
-        trim_right: TrimMode,
-    ) -> (bool, bool) {
+    pub(crate) fn standalone_sides(&self, open: usize, next: usize, trim_left: TrimMode, trim_right: TrimMode) -> (bool, bool) {
         let bytes = self.source.as_bytes();
         let left = trim_left == TrimMode::None && {
             let mut k = open;
@@ -423,15 +424,11 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
                 if let Some(end) = self.source[i + cms_len..].find(cme) {
                     let inner = &self.source[i + cms_len..i + cms_len + end];
                     let next = i + cms_len + end + cme_len;
-                    let (sa_left, sa_right) =
-                        self.standalone_sides(i, next, TrimMode::None, TrimMode::None);
+                    let (sa_left, sa_right) = self.standalone_sides(i, next, TrimMode::None, TrimMode::None);
                     if sa_left {
                         trim_last_text(&mut children);
                     }
-                    children.push(NativeNode::new(
-                        NativeKind::Comment(inner.to_string()),
-                        Some(Span { start: i, end: next }),
-                    ));
+                    children.push(NativeNode::new(NativeKind::Comment(inner.to_string()), Some(Span { start: i, end: next })));
                     if sa_right {
                         pending.extend_from_slice(&STANDALONE_RIGHT);
                     }
@@ -481,8 +478,15 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
                         if sa_right {
                             pending.extend_from_slice(&STANDALONE_RIGHT);
                         }
-                        let (node, new_i, after) =
-                            self.parse_if(open, next_i, test_src, test_base, tag.trim_left, tag.trim_right, std::mem::take(&mut pending))?;
+                        let (node, new_i, after) = self.parse_if(
+                            open,
+                            next_i,
+                            test_src,
+                            test_base,
+                            tag.trim_left,
+                            tag.trim_right,
+                            std::mem::take(&mut pending),
+                        )?;
                         pending = after;
                         children.push(node);
                         i = new_i;
@@ -619,7 +623,8 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
                     CodeHead::Break | CodeHead::Continue => {
                         let kind = if matches!(head, CodeHead::Break) {
                             NativeKind::Break { trim: tag.trim_left.as_str().into() }
-                        } else {
+                        }
+                        else {
                             NativeKind::Continue { trim: tag.trim_left.as_str().into() }
                         };
                         children.push(NativeNode::new(kind, Some(Span { start: open, end: next_i })));
@@ -665,11 +670,7 @@ fn find_macro(nodes: &[NativeNode]) -> Option<&NativeNode> {
                     CodeHead::Expr { src, base } => {
                         let expr = parse_expr(self.source, self.file, base, src)?;
                         children.push(NativeNode::new(
-                            NativeKind::Interpolation {
-                                expression: expr,
-                                trim: tag.trim_left.as_str().into(),
-                                raw: false,
-                            },
+                            NativeKind::Interpolation { expression: expr, trim: tag.trim_left.as_str().into(), raw: false },
                             Some(Span { start: open, end: next_i }),
                         ));
                         pending = right_levels(tag.trim_right);
@@ -721,13 +722,7 @@ fn right_levels(mode: TrimMode) -> Vec<&'static str> {
 pub(crate) const STANDALONE_RIGHT: [&str; 2] = ["ws", "nl"];
 
 /// Append a text node, applying pending right-side trims from previous tags.
-fn push_text(
-    children: &mut Vec<NativeNode>,
-    mut value: String,
-    start: usize,
-    end: usize,
-    pending: &mut Vec<&'static str>,
-) {
+fn push_text(children: &mut Vec<NativeNode>, mut value: String, start: usize, end: usize, pending: &mut Vec<&'static str>) {
     for level in pending.drain(..) {
         dejavu_ir::trim::trim_prefix(&mut value, level);
     }
@@ -756,12 +751,7 @@ pub(crate) fn trim_first_text(children: &mut [NativeNode]) {
 }
 
 /// `else` / `else if` / `end *` closers do not own whitespace markers.
-fn reject_closer_trim(
-    source: &str,
-    file: &str,
-    tag: &TagScan,
-    head: &CodeHead<'_>,
-) -> Result<(), ParseError> {
+fn reject_closer_trim(source: &str, file: &str, tag: &TagScan, head: &CodeHead<'_>) -> Result<(), ParseError> {
     if tag.trim_left == TrimMode::None && tag.trim_right == TrimMode::None {
         return Ok(());
     }

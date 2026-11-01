@@ -7,7 +7,7 @@
 //! (`application/json`), never as a flattened human string.
 
 use axum::response::{Html, IntoResponse, Response};
-use dejavu::{codes, parse_error_diagnostic, Diagnostic, Dejavu, IrDocument, IrError, Severity, Stage};
+use dejavu::{Dejavu, Diagnostic, IrDocument, IrError, Severity, Stage, codes, parse_error_diagnostic};
 use serde_json::{Map, Value};
 
 /// Error returned by adapter helpers.
@@ -33,12 +33,7 @@ impl IntoResponse for DejavuResponseError {
     fn into_response(self) -> Response {
         let body = serde_json::to_string(&self.diagnostic())
             .unwrap_or_else(|e| format!("{{\"code\":\"{}\",\"message\":\"{}\"}}", codes::IR_INVALID_JSON, e));
-        (
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            [("content-type", "application/json")],
-            body,
-        )
-            .into_response()
+        (axum::http::StatusCode::INTERNAL_SERVER_ERROR, [("content-type", "application/json")], body).into_response()
     }
 }
 

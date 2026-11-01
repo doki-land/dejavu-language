@@ -30,7 +30,8 @@ pub struct CodegenOptions {
 impl CodegenOptions {
     /// Parse from a JSON options string. Accepts `None` or missing → defaults.
     pub fn from_json(opts: Option<&str>) -> Result<Self, serde_json::Error> {
-        let Some(json) = opts else {
+        let Some(json) = opts
+        else {
             return Ok(Self::default());
         };
         if json.trim().is_empty() {

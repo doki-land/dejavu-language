@@ -1,10 +1,7 @@
 //! Rust type system integration for Dejavu templates
 
 use super::type_info::DejavuType;
-use std::{
-    any::TypeId,
-    collections::HashMap,
-};
+use std::{any::TypeId, collections::HashMap};
 
 /// Rust type to Dejavu type mapping
 pub trait RustTypeToDejavu {

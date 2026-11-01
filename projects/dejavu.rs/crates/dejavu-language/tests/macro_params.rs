@@ -5,13 +5,11 @@ use dejavu_language::parse;
 
 fn macro_node(source: &str) -> IrNode {
     let doc: IrDocument = parse(source).expect("parse");
-    let IrNode::Template { children, .. } = doc.body else {
+    let IrNode::Template { children, .. } = doc.body
+    else {
         panic!("expected Template body");
     };
-    children
-        .into_iter()
-        .find(|c| matches!(c, IrNode::StmtMacro { .. }))
-        .expect("Stmt.Macro")
+    children.into_iter().find(|c| matches!(c, IrNode::StmtMacro { .. })).expect("Stmt.Macro")
 }
 
 #[test]
@@ -35,7 +33,8 @@ fn macro_declares_name_and_literal_defaults() {
 
 #[test]
 fn macro_accepts_an_empty_parameter_list() {
-    let IrNode::StmtMacro { params, .. } = macro_node("<% macro divider() %>---<% end macro %>") else {
+    let IrNode::StmtMacro { params, .. } = macro_node("<% macro divider() %>---<% end macro %>")
+    else {
         unreachable!()
     };
     assert!(params.is_empty());
@@ -50,11 +49,7 @@ fn macro_requires_parenthesised_parameters() {
 #[test]
 fn macro_requires_end_macro() {
     let err = parse("<% macro card() %>x").expect_err("unclosed macro");
-    assert!(
-        err.message.contains("expected `end macro`") || err.message.contains("code open"),
-        "message: {}",
-        err.message
-    );
+    assert!(err.message.contains("expected `end macro`") || err.message.contains("code open"), "message: {}", err.message);
 }
 
 #[test]
@@ -65,8 +60,7 @@ fn macro_cannot_be_nested() {
 
 #[test]
 fn macro_names_must_be_unique() {
-    let err = parse("<% macro card() %>a<% end macro %><% macro card() %>b<% end macro %>")
-        .expect_err("duplicate macro");
+    let err = parse("<% macro card() %>a<% end macro %><% macro card() %>b<% end macro %>").expect_err("duplicate macro");
     assert!(err.message.contains("duplicate `macro` name"), "message: {}", err.message);
 }
 
@@ -88,10 +82,12 @@ fn macro_ir_round_trips_through_serde() {
 #[test]
 fn from_import_records_path_and_aliases() {
     let doc: IrDocument = parse(r#"<% from "widgets.dejavu" import greet, icon as star %>"#).expect("parse");
-    let IrNode::Template { children, .. } = doc.body else {
+    let IrNode::Template { children, .. } = doc.body
+    else {
         panic!("expected Template body");
     };
-    let IrNode::StmtImport { path, names, .. } = &children[0] else {
+    let IrNode::StmtImport { path, names, .. } = &children[0]
+    else {
         panic!("expected Stmt.Import, got {:?}", children[0]);
     };
     assert!(matches!(
@@ -107,30 +103,27 @@ fn from_import_records_path_and_aliases() {
 
 #[test]
 fn from_import_must_be_top_level() {
-    let err = parse(r#"<% if ok %><% from "widgets.dejavu" import greet %><% end if %>"#)
-        .expect_err("nested import");
+    let err = parse(r#"<% if ok %><% from "widgets.dejavu" import greet %><% end if %>"#).expect_err("nested import");
     assert!(err.message.contains("top-level declaration"), "message: {}", err.message);
 }
 
 #[test]
 fn from_import_rejects_a_local_name_already_declared() {
-    let err = parse(
-        r#"<% macro greet() %>x<% end macro %><% from "widgets.dejavu" import greet %>"#,
-    )
-    .expect_err("conflicting local name");
+    let err = parse(r#"<% macro greet() %>x<% end macro %><% from "widgets.dejavu" import greet %>"#)
+        .expect_err("conflicting local name");
     assert!(err.message.contains("duplicate macro/import name"), "message: {}", err.message);
 }
 
 #[test]
 fn call_block_parses_name_arguments_and_body() {
-    let doc: IrDocument = parse(
-        r#"<% macro wrap(t) %><% caller() %><% end macro %><% call wrap("x") %>body<% end call %>"#,
-    )
-    .expect("parse");
-    let IrNode::Template { children, .. } = doc.body else {
+    let doc: IrDocument =
+        parse(r#"<% macro wrap(t) %><% caller() %><% end macro %><% call wrap("x") %>body<% end call %>"#).expect("parse");
+    let IrNode::Template { children, .. } = doc.body
+    else {
         panic!("expected Template body");
     };
-    let IrNode::StmtCall { name, arguments, body, .. } = &children[1] else {
+    let IrNode::StmtCall { name, arguments, body, .. } = &children[1]
+    else {
         panic!("expected Stmt.Call, got {:?}", children[1]);
     };
     assert_eq!(name, "wrap");
@@ -143,14 +136,15 @@ fn call_block_parses_name_arguments_and_body() {
 
 #[test]
 fn call_block_parses_caller_parameters() {
-    let doc: IrDocument = parse(
-        r#"<% macro wrap() %><% caller("x", 1) %><% end macro %><% call(label, n) wrap() %>body<% end call %>"#,
-    )
-    .expect("parse");
-    let IrNode::Template { children, .. } = doc.body else {
+    let doc: IrDocument =
+        parse(r#"<% macro wrap() %><% caller("x", 1) %><% end macro %><% call(label, n) wrap() %>body<% end call %>"#)
+            .expect("parse");
+    let IrNode::Template { children, .. } = doc.body
+    else {
         panic!("expected Template body");
     };
-    let IrNode::StmtCall { params, .. } = &children[1] else {
+    let IrNode::StmtCall { params, .. } = &children[1]
+    else {
         panic!("expected Stmt.Call, got {:?}", children[1]);
     };
     let names: Vec<_> = params.iter().map(|p| p.name.as_str()).collect();
@@ -160,8 +154,8 @@ fn call_block_parses_caller_parameters() {
 
 #[test]
 fn call_block_params_reject_defaults_and_duplicates() {
-    let err = parse(r#"<% macro wrap() %>x<% end macro %><% call(a = 1) wrap() %>body<% end call %>"#)
-        .expect_err("caller defaults");
+    let err =
+        parse(r#"<% macro wrap() %>x<% end macro %><% call(a = 1) wrap() %>body<% end call %>"#).expect_err("caller defaults");
     assert!(err.message.contains("comma separated"), "message: {}", err.message);
     let err = parse(r#"<% macro wrap() %>x<% end macro %><% call(a, a) wrap() %>body<% end call %>"#)
         .expect_err("duplicate caller parameter");

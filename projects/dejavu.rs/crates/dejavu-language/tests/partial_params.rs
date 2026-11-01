@@ -5,19 +5,16 @@ use dejavu_language::parse;
 
 fn partial_node(source: &str) -> IrNode {
     let doc: IrDocument = parse(source).expect("parse");
-    let IrNode::Template { children, .. } = doc.body else {
+    let IrNode::Template { children, .. } = doc.body
+    else {
         panic!("expected Template body");
     };
-    children
-        .into_iter()
-        .find(|c| matches!(c, IrNode::StmtPartial { .. }))
-        .expect("Stmt.Partial")
+    children.into_iter().find(|c| matches!(c, IrNode::StmtPartial { .. })).expect("Stmt.Partial")
 }
 
 #[test]
 fn partial_declares_named_parameters_with_literal_defaults() {
-    let IrNode::StmtPartial { params, body, .. } =
-        partial_node(r#"<% partial title, suffix = "!" %>Hi<% end partial %>"#)
+    let IrNode::StmtPartial { params, body, .. } = partial_node(r#"<% partial title, suffix = "!" %>Hi<% end partial %>"#)
     else {
         unreachable!()
     };
@@ -53,8 +50,7 @@ fn partial_rejects_non_literal_defaults() {
 #[test]
 fn partial_requires_end_partial() {
     let err = parse("<% partial a %>x").expect_err("unclosed partial");
-    assert!(err.message.contains("expected `end partial`") || err.message.contains("code open"),
-        "message: {}", err.message);
+    assert!(err.message.contains("expected `end partial`") || err.message.contains("code open"), "message: {}", err.message);
 }
 
 #[test]
@@ -65,8 +61,7 @@ fn partial_must_span_the_whole_template() {
 
 #[test]
 fn partial_cannot_be_nested() {
-    let err = parse("<% if ok %><% partial a %>x<% end partial %><% end if %>")
-        .expect_err("nested partial");
+    let err = parse("<% if ok %><% partial a %>x<% end partial %><% end if %>").expect_err("nested partial");
     assert!(err.message.contains("cannot be nested"), "message: {}", err.message);
 }
 

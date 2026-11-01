@@ -144,15 +144,17 @@ pub const FILTERS: &[FilterSpec] = &[
     spec("replace", &[], 2, 2, Capability::Pure),
     spec("escape", &["e"], 0, 0, Capability::SafeOutput),
     spec("safe", &["raw"], 0, 0, Capability::SafeOutput),
+    spec("escape_attr", &[], 0, 0, Capability::Pure),
+    spec("escape_url", &[], 0, 0, Capability::Pure),
+    spec("escape_js", &[], 0, 0, Capability::Pure),
+    spec("escape_css", &[], 0, 0, Capability::Pure),
     spec("date", &[], 0, 1, Capability::Pure),
     spec("slug", &[], 0, 0, Capability::Pure),
 ];
 
 /// Look up a filter by canonical name or alias.
 pub fn filter_spec(name: &str) -> Option<&'static FilterSpec> {
-    FILTERS
-        .iter()
-        .find(|spec| spec.name == name || spec.aliases.contains(&name))
+    FILTERS.iter().find(|spec| spec.name == name || spec.aliases.contains(&name))
 }
 
 /// Validate a filter name, argument count and host-granted capabilities.
@@ -306,11 +308,7 @@ pub fn test_spec(name: &str) -> Option<&'static TestSpec> {
 }
 
 /// Validate a test name, argument count and host-granted capabilities.
-pub fn validate_test(
-    name: &str,
-    arg_count: usize,
-    capabilities: CapabilitySet,
-) -> Result<&'static TestSpec, TestLookupError> {
+pub fn validate_test(name: &str, arg_count: usize, capabilities: CapabilitySet) -> Result<&'static TestSpec, TestLookupError> {
     let spec = test_spec(name).ok_or(TestLookupError::Unknown)?;
     if arg_count < spec.min_args || arg_count > spec.max_args {
         return Err(TestLookupError::Arity { spec });
@@ -401,10 +399,7 @@ fn builtin_matches(namespace: Namespace, name: &str) -> bool {
 
 fn conflict_diagnostic(namespace: Namespace, name: &str) -> Diagnostic {
     Diagnostic::new(Severity::Error, codes::REGISTRY_CONFLICT, Stage::Host)
-        .message(format!(
-            "registry entry `{name}` conflicts with an existing `{}` entry",
-            namespace.as_str()
-        ))
+        .message(format!("registry entry `{name}` conflicts with an existing `{}` entry", namespace.as_str()))
         .arg("namespace", namespace.as_str())
         .arg("name", name)
 }
@@ -440,11 +435,7 @@ pub fn validate_custom_entries(entries: &[CustomEntry]) -> Result<(), Diagnostic
 }
 
 /// Look up a custom entry by canonical name or alias inside one namespace.
-pub fn custom_entry<'a>(
-    entries: &'a [CustomEntry],
-    namespace: Namespace,
-    name: &str,
-) -> Option<&'a CustomEntry> {
+pub fn custom_entry<'a>(entries: &'a [CustomEntry], namespace: Namespace, name: &str) -> Option<&'a CustomEntry> {
     entries
         .iter()
         .find(|entry| entry.namespace == namespace && (entry.name == name || entry.aliases.iter().any(|alias| alias == name)))
@@ -477,28 +468,27 @@ pub fn to_json() -> String {
 /// the exact same object shape, so the conformance gate can compare the merged
 /// description across hosts without special-casing custom entries.
 pub fn to_json_with_custom(custom: &[CustomEntry]) -> String {
-    let filters = merged_table(FILTERS.iter().map(|spec| {
-        entry_json(spec.name, spec.aliases, spec.min_args, spec.max_args, spec.capability.as_str())
-    }), custom, Namespace::Filter);
-    let functions = merged_table(FUNCTIONS.iter().map(|spec| {
-        entry_json(spec.name, spec.aliases, spec.min_args, spec.max_args, spec.capability.as_str())
-    }), custom, Namespace::Function);
-    let tests = merged_table(TESTS.iter().map(|spec| {
-        entry_json(spec.name, spec.aliases, spec.min_args, spec.max_args, spec.capability.as_str())
-    }), custom, Namespace::Test);
-    format!(
-        "{{\"filters\":[{}],\"functions\":[{}],\"tests\":[{}]}}",
-        filters.join(","),
-        functions.join(","),
-        tests.join(",")
-    )
+    let filters = merged_table(
+        FILTERS.iter().map(|spec| entry_json(spec.name, spec.aliases, spec.min_args, spec.max_args, spec.capability.as_str())),
+        custom,
+        Namespace::Filter,
+    );
+    let functions = merged_table(
+        FUNCTIONS
+            .iter()
+            .map(|spec| entry_json(spec.name, spec.aliases, spec.min_args, spec.max_args, spec.capability.as_str())),
+        custom,
+        Namespace::Function,
+    );
+    let tests = merged_table(
+        TESTS.iter().map(|spec| entry_json(spec.name, spec.aliases, spec.min_args, spec.max_args, spec.capability.as_str())),
+        custom,
+        Namespace::Test,
+    );
+    format!("{{\"filters\":[{}],\"functions\":[{}],\"tests\":[{}]}}", filters.join(","), functions.join(","), tests.join(","))
 }
 
-fn merged_table(
-    builtins: impl Iterator<Item = String>,
-    custom: &[CustomEntry],
-    namespace: Namespace,
-) -> Vec<String> {
+fn merged_table(builtins: impl Iterator<Item = String>, custom: &[CustomEntry], namespace: Namespace) -> Vec<String> {
     let mut table: Vec<String> = builtins.collect();
     table.extend(custom.iter().filter(|entry| entry.namespace == namespace).map(custom_entry_json));
     table

@@ -3,8 +3,7 @@
 use std::collections::HashMap;
 
 use dejavu_ir::{
-    IrDocument, IrError, ResolvedTemplate, Stage, TemplateLoader, codes, default_language,
-    diag_load, render_ir_with_loader,
+    IrDocument, IrError, ResolvedTemplate, Stage, TemplateLoader, codes, default_language, diag_load, render_ir_with_loader,
 };
 use serde_json::Value;
 
@@ -60,10 +59,7 @@ fn member(object: Value, property: &str) -> Value {
 }
 
 fn object(entries: &[(&str, Value)]) -> Value {
-    let entries: Vec<Value> = entries
-        .iter()
-        .map(|(key, value)| serde_json::json!({ "key": key, "value": value }))
-        .collect();
+    let entries: Vec<Value> = entries.iter().map(|(key, value)| serde_json::json!({ "key": key, "value": value })).collect();
     serde_json::json!({ "type": "Expr.Object", "entries": entries })
 }
 
@@ -103,11 +99,7 @@ fn recursive_partial() -> IrDocument {
                 member(identifier("node"), "child"),
                 vec![
                     text("("),
-                    include(
-                        "tree",
-                        Some(object(&[("node", member(identifier("node"), "child"))])),
-                        false,
-                    ),
+                    include("tree", Some(object(&[("node", member(identifier("node"), "child"))])), false),
                     text(")"),
                 ],
             ),
@@ -134,11 +126,7 @@ impl InMemoryLoader {
 impl TemplateLoader for InMemoryLoader {
     fn resolve(&mut self, ref_: &str, _from: Option<&str>) -> Result<ResolvedTemplate, IrError> {
         self.resolves += 1;
-        let doc = self
-            .docs
-            .get(ref_)
-            .cloned()
-            .ok_or_else(|| diag_load(codes::TEMPLATE_NOT_FOUND).arg("template", ref_))?;
+        let doc = self.docs.get(ref_).cloned().ok_or_else(|| diag_load(codes::TEMPLATE_NOT_FOUND).arg("template", ref_))?;
         Ok(ResolvedTemplate { id: ref_.to_string(), document: doc })
     }
 }
@@ -159,11 +147,7 @@ fn include_inherits_caller_context_by_default() {
 
 #[test]
 fn include_with_merges_explicit_context_over_caller() {
-    let entry = tpl(vec![
-        text("A-"),
-        include("partial", Some(identifier("card")), false),
-        text("-Z"),
-    ]);
+    let entry = tpl(vec![text("A-"), include("partial", Some(identifier("card")), false), text("-Z")]);
     let partial = tpl(vec![interp("name"), text(":"), interp("title")]);
     let mut loader = InMemoryLoader::new().insert("partial", partial);
 
@@ -185,13 +169,7 @@ fn include_with_overrides_inherited_entries() {
 
 #[test]
 fn include_only_isolates_the_caller_context() {
-    let entry = tpl(vec![
-        text("A-"),
-        include("partial", None, true),
-        text("-"),
-        interp("name"),
-        text("-Z"),
-    ]);
+    let entry = tpl(vec![text("A-"), include("partial", None, true), text("-"), interp("name"), text("-Z")]);
     let partial = tpl(vec![text("partial:"), interp("name")]);
     let mut loader = InMemoryLoader::new().insert("partial", partial);
 
@@ -245,11 +223,7 @@ fn include_with_null_context_behaves_like_no_entries() {
 
 #[test]
 fn partial_reenters_itself_to_render_nested_data() {
-    let entry = tpl(vec![include(
-        "tree",
-        Some(object(&[("node", identifier("node"))])),
-        false,
-    )]);
+    let entry = tpl(vec![include("tree", Some(object(&[("node", identifier("node"))])), false)]);
     let mut loader = InMemoryLoader::new().insert("tree", recursive_partial());
 
     let ctx = serde_json::json!({
@@ -265,19 +239,9 @@ fn partial_reenters_itself_to_render_nested_data() {
 #[test]
 fn partial_recursion_limit_reports_render_diagnostic() {
     // `partial node` that includes itself without any base case.
-    let looping = tpl(vec![stmt_partial(
-        &[("node", None)],
-        vec![include(
-            "loop",
-            Some(object(&[("node", identifier("node"))])),
-            false,
-        )],
-    )]);
-    let entry = tpl(vec![include(
-        "loop",
-        Some(object(&[("node", literal(serde_json::json!(1)))])),
-        false,
-    )]);
+    let looping =
+        tpl(vec![stmt_partial(&[("node", None)], vec![include("loop", Some(object(&[("node", identifier("node"))])), false)])]);
+    let entry = tpl(vec![include("loop", Some(object(&[("node", literal(serde_json::json!(1)))])), false)]);
     let mut loader = InMemoryLoader::new().insert("loop", looping);
 
     let err = render(&entry, serde_json::json!({}), &mut loader).expect_err("unbounded recursion must fail");
@@ -293,11 +257,7 @@ fn partial_recursion_limit_reports_render_diagnostic() {
 
 #[test]
 fn repeated_include_resolves_once_per_render() {
-    let entry = tpl(vec![
-        include("partial", None, false),
-        include("partial", None, false),
-        include("partial", None, false),
-    ]);
+    let entry = tpl(vec![include("partial", None, false), include("partial", None, false), include("partial", None, false)]);
     let partial = tpl(vec![text("x")]);
     let mut loader = InMemoryLoader::new().insert("partial", partial);
 

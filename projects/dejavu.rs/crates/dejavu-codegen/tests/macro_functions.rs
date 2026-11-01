@@ -58,10 +58,7 @@ fn macro_declaration_emits_a_hoisted_module_function() {
     let result = precompile_single(&doc(vec![macro_card(), call_card()]).to_string(), None).expect("compile");
     assert!(result.diagnostics.is_empty(), "diagnostics: {:?}", result.diagnostics);
     let code = &result.code;
-    assert!(
-        code.contains("function __macro_card(__invokeCtx, args, __depth, __strict, __caller, __custom)"),
-        "code:\n{code}"
-    );
+    assert!(code.contains("function __macro_card(__invokeCtx, args, __depth, __strict, __caller, __custom)"), "code:\n{code}");
     assert!(code.contains("dejavu.template.missing-macro-argument"), "code:\n{code}");
     assert!(code.contains("dejavu.template.macro-arity"), "code:\n{code}");
     assert!(code.contains("__macro_card(ctx, [\"Hi\"], 1, __strict, null, __custom)"), "code:\n{code}");
@@ -71,10 +68,7 @@ fn macro_declaration_emits_a_hoisted_module_function() {
 fn macro_call_output_is_not_auto_escaped() {
     let result = precompile_single(&doc(vec![macro_card(), call_card()]).to_string(), None).expect("compile");
     let code = &result.code;
-    let call_line = code
-        .lines()
-        .find(|l| l.contains("__macro_card(ctx, [\"Hi\"]"))
-        .expect("macro call line");
+    let call_line = code.lines().find(|l| l.contains("__macro_card(ctx, [\"Hi\"]")).expect("macro call line");
     assert!(!call_line.contains("htmlEscape"), "line: {call_line}");
 }
 
@@ -115,8 +109,7 @@ fn call_wrap() -> Value {
 
 #[test]
 fn call_block_emits_a_caller_closure() {
-    let result = precompile_single(&doc(vec![macro_wrap(), call_wrap()]).to_string(), None)
-        .expect("compile");
+    let result = precompile_single(&doc(vec![macro_wrap(), call_wrap()]).to_string(), None).expect("compile");
     assert!(result.diagnostics.is_empty(), "diagnostics: {:?}", result.diagnostics);
     let code = &result.code;
     assert!(code.contains("__macro_wrap(ctx, [], 1, __strict, function (__callerArgs) {"), "code:\n{code}");
@@ -175,10 +168,7 @@ fn caller_outside_a_macro_is_a_compile_error() {
     });
     let result = precompile_single(&doc(vec![call]).to_string(), None).expect("compile");
     assert!(
-        result
-            .diagnostics
-            .iter()
-            .any(|d| d.code == "dejavu.template.caller-unavailable"),
+        result.diagnostics.iter().any(|d| d.code == "dejavu.template.caller-unavailable"),
         "diagnostics: {:?}",
         result.diagnostics
     );

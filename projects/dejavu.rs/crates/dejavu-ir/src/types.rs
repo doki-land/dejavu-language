@@ -338,7 +338,8 @@ where
     let value = String::deserialize(deserializer)?;
     if value == IR_VERSION {
         Ok(value)
-    } else {
+    }
+    else {
         Err(serde::de::Error::custom(format!("unsupported irVersion {value:?}, expected {IR_VERSION:?}")))
     }
 }

@@ -26,12 +26,13 @@ use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 
 use dejavu_diagnostic::{ArgValue, Diagnostic, Severity, Span, Stage, codes};
-use dejavu_ir::registry::{
-    Capability, CapabilitySet, CustomEntry, FilterLookupError, FunctionLookupError, Namespace,
-    TestLookupError, custom_entry, validate_custom_entries, validate_filter, validate_function,
-    validate_test,
+use dejavu_ir::{
+    IrNode,
+    registry::{
+        Capability, CapabilitySet, CustomEntry, FilterLookupError, FunctionLookupError, Namespace, TestLookupError,
+        custom_entry, validate_custom_entries, validate_filter, validate_function, validate_test,
+    },
 };
-use dejavu_ir::IrNode;
 
 use crate::options::CodegenOptions;
 
@@ -48,14 +49,52 @@ static JS_RESERVED: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     let mut s = HashSet::new();
     for w in [
         // Keywords.
-        "break", "case", "catch", "class", "const", "continue", "debugger", "default", "delete", "do",
-        "else", "enum", "export", "extends", "false", "finally", "for", "function", "if", "import",
-        "in", "instanceof", "new", "null", "return", "super", "switch", "this", "throw", "true",
-        "try", "typeof", "var", "void", "while", "with", "yield",
+        "break",
+        "case",
+        "catch",
+        "class",
+        "const",
+        "continue",
+        "debugger",
+        "default",
+        "delete",
+        "do",
+        "else",
+        "enum",
+        "export",
+        "extends",
+        "false",
+        "finally",
+        "for",
+        "function",
+        "if",
+        "import",
+        "in",
+        "instanceof",
+        "new",
+        "null",
+        "return",
+        "super",
+        "switch",
+        "this",
+        "throw",
+        "true",
+        "try",
+        "typeof",
+        "var",
+        "void",
+        "while",
+        "with",
+        "yield",
         // ES module context: `await` is a reserved word at module top level.
         "await",
         // Future reserved.
-        "implements", "interface", "package", "private", "protected", "public",
+        "implements",
+        "interface",
+        "package",
+        "private",
+        "protected",
+        "public",
     ] {
         s.insert(w);
     }
@@ -188,15 +227,8 @@ impl<'a> CodegenCtx<'a> {
     }
 
     /// Emit a structured Diagnostic at compile stage.
-    pub fn diagnostic(
-        &mut self,
-        severity: Severity,
-        code: impl Into<String>,
-        message: impl Into<String>,
-    ) {
-        self.diagnostics.push(
-            Diagnostic::new(severity, code, Stage::Compile).message(message),
-        );
+    pub fn diagnostic(&mut self, severity: Severity, code: impl Into<String>, message: impl Into<String>) {
+        self.diagnostics.push(Diagnostic::new(severity, code, Stage::Compile).message(message));
     }
 
     /// Emit a Diagnostic with an `args` keyed payload.
@@ -208,11 +240,7 @@ impl<'a> CodegenCtx<'a> {
         key: impl Into<String>,
         value: impl Into<ArgValue>,
     ) {
-        self.diagnostics.push(
-            Diagnostic::new(severity, code, Stage::Compile)
-                .message(message)
-                .arg(key, value),
-        );
+        self.diagnostics.push(Diagnostic::new(severity, code, Stage::Compile).message(message).arg(key, value));
     }
 
     /// Emit `capability-not-allowed` for a registry entry the host denied.
@@ -239,13 +267,7 @@ impl<'a> CodegenCtx<'a> {
     /// (`filter` / `function` / `test`) so custom entries reuse the built-in
     /// contract instead of introducing new codes. Returns `false` when a
     /// diagnostic was emitted.
-    fn accepts_custom(
-        &mut self,
-        entry: &CustomEntry,
-        arg_count: usize,
-        code: &'static str,
-        key: &'static str,
-    ) -> bool {
+    fn accepts_custom(&mut self, entry: &CustomEntry, arg_count: usize, code: &'static str, key: &'static str) -> bool {
         if arg_count < entry.min_args || arg_count > entry.max_args {
             self.diagnostic_args(
                 Severity::Error,
@@ -354,10 +376,8 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
             format!("unary({}, {a})", json_string(operator))
         }
         IrNode::ExprObject { entries, .. } => {
-            let parts: Vec<String> = entries
-                .iter()
-                .map(|entry| format!("{}: {}", json_string(&entry.key), emit_expr(&entry.value, ctx)))
-                .collect();
+            let parts: Vec<String> =
+                entries.iter().map(|entry| format!("{}: {}", json_string(&entry.key), emit_expr(&entry.value, ctx))).collect();
             format!("{{ {} }}", parts.join(", "))
         }
         IrNode::ExprPipe { expression, filter, arguments, .. } => {
@@ -432,16 +452,14 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
                     ],
                 ),
             }
-            format!(
-                "applyFilter({}, {inner}, [{args_str}], __custom)",
-                json_string(&emitted)
-            )
+            format!("applyFilter({}, {inner}, [{args_str}], __custom)", json_string(&emitted))
         }
         IrNode::ExprCall { callee, arguments, .. } => {
             // Only a bare identifier that resolves to the language-neutral
             // function registry may execute. Member calls and unknown names
             // stay closed — never emit a host call.
-            let IrNode::ExprIdentifier { name, .. } = callee.as_ref() else {
+            let IrNode::ExprIdentifier { name, .. } = callee.as_ref()
+            else {
                 ctx.diagnostic_arg(
                     Severity::Error,
                     codes::CALLS_NOT_SUPPORTED,
@@ -460,10 +478,7 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
             if let Some(js_fn) = ctx.macro_ref(name) {
                 let js_fn = js_fn.to_string();
                 let args_s = emit_expr_list(arguments, ctx);
-                return format!(
-                    "{js_fn}(ctx, [{args_s}], {}, __strict, null, __custom)",
-                    ctx.macro_depth_expr
-                );
+                return format!("{js_fn}(ctx, [{args_s}], {}, __strict, null, __custom)", ctx.macro_depth_expr);
             }
             // `caller(args)` renders the block supplied by the enclosing
             // `call`. Arity is checked by the emitted closure, because one
@@ -485,41 +500,32 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
             }
             let args_s = emit_expr_list(arguments, ctx);
             match validate_function(name, arguments.len(), ctx.capabilities) {
-                Ok(spec) => format!(
-                    "callFunction({}, [{args_s}], __custom)",
-                    json_string(spec.name)
-                ),
+                Ok(spec) => format!("callFunction({}, [{args_s}], __custom)", json_string(spec.name)),
                 Err(FunctionLookupError::NotAllowed { spec }) => {
                     ctx.capability_denied(spec.name, spec.capability);
                     "null".into()
                 }
-                Err(FunctionLookupError::Unknown) => {
-                    match ctx.custom_lookup(Namespace::Function, name) {
-                        Some(entry) => {
-                            let canonical = entry.name.clone();
-                            if ctx.accepts_custom(
-                                &entry,
-                                arguments.len(),
-                                codes::FUNCTION_ARITY,
-                                "function",
-                            ) {
-                                format!("callFunction({}, [{args_s}], __custom)", json_string(&canonical))
-                            } else {
-                                "null".into()
-                            }
+                Err(FunctionLookupError::Unknown) => match ctx.custom_lookup(Namespace::Function, name) {
+                    Some(entry) => {
+                        let canonical = entry.name.clone();
+                        if ctx.accepts_custom(&entry, arguments.len(), codes::FUNCTION_ARITY, "function") {
+                            format!("callFunction({}, [{args_s}], __custom)", json_string(&canonical))
                         }
-                        None => {
-                            ctx.diagnostic_arg(
-                                Severity::Error,
-                                codes::UNKNOWN_FUNCTION,
-                                format!("unknown function `{name}`"),
-                                "function",
-                                name.clone(),
-                            );
+                        else {
                             "null".into()
                         }
                     }
-                }
+                    None => {
+                        ctx.diagnostic_arg(
+                            Severity::Error,
+                            codes::UNKNOWN_FUNCTION,
+                            format!("unknown function `{name}`"),
+                            "function",
+                            name.clone(),
+                        );
+                        "null".into()
+                    }
+                },
                 Err(FunctionLookupError::Arity { spec }) => {
                     ctx.diagnostic_args(
                         Severity::Error,
@@ -546,10 +552,7 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
             let inner = emit_expr(expression, ctx);
             let args_s = emit_expr_list(arguments, ctx);
             match validate_test(test, arguments.len(), ctx.capabilities) {
-                Ok(spec) => format!(
-                    "applyTest({}, {inner}, [{args_s}], {negated}, __custom)",
-                    json_string(spec.name)
-                ),
+                Ok(spec) => format!("applyTest({}, {inner}, [{args_s}], {negated}, __custom)", json_string(spec.name)),
                 Err(TestLookupError::NotAllowed { spec }) => {
                     ctx.capability_denied(spec.name, spec.capability);
                     "null".into()
@@ -558,11 +561,9 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
                     Some(entry) => {
                         let canonical = entry.name.clone();
                         if ctx.accepts_custom(&entry, arguments.len(), codes::TEST_ARITY, "test") {
-                            format!(
-                                "applyTest({}, {inner}, [{args_s}], {negated}, __custom)",
-                                json_string(&canonical)
-                            )
-                        } else {
+                            format!("applyTest({}, {inner}, [{args_s}], {negated}, __custom)", json_string(&canonical))
+                        }
+                        else {
                             "null".into()
                         }
                     }
@@ -602,11 +603,7 @@ pub fn emit_expr(node: &IrNode, ctx: &mut CodegenCtx) -> String {
         // Anything else used as expression (Template, Text, ...) is nonsensical —
         // emit a JS null with a diagnostic so the module still parses.
         _ => {
-            ctx.diagnostic(
-                Severity::Error,
-                "dejavu.compile.invalid-expression-node",
-                "node used as expression position",
-            );
+            ctx.diagnostic(Severity::Error, "dejavu.compile.invalid-expression-node", "node used as expression position");
             "null".into()
         }
     }
@@ -632,10 +629,7 @@ pub fn emit_json_value(v: &Value) -> String {
             format!("[{}]", items.join(", "))
         }
         Value::Object(map) => {
-            let entries: Vec<String> = map
-                .iter()
-                .map(|(k, v)| format!("{}: {}", json_string(k), emit_json_value(v)))
-                .collect();
+            let entries: Vec<String> = map.iter().map(|(k, v)| format!("{}: {}", json_string(k), emit_json_value(v))).collect();
             format!("{{{}}}", entries.join(", "))
         }
     }
@@ -735,7 +729,8 @@ fn record_origin(node: &IrNode, out: &str, ctx: &mut CodegenCtx) {
     if matches!(node, IrNode::Comment { .. }) {
         return;
     }
-    let Some(span) = CodegenCtx::span_of(node) else {
+    let Some(span) = CodegenCtx::span_of(node)
+    else {
         return;
     };
     let line = out.bytes().filter(|b| *b == b'\n').count();
@@ -751,12 +746,7 @@ fn record_origin(node: &IrNode, out: &str, ctx: &mut CodegenCtx) {
 /// `catalog` is `None` in single-template mode (Stmt.Block/Extends/Include/Super
 /// fall back to the "not supported" throw path). In catalog mode it supplies
 /// merged block definitions and include import bindings.
-pub fn emit_body(
-    nodes: &[IrNode],
-    ctx: &mut CodegenCtx,
-    out: &mut String,
-    catalog: Option<&CatalogEmitCtx>,
-) {
+pub fn emit_body(nodes: &[IrNode], ctx: &mut CodegenCtx, out: &mut String, catalog: Option<&CatalogEmitCtx>) {
     // Apply the whitespace-control contract before emitting text so AOT output
     // matches the interpreter byte for byte.
     let nodes = dejavu_ir::trim::normalized_children(nodes);
@@ -766,12 +756,7 @@ pub fn emit_body(
 }
 
 /// Emit a single statement-style IrNode. Appends directly to `out`.
-pub fn emit_stmt(
-    node: &IrNode,
-    ctx: &mut CodegenCtx,
-    out: &mut String,
-    catalog: Option<&CatalogEmitCtx>,
-) {
+pub fn emit_stmt(node: &IrNode, ctx: &mut CodegenCtx, out: &mut String, catalog: Option<&CatalogEmitCtx>) {
     record_origin(node, out, ctx);
     match node {
         IrNode::Text { value, .. } => {
@@ -812,7 +797,8 @@ pub fn emit_stmt(
         // so it renders in the calling scope, not the macro's. Declared caller
         // parameters are bound onto a copy of that scope.
         IrNode::StmtCall { name, arguments, params, body, .. } => {
-            let Some(js_fn) = ctx.macro_ref(name).map(str::to_string) else {
+            let Some(js_fn) = ctx.macro_ref(name).map(str::to_string)
+            else {
                 ctx.diagnostic_arg(
                     Severity::Error,
                     codes::UNKNOWN_FUNCTION,
@@ -842,16 +828,15 @@ pub fn emit_stmt(
                 out.push_str("const __out = [];\n");
                 out.push_str(&caller_body);
                 out.push_str("return __out.join(\"\");\n}, __custom));\n");
-            } else {
+            }
+            else {
                 let bindings = params
                     .iter()
                     .enumerate()
                     .map(|(idx, param)| format!("{}: __callerArgs[{idx}]", json_string(&param.name)))
                     .collect::<Vec<_>>()
                     .join(", ");
-                out.push_str(&format!(
-                    "return (function (ctx) {{\nconst __out = [];\n"
-                ));
+                out.push_str(&format!("return (function (ctx) {{\nconst __out = [];\n"));
                 out.push_str(&caller_body);
                 out.push_str(&format!(
                     "return __out.join(\"\");\n}})(Object.assign({{}}, ctx, {{ {bindings} }}));\n}}, __custom));\n"
@@ -883,7 +868,8 @@ pub fn emit_stmt(
             if ctx.loop_depth > 0 {
                 out.push_str(keyword);
                 out.push_str(";\n");
-            } else {
+            }
+            else {
                 // Hand-authored IR may carry a stray control node. Bind it to
                 // the same render-stage diagnostic as the JIT renderer instead
                 // of emitting JavaScript that fails to parse.
@@ -918,20 +904,10 @@ pub fn emit_stmt(
 // Catalog-aware Block / Include / Super emit
 // ---------------------------------------------------------------------------
 
-fn emit_block(
-    name: &str,
-    original_body: &[IrNode],
-    ctx: &mut CodegenCtx,
-    out: &mut String,
-    catalog: Option<&CatalogEmitCtx>,
-) {
+fn emit_block(name: &str, original_body: &[IrNode], ctx: &mut CodegenCtx, out: &mut String, catalog: Option<&CatalogEmitCtx>) {
     if let Some(cat) = catalog {
         // Index 0 is the effective body; `super` then walks the chain upward.
-        let chain = cat
-            .block_chains
-            .get(name)
-            .cloned()
-            .unwrap_or_else(|| vec![original_body.to_vec()]);
+        let chain = cat.block_chains.get(name).cloned().unwrap_or_else(|| vec![original_body.to_vec()]);
         let saved_chain = std::mem::replace(&mut ctx.super_chain, chain.clone());
         let saved_index = ctx.super_index;
         ctx.super_index = 1;
@@ -942,7 +918,8 @@ fn emit_block(
         ctx.loop_depth = saved_loop_depth;
         ctx.super_index = saved_index;
         ctx.super_chain = saved_chain;
-    } else {
+    }
+    else {
         emit_not_supported("Stmt.Block", Some(name), ctx, out);
     }
 }
@@ -1002,19 +979,18 @@ fn emit_include(
     out: &mut String,
     catalog: Option<&CatalogEmitCtx>,
 ) {
-    let Some(cat) = catalog else {
+    let Some(cat) = catalog
+    else {
         emit_not_supported("Stmt.Include", None, ctx, out);
         return;
     };
-    let Some(literal) = crate::catalog::extract_path_literal(path_node) else {
-        ctx.diagnostic(
-            Severity::Error,
-            codes::INCLUDE_PATH_NOT_LITERAL,
-            "`include` requires a literal template path",
-        );
+    let Some(literal) = crate::catalog::extract_path_literal(path_node)
+    else {
+        ctx.diagnostic(Severity::Error, codes::INCLUDE_PATH_NOT_LITERAL, "`include` requires a literal template path");
         return;
     };
-    let Some(canonical_id) = cat.include_imports.get(&literal) else {
+    let Some(canonical_id) = cat.include_imports.get(&literal)
+    else {
         ctx.diagnostic(
             Severity::Error,
             "dejavu.compile.include-not-resolved",
@@ -1033,7 +1009,8 @@ fn emit_include(
             Some(expr) => format!("Object.assign({{}}, {})", emit_expr(expr, ctx)),
             None => "{}".to_string(),
         }
-    } else {
+    }
+    else {
         match (with, only) {
             // Default: inherit the caller context.
             (None, false) => "ctx".to_string(),
@@ -1041,11 +1018,7 @@ fn emit_include(
             (None, true) => "{}".to_string(),
             (Some(expr), isolated) => {
                 let e = emit_expr(expr, ctx);
-                if isolated {
-                    format!("Object.assign({{}}, {e})")
-                } else {
-                    format!("Object.assign({{}}, ctx, {e})")
-                }
+                if isolated { format!("Object.assign({{}}, {e})") } else { format!("Object.assign({{}}, ctx, {e})") }
             }
         }
     };
@@ -1060,25 +1033,24 @@ fn emit_include(
             json_string("partial recursion exceeded the limit")
         ));
         "__partialDepth + 1"
-    } else {
+    }
+    else {
         "__partialDepth"
     };
     out.push_str(&format!("__out.push({binding}({context_expr}, options, {depth}));\n"));
 }
 
-fn emit_super(
-    ctx: &mut CodegenCtx,
-    out: &mut String,
-    catalog: Option<&CatalogEmitCtx>,
-) {
-    let Some(cat) = catalog else {
+fn emit_super(ctx: &mut CodegenCtx, out: &mut String, catalog: Option<&CatalogEmitCtx>) {
+    let Some(cat) = catalog
+    else {
         emit_not_supported("Stmt.Super", None, ctx, out);
         return;
     };
     // `super` inlines the next ancestor definition of the enclosing block; the
     // index advances so a `super` inside that body resolves one level further.
     let index = ctx.super_index;
-    let Some(body) = ctx.super_chain.get(index).cloned() else {
+    let Some(body) = ctx.super_chain.get(index).cloned()
+    else {
         // The root template does not define this block — output nothing.
         return;
     };
@@ -1116,12 +1088,9 @@ fn emit_if(
             out.push_str(&format!("else if (isTruthy({t_expr})) {{\n"));
             emit_body(body, ctx, out, catalog);
             out.push_str("}\n");
-        } else {
-            ctx.diagnostic(
-                Severity::Error,
-                "dejavu.compile.invalid-elseif",
-                "elseIfs entry was not Stmt.ElseIf",
-            );
+        }
+        else {
+            ctx.diagnostic(Severity::Error, "dejavu.compile.invalid-elseif", "elseIfs entry was not Stmt.ElseIf");
         }
     }
 
@@ -1159,25 +1128,15 @@ fn emit_for(
     out.push_str(&format!("let {it_temp} = {};\n", emit_expr(iterable, ctx)));
 
     // Save the caller context's own `item` slot before the loop overwrites it.
-    out.push_str(&format!(
-        "const {item_has} = Object.prototype.hasOwnProperty.call(ctx, {});\n",
-        json_string(item)
-    ));
-    out.push_str(&format!(
-        "const {item_prev} = {item_has} ? ctx[{}] : undefined;\n",
-        json_string(item)
-    ));
+    out.push_str(&format!("const {item_has} = Object.prototype.hasOwnProperty.call(ctx, {});\n", json_string(item)));
+    out.push_str(&format!("const {item_prev} = {item_has} ? ctx[{}] : undefined;\n", json_string(item)));
 
     // Implicit `forloop` metadata binding (same contract as the JIT
     // renderer): shadow the slot per iteration, restore it after the loop.
     // Depth comes from the `forloop` visible at loop entry when its `depth`
     // is an integer >= 1; anything else restarts at 1.
-    out.push_str(&format!(
-        "const {meta_has} = Object.prototype.hasOwnProperty.call(ctx, \"forloop\");\n"
-    ));
-    out.push_str(&format!(
-        "const {meta_prev} = {meta_has} ? ctx[\"forloop\"] : undefined;\n"
-    ));
+    out.push_str(&format!("const {meta_has} = Object.prototype.hasOwnProperty.call(ctx, \"forloop\");\n"));
+    out.push_str(&format!("const {meta_prev} = {meta_has} ? ctx[\"forloop\"] : undefined;\n"));
     out.push_str(&format!(
         "const {meta_depth} = ({meta_prev} !== undefined && {meta_prev} !== null && typeof {meta_prev} === \"object\" && Number.isInteger({meta_prev}.depth) && {meta_prev}.depth >= 1) ? {meta_prev}.depth + 1 : 1;\n"
     ));
@@ -1200,9 +1159,7 @@ fn emit_for(
         json_string(item),
         json_string(item)
     ));
-    out.push_str(&format!(
-        "if ({meta_has}) ctx[\"forloop\"] = {meta_prev}; else delete ctx[\"forloop\"];\n"
-    ));
+    out.push_str(&format!("if ({meta_has}) ctx[\"forloop\"] = {meta_prev}; else delete ctx[\"forloop\"];\n"));
     out.push_str("}\n");
 }
 
@@ -1210,12 +1167,7 @@ fn emit_for(
 // Interpolation
 // ---------------------------------------------------------------------------
 
-fn emit_interpolation(
-    expression: &IrNode,
-    raw: bool,
-    ctx: &mut CodegenCtx,
-    out: &mut String,
-) {
+fn emit_interpolation(expression: &IrNode, raw: bool, ctx: &mut CodegenCtx, out: &mut String) {
     // Decision: pipe ending in raw/safe/escape OR raw=true → no htmlEscape wrap.
     // Otherwise htmlEscape(valueToString(__v)).
     let (expr_fragment, needs_escape) = analyze_interpolation(expression, raw, ctx);
@@ -1230,7 +1182,8 @@ fn emit_interpolation(
 
     if needs_escape {
         out.push_str(&format!("__out.push(htmlEscape(valueToString({temp})));\n"));
-    } else {
+    }
+    else {
         out.push_str(&format!("__out.push(valueToString({temp}));\n"));
     }
 }
@@ -1245,11 +1198,7 @@ fn emit_interpolation(
 /// auto-escape").
 ///
 /// The root-level `raw: true` flag also disables auto-escape unconditionally.
-fn analyze_interpolation(
-    expression: &IrNode,
-    raw: bool,
-    ctx: &mut CodegenCtx,
-) -> (String, bool) {
+fn analyze_interpolation(expression: &IrNode, raw: bool, ctx: &mut CodegenCtx) -> (String, bool) {
     if raw {
         return (emit_expr(expression, ctx), false);
     }
@@ -1270,10 +1219,7 @@ fn analyze_interpolation(
             // built-in `raw` / `safe` / `escape`.
             let capability = dejavu_ir::registry::filter_spec(filter)
                 .map(|spec| spec.capability)
-                .or_else(|| {
-                    custom_entry(ctx.custom_registry, Namespace::Filter, filter)
-                        .map(|entry| entry.capability)
-                });
+                .or_else(|| custom_entry(ctx.custom_registry, Namespace::Filter, filter).map(|entry| entry.capability));
             let no_escape = matches!(capability, Some(Capability::SafeOutput));
             (emit_expr(expression, ctx), !no_escape)
         }
@@ -1287,10 +1233,7 @@ fn analyze_interpolation(
 
 /// Identifier-safe rendering of a macro name.
 fn macro_safe_name(name: &str) -> String {
-    let mut safe: String = name
-        .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' })
-        .collect();
+    let mut safe: String = name.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' }).collect();
     if safe.is_empty() {
         safe.push('_');
     }
@@ -1315,15 +1258,12 @@ pub fn macro_import_binding(name: &str) -> String {
 /// Macro functions live at module scope so declarations produce no output
 /// where they appear. Their body only sees the bound parameters (`ctx` is
 /// rebuilt from `args`), matching the interpreter's lexical isolation.
-pub fn emit_macro_functions(
-    children: &[IrNode],
-    ctx: &mut CodegenCtx,
-    catalog: Option<&CatalogEmitCtx<'_>>,
-) -> String {
+pub fn emit_macro_functions(children: &[IrNode], ctx: &mut CodegenCtx, catalog: Option<&CatalogEmitCtx<'_>>) -> String {
     let mut out = String::new();
     let limit = dejavu_ir::render::MACRO_RECURSION_LIMIT;
     for child in children {
-        let IrNode::StmtMacro { name, params, body, .. } = child else {
+        let IrNode::StmtMacro { name, params, body, .. } = child
+        else {
             continue;
         };
         let required = params.iter().filter(|p| p.default.is_none()).count();
@@ -1365,10 +1305,7 @@ pub fn emit_macro_functions(
                 Some(IrNode::ExprLiteral { value, .. }) => emit_json_value(value),
                 _ => "undefined".into(),
             };
-            out.push_str(&format!(
-                "ctx[{}] = args.length > {i} ? args[{i}] : {value};\n",
-                json_string(&param.name)
-            ));
+            out.push_str(&format!("ctx[{}] = args.length > {i} ? args[{i}] : {value};\n", json_string(&param.name)));
         }
 
         let mut inner = CodegenCtx::new(ctx.options);
@@ -1391,17 +1328,8 @@ pub fn emit_macro_functions(
 // Unsupported-node placeholder
 // ---------------------------------------------------------------------------
 
-fn emit_not_supported(
-    node_kind: &str,
-    extra: Option<&str>,
-    ctx: &mut CodegenCtx,
-    out: &mut String,
-) {
-    let detail = if let Some(e) = extra {
-        format!("{node_kind} ({e})")
-    } else {
-        node_kind.to_string()
-    };
+fn emit_not_supported(node_kind: &str, extra: Option<&str>, ctx: &mut CodegenCtx, out: &mut String) {
+    let detail = if let Some(e) = extra { format!("{node_kind} ({e})") } else { node_kind.to_string() };
     let msg = format!("dejavu.compile.not-supported-in-single-template: {detail}");
     ctx.diagnostic(Severity::Error, msg.clone(), msg.clone());
     out.push_str(&format!(

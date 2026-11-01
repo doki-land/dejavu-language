@@ -21,9 +21,10 @@ fn round(s: &str) -> String {
 fn compile_catalog(files: &[(&str, Value)], entry_path: &str) -> dejavu_codegen::PrecompileCatalogResult {
     let entry_id = format!("main:{entry_path}");
     let opts = format!(r#"{{"entryId":"{entry_id}"}}"#);
-    let file_map = files.iter().map(|(path, doc)| {
-        (path.to_string(), Value::String(serde_json::to_string(doc).unwrap()))
-    }).collect::<serde_json::Map<String, Value>>();
+    let file_map = files
+        .iter()
+        .map(|(path, doc)| (path.to_string(), Value::String(serde_json::to_string(doc).unwrap())))
+        .collect::<serde_json::Map<String, Value>>();
     let root = json!({
         "name": "main",
         "scheme": "main",
@@ -60,15 +61,23 @@ fn doc(children: Vec<Value>) -> Value {
         "body": { "type": "Template", "children": children }
     })
 }
-fn text(v: &str) -> Value { json!({ "type": "Text", "value": v }) }
+fn text(v: &str) -> Value {
+    json!({ "type": "Text", "value": v })
+}
 fn interp(e: Value, raw: bool) -> Value {
     json!({ "type": "Interpolation", "expression": e, "trim": "none", "raw": raw })
 }
-fn ident(n: &str) -> Value { json!({ "type": "Expr.Identifier", "name": n }) }
-fn lit(v: Value) -> Value { json!({ "type": "Expr.Literal", "value": v }) }
+fn ident(n: &str) -> Value {
+    json!({ "type": "Expr.Identifier", "name": n })
+}
+fn lit(v: Value) -> Value {
+    json!({ "type": "Expr.Literal", "value": v })
+}
 fn stmt_if(t: Value, c: Vec<Value>, ei: Vec<Value>, a: Option<Vec<Value>>) -> Value {
     let mut o = json!({ "type": "Stmt.If", "test": t, "consequent": c, "elseIfs": ei, "trim": "none" });
-    if let Some(a2) = a { o["alternate"] = json!(a2); }
+    if let Some(a2) = a {
+        o["alternate"] = json!(a2);
+    }
     o
 }
 fn stmt_for(item: &str, iterable: Value, body: Vec<Value>) -> Value {
@@ -170,19 +179,22 @@ fn entry_var(modules: &[dejavu_codegen::GeneratedModule]) -> Option<String> {
 fn run_modules_in_node(modules: &[dejavu_codegen::GeneratedModule], ctx_js: &str) -> Option<String> {
     let mut stub = stub_for(modules)?;
     let var = entry_var(modules)?;
-    stub.push_str(&format!("console.log({var}.render({ctx_js}, {{}}));" ));
+    stub.push_str(&format!("console.log({var}.render({ctx_js}, {{}}));"));
     match std::process::Command::new("node").args(["-e", &stub]).output() {
         Ok(o) if o.status.success() => Some(String::from_utf8_lossy(&o.stdout).trim().to_string()),
-        Ok(o) => { let stderr = String::from_utf8_lossy(&o.stderr); panic!("node fail: {stderr}"); }
-        Err(_) => { eprintln!("SKIP: node absent"); None }
+        Ok(o) => {
+            let stderr = String::from_utf8_lossy(&o.stderr);
+            panic!("node fail: {stderr}");
+        }
+        Err(_) => {
+            eprintln!("SKIP: node absent");
+            None
+        }
     }
 }
 
 /// Run the generated entry and capture a thrown render error as JSON.
-fn run_modules_capture_error(
-    modules: &[dejavu_codegen::GeneratedModule],
-    ctx_js: &str,
-) -> Option<String> {
+fn run_modules_capture_error(modules: &[dejavu_codegen::GeneratedModule], ctx_js: &str) -> Option<String> {
     let mut stub = stub_for(modules)?;
     let var = entry_var(modules)?;
     stub.push_str(&format!(
@@ -191,7 +203,10 @@ fn run_modules_capture_error(
     ));
     match std::process::Command::new("node").args(["-e", &stub]).output() {
         Ok(o) => Some(String::from_utf8_lossy(&o.stdout).trim().to_string()),
-        Err(_) => { eprintln!("SKIP: node absent"); None }
+        Err(_) => {
+            eprintln!("SKIP: node absent");
+            None
+        }
     }
 }
 
@@ -203,10 +218,7 @@ fn run_modules_capture_error(
 fn include_single_produces_two_modules_and_import() {
     let entry = doc(vec![text("hello "), stmt_include(lit(json!("footer")))]);
     let footer = doc(vec![text(" world!")]);
-    let res = compile_catalog(
-        &[("index.dejavu", entry), ("footer.dejavu", footer)],
-        "index.dejavu",
-    );
+    let res = compile_catalog(&[("index.dejavu", entry), ("footer.dejavu", footer)], "index.dejavu");
     assert_eq!(res.modules.len(), 2, "errors: {:?}", errors(&res));
     assert!(errors(&res).is_empty(), "errors: {:?}", errors(&res));
 
@@ -233,19 +245,9 @@ fn include_single_produces_two_modules_and_import() {
 
 #[test]
 fn extends_single_level_child_overrides_parent_block() {
-    let parent = doc(vec![
-        text("<header/>"),
-        stmt_block("content", vec![text("default content")]),
-        text("<footer/>"),
-    ]);
-    let child = doc(vec![
-        stmt_extends(lit(json!("parent.dejavu"))),
-        stmt_block("content", vec![text("overridden content")]),
-    ]);
-    let res = compile_catalog(
-        &[("index.dejavu", child), ("parent.dejavu", parent)],
-        "index.dejavu",
-    );
+    let parent = doc(vec![text("<header/>"), stmt_block("content", vec![text("default content")]), text("<footer/>")]);
+    let child = doc(vec![stmt_extends(lit(json!("parent.dejavu"))), stmt_block("content", vec![text("overridden content")])]);
+    let res = compile_catalog(&[("index.dejavu", child), ("parent.dejavu", parent)], "index.dejavu");
     assert!(errors(&res).is_empty(), "errors: {:?}", errors(&res));
     let entry_m = &res.modules[0];
     let r = round(&entry_m.code);
@@ -266,18 +268,10 @@ fn extends_single_level_child_overrides_parent_block() {
 #[test]
 fn extends_three_level_child_overrides_grandparent() {
     let gp = doc(vec![stmt_block("main", vec![text("gp main")])]);
-    let parent = doc(vec![
-        stmt_extends(lit(json!("grandparent.dejavu"))),
-        stmt_block("main", vec![text("p main")]),
-    ]);
-    let child = doc(vec![
-        stmt_extends(lit(json!("parent.dejavu"))),
-        stmt_block("main", vec![text("c main")]),
-    ]);
-    let res = compile_catalog(
-        &[("index.dejavu", child), ("parent.dejavu", parent), ("grandparent.dejavu", gp)],
-        "index.dejavu",
-    );
+    let parent = doc(vec![stmt_extends(lit(json!("grandparent.dejavu"))), stmt_block("main", vec![text("p main")])]);
+    let child = doc(vec![stmt_extends(lit(json!("parent.dejavu"))), stmt_block("main", vec![text("c main")])]);
+    let res =
+        compile_catalog(&[("index.dejavu", child), ("parent.dejavu", parent), ("grandparent.dejavu", gp)], "index.dejavu");
     assert!(errors(&res).is_empty(), "errors: {:?}", errors(&res));
     assert_eq!(res.modules.len(), 3);
 
@@ -292,16 +286,9 @@ fn extends_three_level_child_overrides_grandparent() {
 
 #[test]
 fn block_without_override_inherits_parent_default() {
-    let parent = doc(vec![
-        text("A-"),
-        stmt_block("content", vec![text("parent default")]),
-        text("-Z"),
-    ]);
+    let parent = doc(vec![text("A-"), stmt_block("content", vec![text("parent default")]), text("-Z")]);
     let child = doc(vec![stmt_extends(lit(json!("parent.dejavu")))]);
-    let res = compile_catalog(
-        &[("index.dejavu", child), ("parent.dejavu", parent)],
-        "index.dejavu",
-    );
+    let res = compile_catalog(&[("index.dejavu", child), ("parent.dejavu", parent)], "index.dejavu");
     let entry_m = &res.modules[0];
     let r = round(&entry_m.code);
     assert!(r.contains("parent default"));
@@ -322,10 +309,7 @@ fn include_chain_a_include_b_include_c() {
     let c = doc(vec![text("C")]);
     let b = doc(vec![text("B("), stmt_include(lit(json!("c.dejavu"))), text(")")]);
     let a_body = doc(vec![text("A["), stmt_include(lit(json!("b.dejavu"))), text("]")]);
-    let res = compile_catalog(
-        &[("index.dejavu", a_body), ("b.dejavu", b), ("c.dejavu", c)],
-        "index.dejavu",
-    );
+    let res = compile_catalog(&[("index.dejavu", a_body), ("b.dejavu", b), ("c.dejavu", c)], "index.dejavu");
     assert!(errors(&res).is_empty(), "errors: {:?}", errors(&res));
     assert_eq!(res.modules.len(), 3);
 
@@ -342,10 +326,7 @@ fn include_chain_a_include_b_include_c() {
 fn cycle_detected_include_ab_ba() {
     let a = doc(vec![text("A"), stmt_include(lit(json!("b.dejavu")))]);
     let b = doc(vec![text("B"), stmt_include(lit(json!("index.dejavu")))]);
-    let res = compile_catalog(
-        &[("index.dejavu", a), ("b.dejavu", b)],
-        "index.dejavu",
-    );
+    let res = compile_catalog(&[("index.dejavu", a), ("b.dejavu", b)], "index.dejavu");
     assert!(res.modules.is_empty(), "cycle → no modules, got {:?}", res.modules.len());
     let diag = errors(&res).into_iter().next().expect("cycle diagnostic");
     assert_eq!(diag.code, dejavu_diagnostic::codes::CIRCULAR_INCLUDE);
@@ -357,10 +338,7 @@ fn cycle_detected_include_ab_ba() {
 fn cycle_detected_extends_ab_ba() {
     let a = doc(vec![text("A"), stmt_extends(lit(json!("b.dejavu")))]);
     let b = doc(vec![text("B"), stmt_extends(lit(json!("index.dejavu")))]);
-    let res = compile_catalog(
-        &[("index.dejavu", a), ("b.dejavu", b)],
-        "index.dejavu",
-    );
+    let res = compile_catalog(&[("index.dejavu", a), ("b.dejavu", b)], "index.dejavu");
     assert!(res.modules.is_empty(), "cycle → no modules, got {:?}", res.modules.len());
     let diag = errors(&res).into_iter().next().expect("cycle diagnostic");
     assert_eq!(diag.code, dejavu_diagnostic::codes::CIRCULAR_EXTENDS);
@@ -384,21 +362,13 @@ fn mixed_if_for_include_all_nodes_emit() {
     let include_tmpl = doc(vec![text("PART")]);
     let entry = doc(vec![
         text("pre "),
-        stmt_if(
-            ident("ok"),
-            vec![text("YES "), interp(ident("name"), false)],
-            vec![],
-            Some(vec![text("NO ")]),
-        ),
+        stmt_if(ident("ok"), vec![text("YES "), interp(ident("name"), false)], vec![], Some(vec![text("NO ")])),
         text(" items=["),
         stmt_for("it", ident("items"), vec![interp(ident("it"), false), text(",")]),
         text("] "),
         stmt_include(lit(json!("include.dejavu"))),
     ]);
-    let res = compile_catalog(
-        &[("index.dejavu", entry), ("include.dejavu", include_tmpl)],
-        "index.dejavu",
-    );
+    let res = compile_catalog(&[("index.dejavu", entry), ("include.dejavu", include_tmpl)], "index.dejavu");
     assert_eq!(res.modules.len(), 2);
     let entry_m = &res.modules[0];
     let r = round(&entry_m.code);
@@ -407,10 +377,7 @@ fn mixed_if_for_include_all_nodes_emit() {
     assert!(r.contains("ctx[\"it\"] = "));
     assert!(r.contains("_internal"));
 
-    if let Some(out) = run_modules_in_node(
-        &res.modules,
-        "({ok: true, name: 'Alice', items: ['x','y']})",
-    ) {
+    if let Some(out) = run_modules_in_node(&res.modules, "({ok: true, name: 'Alice', items: ['x','y']})") {
         assert_eq!(out, "pre YES Alice items=[x,y,] PART");
     }
 }
@@ -440,8 +407,7 @@ fn param(name: &str, default: Option<Value>) -> Value {
 }
 
 fn obj(entries: Vec<(&str, Value)>) -> Value {
-    let entries: Vec<Value> =
-        entries.into_iter().map(|(key, value)| json!({ "key": key, "value": value })).collect();
+    let entries: Vec<Value> = entries.into_iter().map(|(key, value)| json!({ "key": key, "value": value })).collect();
     json!({ "type": "Expr.Object", "entries": entries })
 }
 
@@ -466,22 +432,14 @@ fn interp_pipe(filter: &str, arguments: Vec<Value>) -> Value {
 fn unknown_filter_is_rejected_at_compile_time() {
     let entry = doc(vec![interp_pipe("nope", vec![])]);
     let compiled = compile_catalog(&[("index.dejavu", entry)], "index.dejavu");
-    assert!(
-        errors(&compiled).iter().any(|d| d.code == "dejavu.template.unknown-filter"),
-        "errors: {:?}",
-        errors(&compiled)
-    );
+    assert!(errors(&compiled).iter().any(|d| d.code == "dejavu.template.unknown-filter"), "errors: {:?}", errors(&compiled));
 }
 
 #[test]
 fn filter_arity_is_rejected_at_compile_time() {
     let entry = doc(vec![interp_pipe("replace", vec![lit(json!("a"))])]);
     let compiled = compile_catalog(&[("index.dejavu", entry)], "index.dejavu");
-    assert!(
-        errors(&compiled).iter().any(|d| d.code == "dejavu.template.filter-arity"),
-        "errors: {:?}",
-        errors(&compiled)
-    );
+    assert!(errors(&compiled).iter().any(|d| d.code == "dejavu.template.filter-arity"), "errors: {:?}", errors(&compiled));
 }
 
 #[test]
@@ -490,26 +448,14 @@ fn partial_binds_defaults_at_aot() {
         vec![param("title", None), param("suffix", Some(lit(json!("!"))))],
         vec![text("["), interp(ident("title"), false), interp(ident("suffix"), false), text("]")],
     )]);
-    let entry = doc(vec![stmt_include_with(
-        lit(json!("card.dejavu")),
-        Some(obj(vec![("title", lit(json!("Hi")))])),
-        false,
-    )]);
-    let res = compile_catalog(
-        &[("index.dejavu", entry), ("card.dejavu", card)],
-        "index.dejavu",
-    );
+    let entry = doc(vec![stmt_include_with(lit(json!("card.dejavu")), Some(obj(vec![("title", lit(json!("Hi")))])), false)]);
+    let res = compile_catalog(&[("index.dejavu", entry), ("card.dejavu", card)], "index.dejavu");
     assert!(errors(&res).is_empty(), "errors: {:?}", errors(&res));
     let entry_code = round(&res.modules[0].code);
     // A partial target never inherits the caller context.
     assert!(entry_code.contains("Object.assign({}, {"), "code: {entry_code}");
     assert!(!entry_code.contains("Object.assign({}, ctx,"), "code: {entry_code}");
-    let card_code = res
-        .modules
-        .iter()
-        .find(|m| m.path.contains("card"))
-        .map(|m| round(&m.code))
-        .expect("card module");
+    let card_code = res.modules.iter().find(|m| m.path.contains("card")).map(|m| round(&m.code)).expect("card module");
     assert!(card_code.contains("dejavu.template.missing-parameter"), "code: {card_code}");
     assert!(card_code.contains("dejavu.template.unknown-parameter"), "code: {card_code}");
 
@@ -520,29 +466,18 @@ fn partial_binds_defaults_at_aot() {
 
 #[test]
 fn include_with_merges_explicit_context_at_aot() {
-    let partial = doc(vec![
-        text("card:"),
-        interp(ident("name"), false),
-        text("/"),
-        interp(ident("title"), false),
-    ]);
+    let partial = doc(vec![text("card:"), interp(ident("name"), false), text("/"), interp(ident("title"), false)]);
     let entry = doc(vec![
         stmt_include_with(lit(json!("card.dejavu")), Some(ident("card")), false),
         text("|"),
         interp(ident("name"), false),
     ]);
-    let res = compile_catalog(
-        &[("index.dejavu", entry), ("card.dejavu", partial)],
-        "index.dejavu",
-    );
+    let res = compile_catalog(&[("index.dejavu", entry), ("card.dejavu", partial)], "index.dejavu");
     assert!(errors(&res).is_empty(), "errors: {:?}", errors(&res));
     let r = round(&res.modules[0].code);
     assert!(r.contains("Object.assign({}, ctx, exprIdent(ctx, \"card\", __strict))"), "code: {r}");
 
-    if let Some(out) = run_modules_in_node(
-        &res.modules,
-        "({name: 'X', card: {name: 'Y', title: 'T'}})",
-    ) {
+    if let Some(out) = run_modules_in_node(&res.modules, "({name: 'X', card: {name: 'Y', title: 'T'}})") {
         assert_eq!(out, "card:Y/T|X");
     }
 }
@@ -550,15 +485,8 @@ fn include_with_merges_explicit_context_at_aot() {
 #[test]
 fn include_only_isolates_context_at_aot() {
     let partial = doc(vec![text("card:"), interp(ident("name"), false)]);
-    let entry = doc(vec![
-        stmt_include_with(lit(json!("card.dejavu")), None, true),
-        text("|"),
-        interp(ident("name"), false),
-    ]);
-    let res = compile_catalog(
-        &[("index.dejavu", entry), ("card.dejavu", partial)],
-        "index.dejavu",
-    );
+    let entry = doc(vec![stmt_include_with(lit(json!("card.dejavu")), None, true), text("|"), interp(ident("name"), false)]);
+    let res = compile_catalog(&[("index.dejavu", entry), ("card.dejavu", partial)], "index.dejavu");
     assert!(errors(&res).is_empty(), "errors: {:?}", errors(&res));
     let r = round(&res.modules[0].code);
     assert!(r.contains("({}, options, __partialDepth)"), "code: {r}");
@@ -598,11 +526,7 @@ fn recursive_tree_template() -> Value {
 
 #[test]
 fn partial_self_recursion_emits_a_local_call_not_an_import() {
-    let entry = doc(vec![stmt_include_with(
-        lit(json!("tree.dejavu")),
-        Some(obj(vec![("node", ident("node"))])),
-        false,
-    )]);
+    let entry = doc(vec![stmt_include_with(lit(json!("tree.dejavu")), Some(obj(vec![("node", ident("node"))])), false)]);
     let res = compile_catalog(&[("index.dejavu", entry), ("tree.dejavu", recursive_tree_template())], "index.dejavu");
     assert!(errors(&res).is_empty(), "errors: {:?}", errors(&res));
 
@@ -632,27 +556,16 @@ fn partial_self_recursion_emits_a_local_call_not_an_import() {
 fn partial_recursion_limit_is_a_render_runtime_diagnostic_at_aot() {
     let looping = doc(vec![stmt_partial(
         vec![param("node", None)],
-        vec![stmt_include_with(
-            lit(json!("loop.dejavu")),
-            Some(obj(vec![("node", ident("node"))])),
-            false,
-        )],
+        vec![stmt_include_with(lit(json!("loop.dejavu")), Some(obj(vec![("node", ident("node"))])), false)],
     )]);
-    let entry = doc(vec![stmt_include_with(
-        lit(json!("loop.dejavu")),
-        Some(obj(vec![("node", lit(json!(1)))])),
-        false,
-    )]);
+    let entry = doc(vec![stmt_include_with(lit(json!("loop.dejavu")), Some(obj(vec![("node", lit(json!(1)))])), false)]);
     let res = compile_catalog(&[("index.dejavu", entry), ("loop.dejavu", looping)], "index.dejavu");
     assert!(errors(&res).is_empty(), "errors: {:?}", errors(&res));
 
     let loop_mod = res.modules.iter().find(|m| m.path.contains("loop")).expect("loop module");
     let code = round(&loop_mod.code);
     assert!(code.contains("limit: 32"), "code: {code}");
-    assert!(
-        code.contains("throw runtimeError(\"dejavu.template.partial-recursion\""),
-        "code: {code}"
-    );
+    assert!(code.contains("throw runtimeError(\"dejavu.template.partial-recursion\""), "code: {code}");
 
     if let Some(raw) = run_modules_capture_error(&res.modules, "({})") {
         let error: Value = serde_json::from_str(&raw).expect("captured error json");
@@ -664,16 +577,9 @@ fn partial_recursion_limit_is_a_render_runtime_diagnostic_at_aot() {
 
 #[test]
 fn include_cycle_through_a_non_partial_template_is_still_rejected() {
-    let a = doc(vec![stmt_partial(
-        vec![param("node", None)],
-        vec![stmt_include(lit(json!("b.dejavu")))],
-    )]);
+    let a = doc(vec![stmt_partial(vec![param("node", None)], vec![stmt_include(lit(json!("b.dejavu")))])]);
     let b = doc(vec![stmt_include(lit(json!("a.dejavu")))]);
-    let entry = doc(vec![stmt_include_with(
-        lit(json!("a.dejavu")),
-        Some(obj(vec![("node", ident("node"))])),
-        false,
-    )]);
+    let entry = doc(vec![stmt_include_with(lit(json!("a.dejavu")), Some(obj(vec![("node", ident("node"))])), false)]);
     let res = compile_catalog(&[("index.dejavu", entry), ("a.dejavu", a), ("b.dejavu", b)], "index.dejavu");
     let diag = errors(&res)
         .into_iter()
@@ -721,32 +627,18 @@ fn from_import_links_macro_modules() {
         text("|"),
         interp(call("hi", vec![lit(json!("Bo")), lit(json!("?"))]), false),
     ]);
-    let res = compile_catalog(
-        &[("index.dejavu", entry), ("lib.dejavu", lib)],
-        "index.dejavu",
-    );
+    let res = compile_catalog(&[("index.dejavu", entry), ("lib.dejavu", lib)], "index.dejavu");
     assert!(errors(&res).is_empty(), "errors: {:?}", errors(&res));
     assert_eq!(res.modules.len(), 2);
 
     let entry_code = round(&res.modules[0].code);
     assert!(
-        entry_code.contains(
-            "import { __macro_greet as __macro_import_hi } from \"./_internal/main_lib_dejavu.js\";"
-        ),
+        entry_code.contains("import { __macro_greet as __macro_import_hi } from \"./_internal/main_lib_dejavu.js\";"),
         "code: {entry_code}"
     );
-    assert!(
-        entry_code.contains("__macro_import_hi(ctx, [\"Ann\"], 1, __strict, null, __custom)"),
-        "code: {entry_code}"
-    );
+    assert!(entry_code.contains("__macro_import_hi(ctx, [\"Ann\"], 1, __strict, null, __custom)"), "code: {entry_code}");
 
-    let lib_code = round(
-        res.modules
-            .iter()
-            .find(|m| m.path.contains("lib"))
-            .map(|m| &m.code)
-            .expect("lib module"),
-    );
+    let lib_code = round(res.modules.iter().find(|m| m.path.contains("lib")).map(|m| &m.code).expect("lib module"));
     assert!(lib_code.contains("export { __macro_greet };"), "code: {lib_code}");
 
     if let Some(out) = run_modules_in_node(&res.modules, "({})") {
@@ -758,38 +650,22 @@ fn from_import_links_macro_modules() {
 fn importing_an_undeclared_macro_is_a_compile_error() {
     let lib = doc(vec![stmt_macro("greet", vec![], vec![text("x")])]);
     let entry = doc(vec![stmt_import(lit(json!("lib.dejavu")), vec![("sign", None)])]);
-    let res = compile_catalog(
-        &[("index.dejavu", entry), ("lib.dejavu", lib)],
-        "index.dejavu",
-    );
-    assert!(
-        errors(&res).iter().any(|d| d.code == "dejavu.template.unknown-import"),
-        "errors: {:?}",
-        errors(&res)
-    );
+    let res = compile_catalog(&[("index.dejavu", entry), ("lib.dejavu", lib)], "index.dejavu");
+    assert!(errors(&res).iter().any(|d| d.code == "dejavu.template.unknown-import"), "errors: {:?}", errors(&res));
 }
 
 #[test]
 fn from_import_requires_a_literal_path() {
     let entry = doc(vec![stmt_import(ident("lib"), vec![("greet", None)])]);
     let res = compile_catalog(&[("index.dejavu", entry)], "index.dejavu");
-    assert!(
-        errors(&res)
-            .iter()
-            .any(|d| d.code == "dejavu.template.import-path-not-literal"),
-        "errors: {:?}",
-        errors(&res)
-    );
+    assert!(errors(&res).iter().any(|d| d.code == "dejavu.template.import-path-not-literal"), "errors: {:?}", errors(&res));
 }
 
 #[test]
 fn include_requires_a_literal_path() {
     let entry = doc(vec![stmt_include(ident("target"))]);
     let partial = doc(vec![text("partial")]);
-    let res = compile_catalog(
-        &[("index.dejavu", entry), ("partial.dejavu", partial)],
-        "index.dejavu",
-    );
+    let res = compile_catalog(&[("index.dejavu", entry), ("partial.dejavu", partial)], "index.dejavu");
     let diag = errors(&res)
         .into_iter()
         .find(|d| d.code == dejavu_diagnostic::codes::INCLUDE_PATH_NOT_LITERAL)
@@ -801,10 +677,7 @@ fn include_requires_a_literal_path() {
 fn extends_requires_a_literal_path() {
     let entry = doc(vec![stmt_extends(ident("parent"))]);
     let base = doc(vec![text("base")]);
-    let res = compile_catalog(
-        &[("index.dejavu", entry), ("base.dejavu", base)],
-        "index.dejavu",
-    );
+    let res = compile_catalog(&[("index.dejavu", entry), ("base.dejavu", base)], "index.dejavu");
     let diag = errors(&res)
         .into_iter()
         .find(|d| d.code == dejavu_diagnostic::codes::EXTENDS_PATH_NOT_LITERAL)
@@ -821,11 +694,7 @@ fn unused_cross_module_macros_are_tree_shaken() {
     // `lib` declares a used macro (which calls a local helper), an unused
     // helper reachable only from a dead macro, and a dead macro.
     let lib = doc(vec![
-        stmt_macro(
-            "shout",
-            vec![param("text", None)],
-            vec![text("<em>"), interp(ident("text"), false), text("</em>")],
-        ),
+        stmt_macro("shout", vec![param("text", None)], vec![text("<em>"), interp(ident("text"), false), text("</em>")]),
         stmt_macro(
             "greet",
             vec![param("name", None), param("mark", Some(lit(json!("!"))))],
@@ -836,50 +705,31 @@ fn unused_cross_module_macros_are_tree_shaken() {
     // `panel` is included for its render body; it calls one local macro and
     // declares another that no body invokes.
     let panel = doc(vec![
-        stmt_macro(
-            "local_card",
-            vec![param("label", None)],
-            vec![text("["), interp(ident("label"), false), text("]")],
-        ),
+        stmt_macro("local_card", vec![param("label", None)], vec![text("["), interp(ident("label"), false), text("]")]),
         stmt_macro("dead_card", vec![], vec![text("DEAD-PANEL")]),
         interp(call("local_card", vec![lit(json!("panel"))]), false),
     ]);
     // Entry imports `greet` (called) and `dead_greet` (never called), and
     // includes `panel`.
     let entry = doc(vec![
-        stmt_import(
-            lit(json!("lib.dejavu")),
-            vec![("greet", Some("hi")), ("dead_greet", None)],
-        ),
+        stmt_import(lit(json!("lib.dejavu")), vec![("greet", Some("hi")), ("dead_greet", None)]),
         interp(call("hi", vec![lit(json!("Ann"))]), false),
         stmt_include(lit(json!("panel.dejavu"))),
     ]);
 
-    let res = compile_catalog(
-        &[("index.dejavu", entry), ("lib.dejavu", lib), ("panel.dejavu", panel)],
-        "index.dejavu",
-    );
+    let res = compile_catalog(&[("index.dejavu", entry), ("lib.dejavu", lib), ("panel.dejavu", panel)], "index.dejavu");
     assert!(errors(&res).is_empty(), "errors: {:?}", errors(&res));
     assert_eq!(res.modules.len(), 3);
 
     // Entry: the live import stays, the unused one must be pruned (otherwise
     // the generated ESM import would reference a dropped export).
     let entry_code = round(&res.modules[0].code);
-    assert!(
-        entry_code.contains("import { __macro_greet as __macro_import_hi }"),
-        "code: {entry_code}"
-    );
+    assert!(entry_code.contains("import { __macro_greet as __macro_import_hi }"), "code: {entry_code}");
     assert!(!entry_code.contains("dead_greet"), "entry leaked a dead macro import: {entry_code}");
 
     // Lib: the imported macro and the helper it calls survive, the dead macro
     // does not (even though it also calls the helper).
-    let lib_code = round(
-        res.modules
-            .iter()
-            .find(|m| m.path.contains("lib"))
-            .map(|m| &m.code)
-            .expect("lib module"),
-    );
+    let lib_code = round(res.modules.iter().find(|m| m.path.contains("lib")).map(|m| &m.code).expect("lib module"));
     assert!(lib_code.contains("function __macro_greet("), "code: {lib_code}");
     assert!(lib_code.contains("function __macro_shout("), "code: {lib_code}");
     assert!(lib_code.contains("export { __macro_greet };"), "code: {lib_code}");
@@ -887,13 +737,7 @@ fn unused_cross_module_macros_are_tree_shaken() {
     assert!(!lib_code.contains("__macro_dead_greet"), "lib leaked a dead macro: {lib_code}");
 
     // Panel: locally called macro survives, unused one does not.
-    let panel_code = round(
-        res.modules
-            .iter()
-            .find(|m| m.path.contains("panel"))
-            .map(|m| &m.code)
-            .expect("panel module"),
-    );
+    let panel_code = round(res.modules.iter().find(|m| m.path.contains("panel")).map(|m| &m.code).expect("panel module"));
     assert!(panel_code.contains("function __macro_local_card("), "code: {panel_code}");
     assert!(!panel_code.contains("__macro_dead_card"), "panel leaked a dead macro: {panel_code}");
 
@@ -902,4 +746,3 @@ fn unused_cross_module_macros_are_tree_shaken() {
         assert_eq!(out, "<em>Ann</em>![panel]");
     }
 }
-

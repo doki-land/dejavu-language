@@ -31,38 +31,31 @@ fn parse_and_render_if_and_loop() {
     assert!(diagnostics(&parsed).is_empty(), "parse diagnostics: {parsed}");
     let ir = parsed["ir"].as_str().expect("ir present").to_string();
 
-    let rendered = parse_json(&render_ir_api(&format!(
-        r#"{{"ir":{},"context":{}}}"#,
-        q(&ir),
-        q(r#"{"name":"Ada","ok":true,"items":["a","b"]}"#),
-    ), None));
+    let rendered = parse_json(&render_ir_api(
+        &format!(r#"{{"ir":{},"context":{}}}"#, q(&ir), q(r#"{"name":"Ada","ok":true,"items":["a","b"]}"#),),
+        None,
+    ));
     assert!(diagnostics(&rendered).is_empty(), "render diagnostics: {rendered}");
     assert_eq!(rendered["output"].as_str(), Some("Hello Ada! ON[a][b]"));
 }
 
 #[test]
 fn strict_undefined_reports_error_with_variable_arg() {
-    let rendered = parse_json(&render_source_api(&format!(
-        r#"{{"source":{},"context":{},"options":{}}}"#,
-        q("<% missing %>"),
-        q("{}"),
-        q(r#"{"strict":true}"#),
-    ), None));
+    let rendered = parse_json(&render_source_api(
+        &format!(r#"{{"source":{},"context":{},"options":{}}}"#, q("<% missing %>"), q("{}"), q(r#"{"strict":true}"#),),
+        None,
+    ));
     assert!(rendered["output"].is_null());
     let diags = diagnostics(&rendered);
     assert_eq!(diags.len(), 1, "diagnostics: {rendered}");
     assert_eq!(diags[0]["severity"], "error");
     assert_eq!(diags[0]["code"], "dejavu.template.undefined-variable");
-    assert!(
-        diags[0]["argsJson"].as_str().expect("argsJson string").contains("missing"),
-        "argsJson: {}",
-        diags[0]["argsJson"]
-    );
+    assert!(diags[0]["argsJson"].as_str().expect("argsJson string").contains("missing"), "argsJson: {}", diags[0]["argsJson"]);
 }
 
 #[test]
 fn parse_error_is_structured() {
-    let parsed = parse_json(&parse_ir(&format!(r#"{{"source":{}}}"#, q("<% if user")),));
+    let parsed = parse_json(&parse_ir(&format!(r#"{{"source":{}}}"#, q("<% if user"))));
     assert!(parsed["ir"].is_null());
     let diags = diagnostics(&parsed);
     assert_eq!(diags.len(), 1, "diagnostics: {parsed}");
@@ -99,27 +92,19 @@ fn render_source_with_catalog_include() {
     let footer_parsed = parse_json(&parse_ir(&format!(r#"{{"source":{}}}"#, q(" world!"))));
     let footer_ir = footer_parsed["ir"].as_str().expect("footer ir").to_string();
 
-    let catalog = format!(
-        r#"{{"roots":[{{"name":"main","priority":10,"files":{{"footer.dejavu":{}}}}}]}}"#,
-        q(&footer_ir),
-    );
+    let catalog = format!(r#"{{"roots":[{{"name":"main","priority":10,"files":{{"footer.dejavu":{}}}}}]}}"#, q(&footer_ir),);
 
-    let rendered = parse_json(&render_source_api(&format!(
-        r#"{{"source":{},"context":{},"catalog":{}}}"#,
-        q(r#"hello <% include "footer" %>"#),
-        q("{}"),
-        q(&catalog),
-    ), None));
+    let rendered = parse_json(&render_source_api(
+        &format!(r#"{{"source":{},"context":{},"catalog":{}}}"#, q(r#"hello <% include "footer" %>"#), q("{}"), q(&catalog),),
+        None,
+    ));
     assert!(diagnostics(&rendered).is_empty(), "diagnostics: {rendered}");
     assert_eq!(rendered["output"].as_str(), Some("hello  world!"));
 }
 
 #[test]
 fn precompile_single_emits_code_and_origins() {
-    let parsed = parse_json(&parse_ir(&format!(
-        r#"{{"source":{}}}"#,
-        q("<% loop item in items %><% item %><% end loop %>"),
-    )));
+    let parsed = parse_json(&parse_ir(&format!(r#"{{"source":{}}}"#, q("<% loop item in items %><% item %><% end loop %>"),)));
     let ir = parsed["ir"].as_str().expect("ir present").to_string();
 
     let compiled = parse_json(&precompile_ir_single(&format!(

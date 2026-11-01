@@ -74,7 +74,8 @@ fn right_all_marker_removes_repeated_breaks() {
 fn right_marker_on_block_open_trims_body_prefix() {
     let doc = parse("<% if x -%>\n  yes\n<% end if %>").expect("parse");
     let nodes = children(&doc);
-    let IrNode::StmtIf { consequent, .. } = &nodes[0] else {
+    let IrNode::StmtIf { consequent, .. } = &nodes[0]
+    else {
         panic!("expected Stmt.If");
     };
     assert_eq!(text_of(&consequent[0]), Some("  yes\n"));
@@ -82,17 +83,9 @@ fn right_marker_on_block_open_trims_body_prefix() {
 
 #[test]
 fn markers_on_closers_are_rejected() {
-    for source in [
-        "<% if x %>a<% else -%>b<% end if %>",
-        "<% if x %>a<% end if -%>",
-        "<% loop i in xs %>a<% end loop_%>",
-    ] {
+    for source in ["<% if x %>a<% else -%>b<% end if %>", "<% if x %>a<% end if -%>", "<% loop i in xs %>a<% end loop_%>"] {
         let err = parse(source).expect_err("closer markers must be rejected");
-        assert!(
-            err.message.contains("whitespace control markers"),
-            "unexpected message for `{source}`: {}",
-            err.message
-        );
+        assert!(err.message.contains("whitespace control markers"), "unexpected message for `{source}`: {}", err.message);
     }
 }
 
@@ -116,7 +109,8 @@ fn standalone_if_else_chain_removes_every_control_line() {
     let doc = parse("A\n<% if x %>\nB\n<% else %>\nC\n<% end if %>\nD").expect("parse");
     let nodes = children(&doc);
     assert_eq!(text_of(&nodes[0]), Some("A\n"));
-    let IrNode::StmtIf { consequent, alternate, .. } = &nodes[1] else {
+    let IrNode::StmtIf { consequent, alternate, .. } = &nodes[1]
+    else {
         panic!("expected StmtIf");
     };
     assert_eq!(text_of(&consequent[0]), Some("B\n"));
@@ -129,7 +123,8 @@ fn standalone_if_else_chain_removes_every_control_line() {
 fn standalone_closer_keeps_next_line_indent() {
     let doc = parse("<% if x %>\nB\n  <% end if %>\n  C").expect("parse");
     let nodes = children(&doc);
-    let IrNode::StmtIf { consequent, .. } = &nodes[0] else {
+    let IrNode::StmtIf { consequent, .. } = &nodes[0]
+    else {
         panic!("expected StmtIf");
     };
     assert_eq!(text_of(&consequent[0]), Some("B\n"));
@@ -204,7 +199,8 @@ fn standalone_comment_line_is_removed() {
 fn standalone_loop_body_and_closers() {
     let doc = parse("<% loop i in xs %>\nA\n<% end loop %>\nB").expect("parse");
     let nodes = children(&doc);
-    let IrNode::StmtFor { body, .. } = &nodes[0] else {
+    let IrNode::StmtFor { body, .. } = &nodes[0]
+    else {
         panic!("expected StmtFor");
     };
     assert_eq!(text_of(&body[0]), Some("A\n"));

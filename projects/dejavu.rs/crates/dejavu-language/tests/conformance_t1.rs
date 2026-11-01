@@ -2,8 +2,7 @@ use dejavu_ir::{normalize_ir_json, render_ir_json};
 use dejavu_language::parse;
 use pretty_assertions::assert_eq;
 use serde_json::Value;
-use std::fs;
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
 
 fn conformance_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../../specifications/conformance/t1")

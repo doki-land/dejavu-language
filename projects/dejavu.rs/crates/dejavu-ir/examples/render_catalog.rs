@@ -11,14 +11,11 @@
 //! 脚本会 parse 所有模板 → 构建 TemplateCatalog → CatalogLoader →
 //! 然后走 `render_ir_opts` 渲染入口。stdout 就是渲染输出。
 
-use std::collections::BTreeMap;
-use std::env;
-use std::fs;
-use std::path::Path;
+use std::{collections::BTreeMap, env, fs, path::Path};
 
 use dejavu_ir::{
-    CatalogRoot, Language, ResolveHit, RenderOptions, ResolvedTemplate, TemplateCatalog, TemplateLoader,
-    diag_load, default_language, render_ir_opts,
+    CatalogRoot, Language, RenderOptions, ResolveHit, ResolvedTemplate, TemplateCatalog, TemplateLoader, default_language,
+    diag_load, render_ir_opts,
 };
 use dejavu_language::parse_with as dejavu_parse_with;
 
@@ -35,16 +32,14 @@ fn main() {
     let ctx: serde_json::Value = serde_json::from_str(&ctx_str).expect("parse context JSON");
 
     // ---- 读 entry ----
-    let entry = fs::read_to_string(&entry_path)
-        .expect("read entry.txt")
-        .trim()
-        .to_string();
+    let entry = fs::read_to_string(&entry_path).expect("read entry.txt").trim().to_string();
 
     // ---- 读可选的 language.json ----
     let language: Language = if language_path.exists() {
         let lang_str = fs::read_to_string(&language_path).expect("read language.json");
         serde_json::from_str(&lang_str).expect("parse language.json")
-    } else {
+    }
+    else {
         default_language()
     };
 
@@ -53,7 +48,9 @@ fn main() {
     for entry in fs::read_dir(&templates_dir).expect("read templates dir") {
         let entry = entry.expect("dir entry");
         let path = entry.path();
-        if !path.is_file() { continue; }
+        if !path.is_file() {
+            continue;
+        }
         let name = path.file_name().unwrap().to_string_lossy().to_string();
         let source = fs::read_to_string(&path).expect(&format!("read {}", name));
         let ir = match dejavu_parse_with(&source, &name, &language) {
@@ -75,19 +72,14 @@ fn main() {
 
     // ---- render ----
     let mut loader = FixtureLoader { catalog: &catalog };
-    let Some(entry_doc) = catalog.document(
-        &ResolveHit { root_index: 0, path: entry.clone() }
-    ) else {
+    let Some(entry_doc) = catalog.document(&ResolveHit { root_index: 0, path: entry.clone() })
+    else {
         eprintln!("entry template `{entry}` not found in catalog");
         std::process::exit(2);
     };
 
-    let out = render_ir_opts(
-        entry_doc,
-        &ctx,
-        RenderOptions { name: Some(entry), ..Default::default() },
-        Some(&mut loader),
-    ).expect("render");
+    let out = render_ir_opts(entry_doc, &ctx, RenderOptions { name: Some(entry), ..Default::default() }, Some(&mut loader))
+        .expect("render");
 
     print!("{out}");
 }
@@ -100,7 +92,8 @@ struct FixtureLoader<'a> {
 impl TemplateLoader for FixtureLoader<'_> {
     fn resolve(&mut self, ref_: &str, from: Option<&str>) -> Result<ResolvedTemplate, dejavu_ir::IrError> {
         let hit = self.catalog.resolve_ref(ref_, from).map_err(Into::<dejavu_ir::IrError>::into)?;
-        let Some(doc) = self.catalog.document(&hit) else {
+        let Some(doc) = self.catalog.document(&hit)
+        else {
             return Err(diag_load(dejavu_ir::codes::TEMPLATE_NOT_FOUND).arg("template", ref_));
         };
         let canonical = self.catalog.canonical_id(&hit).unwrap_or_else(|| ref_.to_string());

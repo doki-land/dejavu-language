@@ -15,10 +15,11 @@
 use std::collections::BTreeMap;
 
 use dejavu_diagnostic::{Diagnostic, Severity, Stage, codes};
-use dejavu_ir::registry::{CapabilitySet, CustomEntry, Namespace};
 use dejavu_ir::{
-    CatalogRoot, CustomError, CustomRegistry, IrDocument, IrError, RenderOptions, ResolveRoot, TemplateCatalog,
-    TemplateLoader, render_ir_opts, resolve_ref,
+    CatalogRoot, CustomError, CustomRegistry, IrDocument, IrError, RenderOptions, ResolveRoot, TemplateCatalog, TemplateLoader,
+    WarningSink,
+    registry::{CapabilitySet, CustomEntry, Namespace},
+    render_ir_opts, resolve_ref,
 };
 use napi::bindgen_prelude::{Env, FnArgs, Function, Object, Unknown};
 use napi_derive::napi;
@@ -220,14 +221,7 @@ pub struct GeneratedOrigin {
 }
 
 fn to_js_origins(origins: &[dejavu_codegen::LineOrigin]) -> Vec<GeneratedOrigin> {
-    origins
-        .iter()
-        .map(|origin| GeneratedOrigin {
-            line: origin.line,
-            start: origin.start,
-            end: origin.end,
-        })
-        .collect()
+    origins.iter().map(|origin| GeneratedOrigin { line: origin.line, start: origin.start, end: origin.end }).collect()
 }
 
 /// 单模板 AOT 响应。
@@ -413,8 +407,7 @@ pub fn precompile_ir_single_api(request: PrecompileSingleRequest) -> PrecompileS
         Err(err) => PrecompileSingleResponse {
             module: None,
             diagnostics: vec![to_js(
-                &Diagnostic::new(Severity::Error, codes::IR_INVALID_JSON, Stage::Compile)
-                    .message(err.to_string()),
+                &Diagnostic::new(Severity::Error, codes::IR_INVALID_JSON, Stage::Compile).message(err.to_string()),
             )],
             entry_id: String::new(),
         },
@@ -444,8 +437,7 @@ pub fn precompile_catalog_api(request: PrecompileCatalogRequest) -> PrecompileCa
             modules: Vec::new(),
             manifest: None,
             diagnostics: vec![to_js(
-                &Diagnostic::new(Severity::Error, codes::IR_INVALID_JSON, Stage::Compile)
-                    .message(err.to_string()),
+                &Diagnostic::new(Severity::Error, codes::IR_INVALID_JSON, Stage::Compile).message(err.to_string()),
             )],
             entry_id: String::new(),
         },
@@ -511,7 +503,10 @@ struct JsCustomRegistry<'env> {
 
 impl<'env> JsCustomRegistry<'env> {
     fn from_object(env: &Env, registry: Option<Object<'env>>) -> Result<Option<Self>, Diagnostic> {
-        let Some(registry) = registry else { return Ok(None) };
+        let Some(registry) = registry
+        else {
+            return Ok(None);
+        };
         let entries: Vec<CustomEntry> = match registry.get::<Unknown<'env>>("entries").map_err(napi_diag)? {
             Some(value) => env
                 .from_js_value::<Vec<CustomEntry>, _>(value)
@@ -533,9 +528,7 @@ impl<'env> JsCustomRegistry<'env> {
             Namespace::Function => self.function.as_ref(),
             Namespace::Test => self.test.as_ref(),
         };
-        object.ok_or_else(|| {
-            CustomError::new(format!("host registry has no `{}` implementations", namespace.as_str()))
-        })
+        object.ok_or_else(|| CustomError::new(format!("host registry has no `{}` implementations", namespace.as_str())))
     }
 
     fn missing(name: &str) -> CustomError {
@@ -566,12 +559,7 @@ impl<'env> JsCustomRegistry<'env> {
         function.call(FnArgs::from((first, second))).map_err(|error| CustomError::new(error.reason))
     }
 
-    fn call_with_one(
-        &self,
-        namespace: Namespace,
-        name: &str,
-        argument: Unknown<'env>,
-    ) -> Result<Unknown<'env>, CustomError> {
+    fn call_with_one(&self, namespace: Namespace, name: &str, argument: Unknown<'env>) -> Result<Unknown<'env>, CustomError> {
         let object = self.namespace(namespace)?;
         let function = object
             .get::<Function<'env, FnArgs<(Unknown<'env>,)>, Unknown<'env>>>(name)
@@ -648,7 +636,9 @@ fn render_document(
         },
         None => CapabilitySet::all(),
     };
-    let options = RenderOptions { strict_undefined: wire.strict, name: wire.name, capabilities, custom };
+    let warnings = WarningSink::new();
+    let options =
+        RenderOptions { strict_undefined: wire.strict, name: wire.name, capabilities, custom, warnings: Some(&warnings) };
     let mut loader_state = catalog_state.as_ref().map(dejavu_ir::CatalogLoader::new);
     let loader: Option<&mut dyn TemplateLoader> = match loader_state.as_mut() {
         Some(loader) => Some(loader),
@@ -657,7 +647,7 @@ fn render_document(
     let result = render_ir_opts(document, &context, options, loader);
 
     match result {
-        Ok(output) => RenderResponse { output: Some(output), diagnostics: Vec::new() },
+        Ok(output) => RenderResponse { output: Some(output), diagnostics: warnings.take().iter().map(to_js).collect() },
         Err(error) => RenderResponse { output: None, diagnostics: vec![to_js(&ir_error_diagnostic(error))] },
     }
 }

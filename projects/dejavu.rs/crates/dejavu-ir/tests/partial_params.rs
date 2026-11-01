@@ -3,8 +3,7 @@
 use std::collections::HashMap;
 
 use dejavu_ir::{
-    IrDocument, IrError, ResolvedTemplate, TemplateLoader, codes, default_language, diag_load,
-    render_ir_with_loader,
+    IrDocument, IrError, ResolvedTemplate, TemplateLoader, codes, default_language, diag_load, render_ir_with_loader,
 };
 use serde_json::Value;
 
@@ -80,11 +79,7 @@ impl InMemoryLoader {
 
 impl TemplateLoader for InMemoryLoader {
     fn resolve(&mut self, ref_: &str, _from: Option<&str>) -> Result<ResolvedTemplate, IrError> {
-        let doc = self
-            .docs
-            .get(ref_)
-            .cloned()
-            .ok_or_else(|| diag_load(codes::TEMPLATE_NOT_FOUND).arg("template", ref_))?;
+        let doc = self.docs.get(ref_).cloned().ok_or_else(|| diag_load(codes::TEMPLATE_NOT_FOUND).arg("template", ref_))?;
         Ok(ResolvedTemplate { id: ref_.to_string(), document: doc })
     }
 }
@@ -116,10 +111,7 @@ fn partial_uses_declared_default_when_argument_is_absent() {
 #[test]
 fn partial_uses_explicit_argument_over_default() {
     let entry = tpl(vec![include("card", Some(literal(serde_json::json!({ "suffix": "?" }))))]);
-    let card = tpl(vec![partial(
-        vec![param("suffix", Some(literal(serde_json::json!("!"))))],
-        vec![interp("suffix")],
-    )]);
+    let card = tpl(vec![partial(vec![param("suffix", Some(literal(serde_json::json!("!"))))], vec![interp("suffix")])]);
     let mut loader = InMemoryLoader::new().insert("card", card);
 
     let out = render(&entry, serde_json::json!({}), &mut loader).expect("render");
@@ -132,35 +124,24 @@ fn partial_rejects_missing_required_parameter() {
     let card = tpl(vec![partial(vec![param("title", None)], vec![interp("title")])]);
     let mut loader = InMemoryLoader::new().insert("card", card);
 
-    let err = render(&entry, serde_json::json!({ "title": "caller" }), &mut loader)
-        .expect_err("missing parameter must fail");
+    let err = render(&entry, serde_json::json!({ "title": "caller" }), &mut loader).expect_err("missing parameter must fail");
     assert_eq!(code(err), codes::MISSING_PARAMETER);
 }
 
 #[test]
 fn partial_rejects_undeclared_parameter() {
     let entry = tpl(vec![include("card", Some(literal(serde_json::json!({ "extra": 1 }))))]);
-    let card = tpl(vec![partial(
-        vec![param("title", Some(literal(serde_json::json!("T"))))],
-        vec![interp("title")],
-    )]);
+    let card = tpl(vec![partial(vec![param("title", Some(literal(serde_json::json!("T"))))], vec![interp("title")])]);
     let mut loader = InMemoryLoader::new().insert("card", card);
 
-    let err = render(&entry, serde_json::json!({}), &mut loader)
-        .expect_err("unknown parameter must fail");
+    let err = render(&entry, serde_json::json!({}), &mut loader).expect_err("unknown parameter must fail");
     assert_eq!(code(err), codes::UNKNOWN_PARAMETER);
 }
 
 #[test]
 fn partial_does_not_inherit_caller_context() {
-    let entry = tpl(vec![include(
-        "card",
-        Some(literal(serde_json::json!({ "title": "T" }))),
-    )]);
-    let card = tpl(vec![partial(
-        vec![param("title", None)],
-        vec![interp("title"), text("/"), interp("name")],
-    )]);
+    let entry = tpl(vec![include("card", Some(literal(serde_json::json!({ "title": "T" }))))]);
+    let card = tpl(vec![partial(vec![param("title", None)], vec![interp("title"), text("/"), interp("name")])]);
     let mut loader = InMemoryLoader::new().insert("card", card);
 
     let out = render(&entry, serde_json::json!({ "name": "caller" }), &mut loader).expect("render");

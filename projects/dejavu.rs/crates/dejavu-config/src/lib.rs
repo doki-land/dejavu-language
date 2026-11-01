@@ -40,10 +40,8 @@ impl DejavuConfig {
     /// Load configuration from a TOML file
     pub fn load<P: Into<PathBuf>>(path: P) -> DejavuResult<Self> {
         let path = path.into();
-        let config = Figment::new()
-            .merge(Toml::file(&path))
-            .extract::<Self>()
-            .map_err(|e| DejavuError::InvalidConfig(e.to_string()))?;
+        let config =
+            Figment::new().merge(Toml::file(&path)).extract::<Self>().map_err(|e| DejavuError::InvalidConfig(e.to_string()))?;
         Ok(config)
     }
 
@@ -76,9 +74,9 @@ impl DejavuConfig {
     pub fn edit<P: Into<PathBuf>>(path: P, edit_fn: impl Fn(&mut toml_edit::Document<String>)) -> DejavuResult<()> {
         let path = path.into();
         let content = std::fs::read_to_string(&path)?;
-        let mut doc = content.parse::<toml_edit::Document<String>>().map_err(|e| {
-            DejavuError::InvalidConfig(format!("failed to parse TOML document: {e}"))
-        })?;
+        let mut doc = content
+            .parse::<toml_edit::Document<String>>()
+            .map_err(|e| DejavuError::InvalidConfig(format!("failed to parse TOML document: {e}")))?;
         edit_fn(&mut doc);
         std::fs::write(&path, doc.to_string())?;
         Ok(())

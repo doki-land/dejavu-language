@@ -22,6 +22,6 @@ pub mod codegen;
 pub mod emit;
 pub mod options;
 
-pub use codegen::{PrecompileCatalogResult, PrecompileResult, GeneratedModule, precompile_catalog, precompile_single};
+pub use codegen::{GeneratedModule, PrecompileCatalogResult, PrecompileResult, precompile_catalog, precompile_single};
 pub use emit::LineOrigin;
 pub use options::CodegenOptions;

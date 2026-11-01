@@ -1,8 +1,8 @@
 //! `break` / `continue` lexical binding contract at the parser boundary.
 
+use dejavu_diagnostic::codes;
 use dejavu_ir::types::{IrDocument, IrNode};
 use dejavu_language::{ParseError, parse};
-use dejavu_diagnostic::codes;
 
 fn children(doc: &IrDocument) -> &[IrNode] {
     match &doc.body {
@@ -16,11 +16,7 @@ fn control_code(err: &ParseError) -> &'static str {
 }
 
 fn control_kind(err: &ParseError) -> &str {
-    err.args
-        .iter()
-        .find(|(k, _)| k == "kind")
-        .map(|(_, v)| v.as_str())
-        .expect("control-outside-loop carries a `kind` arg")
+    err.args.iter().find(|(k, _)| k == "kind").map(|(_, v)| v.as_str()).expect("control-outside-loop carries a `kind` arg")
 }
 
 fn assert_parse_fails(source: &str, kind: &str) {
@@ -32,7 +28,8 @@ fn assert_parse_fails(source: &str, kind: &str) {
 #[test]
 fn break_inside_loop_lowers_to_stmt_break() {
     let doc = parse("<% loop i in xs %><% break %><% end loop %>").expect("parse");
-    let IrNode::StmtFor { body, .. } = &children(&doc)[0] else {
+    let IrNode::StmtFor { body, .. } = &children(&doc)[0]
+    else {
         panic!("expected Stmt.For");
     };
     assert!(matches!(body[0], IrNode::StmtBreak { .. }), "body: {body:?}");
@@ -41,7 +38,8 @@ fn break_inside_loop_lowers_to_stmt_break() {
 #[test]
 fn continue_inside_loop_lowers_to_stmt_continue() {
     let doc = parse("<% loop i in xs %><% continue %><% end loop %>").expect("parse");
-    let IrNode::StmtFor { body, .. } = &children(&doc)[0] else {
+    let IrNode::StmtFor { body, .. } = &children(&doc)[0]
+    else {
         panic!("expected Stmt.For");
     };
     assert!(matches!(body[0], IrNode::StmtContinue { .. }), "body: {body:?}");
@@ -49,8 +47,7 @@ fn continue_inside_loop_lowers_to_stmt_continue() {
 
 #[test]
 fn break_inside_if_inside_loop_is_valid() {
-    parse("<% loop i in xs %><% if i %><% break %><% end if %><% end loop %>")
-        .expect("break binds through `if`");
+    parse("<% loop i in xs %><% if i %><% break %><% end if %><% end loop %>").expect("break binds through `if`");
 }
 
 #[test]
@@ -81,10 +78,7 @@ fn break_in_loop_inside_macro_body_is_valid() {
 
 #[test]
 fn break_in_caller_block_without_own_loop_fails_across_call_site_loop() {
-    assert_parse_fails(
-        "<% loop i in xs %><% call m() %><% break %><% end call %><% end loop %>",
-        "break",
-    );
+    assert_parse_fails("<% loop i in xs %><% call m() %><% break %><% end call %><% end loop %>", "break");
 }
 
 #[test]
@@ -95,10 +89,7 @@ fn break_in_loop_inside_caller_block_is_valid() {
 
 #[test]
 fn break_in_block_body_without_loop_fails_across_enclosing_loop() {
-    assert_parse_fails(
-        "<% loop i in xs %><% block b %><% break %><% end block %><% end loop %>",
-        "break",
-    );
+    assert_parse_fails("<% loop i in xs %><% block b %><% break %><% end block %><% end loop %>", "break");
 }
 
 #[test]
@@ -115,7 +106,6 @@ fn break_as_object_key_stays_an_expression() {
 
 #[test]
 fn tokens_after_bare_break_are_rejected() {
-    let err = parse("<% loop i in xs %><% break.member %><% end loop %>")
-        .expect_err("`break` must be the whole code tag");
+    let err = parse("<% loop i in xs %><% break.member %><% end loop %>").expect_err("`break` must be the whole code tag");
     assert_eq!(control_code(&err), codes::PARSE_UNEXPECTED_TOKEN);
 }

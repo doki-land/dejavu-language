@@ -1,11 +1,13 @@
-use crate::{Diagnostic, IrError, codes, diag_load, diag_render};
-use crate::registry::{
-    Capability, CapabilitySet, CustomEntry, FilterLookupError, Namespace, custom_entry, validate_filter,
+use crate::{
+    Diagnostic, IrError, Severity, Stage, codes, diag_load, diag_render,
+    registry::{Capability, CapabilitySet, CustomEntry, FilterLookupError, Namespace, custom_entry, validate_filter},
+    types::{IrDocument, IrNode, PartialParam},
 };
-use crate::types::{IrDocument, IrNode, PartialParam};
 use serde_json::Value;
-use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
+use std::{
+    collections::{HashMap, HashSet},
+    rc::Rc,
+};
 
 /// Maximum nested macro invocations before `dejavu.template.macro-recursion`.
 pub const MACRO_RECURSION_LIMIT: usize = 32;
@@ -59,10 +61,48 @@ pub trait CustomRegistry {
     fn apply_test(&self, name: &str, value: &Value, args: &[Value]) -> Result<bool, CustomError>;
 }
 
+/// 非致命渲染警告收集器。
+///
+/// `escape_url` 拒绝非法 scheme 时渲染继续（值归 null），同时向 sink 写入
+/// `dejavu.template.url-scheme-rejected` Warning。宿主经
+/// [`RenderOptions::warnings`] 传入 sink，渲染成功后用 [`WarningSink::take`]
+/// 取出全部警告并入自己的诊断通道。渲染是单线程的，sink 用 `RefCell`。
+#[derive(Debug, Default)]
+pub struct WarningSink {
+    diagnostics: std::cell::RefCell<Vec<Diagnostic>>,
+}
+
+impl WarningSink {
+    /// 新建空 sink。
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub(crate) fn push(&self, diagnostic: Diagnostic) {
+        self.diagnostics.borrow_mut().push(diagnostic);
+    }
+
+    /// 取出并清空全部已收集警告。
+    pub fn take(&self) -> Vec<Diagnostic> {
+        std::mem::take(&mut *self.diagnostics.borrow_mut())
+    }
+
+    /// 已收集警告数量。
+    pub fn len(&self) -> usize {
+        self.diagnostics.borrow().len()
+    }
+
+    /// 是否尚未收集任何警告。
+    pub fn is_empty(&self) -> bool {
+        self.diagnostics.borrow().is_empty()
+    }
+}
+
 /// 渲染选项 —— 匹配 TS `RenderOptions`。
 ///
 /// 默认 `strict_undefined = false`（缺失变量 → null → 空串），
-/// `capabilities` 默认放开全部注册表能力，`custom` 为空（只有内置条目）。
+/// `capabilities` 默认放开全部注册表能力，`custom` 为空（只有内置条目），
+/// `warnings` 缺省丢弃警告。
 pub struct RenderOptions<'a> {
     /// 开启后，缺失标识符 / 缺失对象成员 / 越界或缺失下标分别抛
     /// `UNDEFINED_VARIABLE` / `UNDEFINED_MEMBER` / `UNDEFINED_INDEX`；
@@ -74,16 +114,13 @@ pub struct RenderOptions<'a> {
     pub capabilities: CapabilitySet,
     /// 宿主提供的自定义注册表实现；注册在渲染前固定，单次渲染内不可变。
     pub custom: Option<&'a dyn CustomRegistry>,
+    /// 非致命警告收集通道；缺省（`None`）时警告直接丢弃。
+    pub warnings: Option<&'a WarningSink>,
 }
 
 impl Default for RenderOptions<'_> {
     fn default() -> Self {
-        Self {
-            strict_undefined: false,
-            name: None,
-            capabilities: CapabilitySet::all(),
-            custom: None,
-        }
+        Self { strict_undefined: false, name: None, capabilities: CapabilitySet::all(), custom: None, warnings: None }
     }
 }
 
@@ -119,11 +156,7 @@ pub fn render_ir(doc: &IrDocument, ctx: &Value) -> Result<String, IrError> {
 }
 
 /// 渲染一个 IR 文档，带完整模板支持：`extends`、`include`、`block`、`super`。
-pub fn render_ir_with_loader(
-    doc: &IrDocument,
-    ctx: &Value,
-    loader: &mut dyn TemplateLoader,
-) -> Result<String, IrError> {
+pub fn render_ir_with_loader(doc: &IrDocument, ctx: &Value, loader: &mut dyn TemplateLoader) -> Result<String, IrError> {
     render_ir_opts(doc, ctx, RenderOptions::default(), Some(loader))
 }
 
@@ -143,6 +176,7 @@ pub fn render_ir_opts<'a>(
         scope,
         loader,
         custom: opts.custom,
+        warnings: opts.warnings,
         strict_undefined: opts.strict_undefined,
         capabilities: opts.capabilities,
         current_id: default_id,
@@ -170,6 +204,8 @@ struct Renderer<'a> {
     loader: Option<&'a mut dyn TemplateLoader>,
     /// Host-supplied registry implementations, fixed for this render.
     custom: Option<&'a dyn CustomRegistry>,
+    /// Non-fatal warning channel supplied by the host; `None` drops warnings.
+    warnings: Option<&'a WarningSink>,
     strict_undefined: bool,
     /// Host-granted registry capabilities; checked on every filter/function/test.
     capabilities: CapabilitySet,
@@ -207,8 +243,7 @@ struct Renderer<'a> {
 
 /// Diagnostic for a control signal that escaped its lexical unit.
 fn control_escape(signal: bool) -> IrError {
-    diag_render(codes::CONTROL_OUTSIDE_LOOP)
-        .arg("kind", if signal { "break" } else { "continue" })
+    diag_render(codes::CONTROL_OUTSIDE_LOOP).arg("kind", if signal { "break" } else { "continue" })
 }
 
 /// 缓存中的已解析模板：canonical id + 共享文档。
@@ -248,12 +283,7 @@ impl<'a> Renderer<'a> {
     /// The key is `(ref, from)` because relative resolution depends on the
     /// caller. Both successes and structured failures are cached, so a repeated
     /// failing include reproduces the same diagnostic without re-resolving.
-    fn resolve_template(
-        &mut self,
-        path: &str,
-        from: &str,
-        feature: &str,
-    ) -> Result<Resolved, IrError> {
+    fn resolve_template(&mut self, path: &str, from: &str, feature: &str) -> Result<Resolved, IrError> {
         let key = (path.to_string(), Some(from.to_string()));
         if let Some(cached) = self.resolved.get(&key) {
             return match cached {
@@ -297,7 +327,8 @@ impl<'a> Renderer<'a> {
         if self.macro_modules.contains_key(id) {
             return Ok(());
         }
-        let IrNode::Template { children, .. } = &doc.body else {
+        let IrNode::Template { children, .. } = &doc.body
+        else {
             return Ok(());
         };
         let mut table: HashMap<String, MacroDef> = HashMap::new();
@@ -316,7 +347,8 @@ impl<'a> Renderer<'a> {
 
         let mut imported: Vec<(String, MacroDef)> = Vec::new();
         for child in children {
-            let IrNode::StmtImport { path, names, .. } = child else {
+            let IrNode::StmtImport { path, names, .. } = child
+            else {
                 continue;
             };
             let path_str = match path.as_ref() {
@@ -327,10 +359,9 @@ impl<'a> Renderer<'a> {
             self.register_document(&target.id, &target.document)?;
             let target_table = self.macro_modules.get(&target.id).cloned().unwrap_or_default();
             for spec in names {
-                let Some(def) = target_table.get(&spec.name) else {
-                    return Err(diag_load(codes::UNKNOWN_IMPORT)
-                        .arg("path", path_str.clone())
-                        .arg("name", spec.name.clone()));
+                let Some(def) = target_table.get(&spec.name)
+                else {
+                    return Err(diag_load(codes::UNKNOWN_IMPORT).arg("path", path_str.clone()).arg("name", spec.name.clone()));
                 };
                 let local = spec.local().to_string();
                 if self.macro_modules.get(id).is_some_and(|t| t.contains_key(&local)) {
@@ -372,7 +403,8 @@ impl<'a> Renderer<'a> {
     /// escaping, while `x |> safe |> uppercase` escapes the result. Custom
     /// entries take part in exactly the same rule.
     fn is_raw_filter(&self, expr: &IrNode) -> bool {
-        let IrNode::ExprPipe { filter, .. } = expr else {
+        let IrNode::ExprPipe { filter, .. } = expr
+        else {
             return false;
         };
         if let Some(spec) = crate::registry::filter_spec(filter) {
@@ -390,15 +422,14 @@ impl<'a> Renderer<'a> {
     /// the block cannot recurse into itself, then restored so a macro may
     /// invoke `caller()` more than once.
     fn render_caller_block(&mut self, args: &[Value]) -> Result<Value, IrError> {
-        let Some(block) = self.caller_stack.pop() else {
+        let Some(block) = self.caller_stack.pop()
+        else {
             return Err(diag_render(codes::CALLER_UNAVAILABLE));
         };
         if args.len() != block.params.len() {
             let expected = block.params.len();
             self.caller_stack.push(block);
-            return Err(diag_render(codes::CALLER_ARITY)
-                .arg("got", args.len())
-                .arg("maxArgs", expected));
+            return Err(diag_render(codes::CALLER_ARITY).arg("got", args.len()).arg("maxArgs", expected));
         }
         let saved_scope = std::mem::take(&mut self.scope);
         let saved_id = std::mem::replace(&mut self.current_id, block.module.clone());
@@ -415,12 +446,7 @@ impl<'a> Renderer<'a> {
 
     /// Invoke a macro. The body sees its bound parameters only; the caller
     /// context is never inherited.
-    fn call_macro(
-        &mut self,
-        mac: &MacroDef,
-        args: &[Value],
-        caller: Option<CallerBlock>,
-    ) -> Result<Value, IrError> {
+    fn call_macro(&mut self, mac: &MacroDef, args: &[Value], caller: Option<CallerBlock>) -> Result<Value, IrError> {
         if args.len() > mac.params.len() {
             return Err(diag_render(codes::MACRO_ARITY)
                 .arg("macro", mac.name.clone())
@@ -436,9 +462,7 @@ impl<'a> Renderer<'a> {
             }
         }
         if self.macro_depth >= MACRO_RECURSION_LIMIT {
-            return Err(diag_render(codes::MACRO_RECURSION)
-                .arg("macro", mac.name.clone())
-                .arg("limit", MACRO_RECURSION_LIMIT));
+            return Err(diag_render(codes::MACRO_RECURSION).arg("macro", mac.name.clone()).arg("limit", MACRO_RECURSION_LIMIT));
         }
 
         let mut scope = HashMap::new();
@@ -481,9 +505,9 @@ impl<'a> Renderer<'a> {
             for c in children {
                 match c {
                     IrNode::StmtExtends { parent, .. } => {
-                        let Some(parent_str) = literal_path(parent) else {
-                            return Err(diag_load(codes::EXTENDS_PATH_NOT_LITERAL)
-                                .template_id(self.current_id.clone()));
+                        let Some(parent_str) = literal_path(parent)
+                        else {
+                            return Err(diag_load(codes::EXTENDS_PATH_NOT_LITERAL).template_id(self.current_id.clone()));
                         };
                         extends_path = Some(parent_str.to_string());
                     }
@@ -531,17 +555,12 @@ impl<'a> Renderer<'a> {
     ///
     /// `with` is the evaluated explicit context and `only` isolates the child
     /// from the caller's context (`only` / `without context`).
-    fn render_loaded(
-        &mut self,
-        path: &str,
-        feature: &str,
-        with: Option<&Value>,
-        only: bool,
-    ) -> Result<String, IrError> {
+    fn render_loaded(&mut self, path: &str, feature: &str, with: Option<&Value>, only: bool) -> Result<String, IrError> {
         // Validate the explicit context before mutating renderer state.
         if let Some(Value::Null) | Some(Value::Object(_)) | None = with {
             // null is treated as "no explicit entries"
-        } else if let Some(other) = with {
+        }
+        else if let Some(other) = with {
             return Err(diag_render(codes::CONTEXT_NOT_OBJECT).arg("got", json_kind(other)));
         }
 
@@ -559,7 +578,8 @@ impl<'a> Renderer<'a> {
             if self.partial_depth >= PARTIAL_RECURSION_LIMIT {
                 return Err(diag_render(codes::PARTIAL_RECURSION).arg("limit", PARTIAL_RECURSION_LIMIT));
             }
-        } else if self.include_stack.contains(&child.id) {
+        }
+        else if self.include_stack.contains(&child.id) {
             let mut chain = self.include_stack.clone();
             chain.push(child.id);
             return Err(diag_load(codes::CIRCULAR_INCLUDE).arg("chain", chain.join(" -> ")));
@@ -649,7 +669,11 @@ impl<'a> Renderer<'a> {
                 let iter_val = self.eval(iterable)?;
                 let items = match iter_val {
                     Value::Array(a) => a,
-                    other => return Err(diag_render(codes::INVALID_ITERABLE).arg("expected", "array").arg("got", format!("{other:?}"))),
+                    other => {
+                        return Err(diag_render(codes::INVALID_ITERABLE)
+                            .arg("expected", "array")
+                            .arg("got", format!("{other:?}")));
+                    }
                 };
                 let length = items.len();
                 // Loop metadata depth: an outer `forloop` visible at loop entry
@@ -658,12 +682,9 @@ impl<'a> Renderer<'a> {
                 // partial and `only` include boundaries swap the whole scope,
                 // so depth restarts there by construction.
                 let depth = match self.scope.get(FORLOOP_NAME) {
-                    Some(Value::Object(map)) => map
-                        .get("depth")
-                        .and_then(|v| v.as_i64())
-                        .filter(|d| *d >= 1)
-                        .map(|d| d + 1)
-                        .unwrap_or(1),
+                    Some(Value::Object(map)) => {
+                        map.get("depth").and_then(|v| v.as_i64()).filter(|d| *d >= 1).map(|d| d + 1).unwrap_or(1)
+                    }
                     _ => 1,
                 };
                 let mut out = String::new();
@@ -705,7 +726,8 @@ impl<'a> Renderer<'a> {
             // `call name(args)` … `end call`: invoke the macro with a caller
             // block captured in the current scope.
             IrNode::StmtCall { name, arguments, params, body, .. } => {
-                let Some(mac) = self.lookup_macro(name) else {
+                let Some(mac) = self.lookup_macro(name)
+                else {
                     return Err(diag_render(codes::UNKNOWN_FUNCTION).arg("name", name.clone()));
                 };
                 let args: Result<Vec<_>, _> = arguments.iter().map(|a| self.eval(a)).collect();
@@ -746,11 +768,7 @@ impl<'a> Renderer<'a> {
             IrNode::StmtSuper { .. } => {
                 let block_name = self.current_block.clone().ok_or_else(|| diag_render(codes::SUPER_OUTSIDE_BLOCK))?;
                 let target = self.block_level + 1;
-                let parent_body = self
-                    .block_levels
-                    .get(target)
-                    .and_then(|level| level.get(&block_name))
-                    .cloned();
+                let parent_body = self.block_levels.get(target).and_then(|level| level.get(&block_name)).cloned();
                 match parent_body {
                     Some(body) => {
                         let saved_level = self.block_level;
@@ -766,9 +784,9 @@ impl<'a> Renderer<'a> {
 
             // include：加载并内联渲染。
             IrNode::StmtInclude { path, with, only, .. } => {
-                let Some(path_str) = literal_path(path) else {
-                    return Err(diag_load(codes::INCLUDE_PATH_NOT_LITERAL)
-                        .template_id(self.current_id.clone()));
+                let Some(path_str) = literal_path(path)
+                else {
+                    return Err(diag_load(codes::INCLUDE_PATH_NOT_LITERAL).template_id(self.current_id.clone()));
                 };
                 let explicit = match with {
                     Some(expr) => Some(self.eval(expr)?),
@@ -778,9 +796,7 @@ impl<'a> Renderer<'a> {
             }
 
             // extends：由 render_doc 集中处理，这里不应单独出现。
-            IrNode::StmtExtends { .. } => {
-                Err(diag_render(codes::EXTENDS_NOT_TOP_LEVEL))
-            }
+            IrNode::StmtExtends { .. } => Err(diag_render(codes::EXTENDS_NOT_TOP_LEVEL)),
 
             other => Err(diag_render(codes::NOT_RENDERABLE_NODE).arg("node", format!("{other:?}"))),
         }
@@ -820,15 +836,11 @@ impl<'a> Renderer<'a> {
     fn eval(&mut self, expr: &IrNode) -> Result<Value, IrError> {
         match expr {
             IrNode::ExprLiteral { value, .. } => Ok(value.clone()),
-            IrNode::ExprIdentifier { name, .. } => {
-                match self.scope.get(name).cloned() {
-                    Some(v) => Ok(v),
-                    None if self.strict_undefined => {
-                        Err(diag_render(codes::UNDEFINED_VARIABLE).arg("name", name.clone()))
-                    }
-                    None => Ok(Value::Null),
-                }
-            }
+            IrNode::ExprIdentifier { name, .. } => match self.scope.get(name).cloned() {
+                Some(v) => Ok(v),
+                None if self.strict_undefined => Err(diag_render(codes::UNDEFINED_VARIABLE).arg("name", name.clone())),
+                None => Ok(Value::Null),
+            },
             IrNode::ExprMember { object, property, .. } => {
                 let obj = self.eval(object)?;
                 // Strict mode reports a missing property on a real object; a
@@ -884,7 +896,8 @@ impl<'a> Renderer<'a> {
                 }
             }
             IrNode::ExprCall { callee, arguments, .. } => {
-                let IrNode::ExprIdentifier { name, .. } = callee.as_ref() else {
+                let IrNode::ExprIdentifier { name, .. } = callee.as_ref()
+                else {
                     return Err(diag_render(codes::CALLS_NOT_SUPPORTED));
                 };
                 if name == "caller" {
@@ -923,9 +936,11 @@ impl<'a> Renderer<'a> {
                         Value::Number(n) => {
                             if let Some(i) = n.as_i64() {
                                 Ok(Value::Number((-i).into()))
-                            } else if let Some(f) = n.as_f64() {
+                            }
+                            else if let Some(f) = n.as_f64() {
                                 Ok(serde_json::Number::from_f64(-f).map(Value::Number).unwrap_or(Value::Null))
-                            } else {
+                            }
+                            else {
                                 Ok(Value::Null)
                             }
                         }
@@ -945,7 +960,7 @@ impl<'a> Renderer<'a> {
             IrNode::ExprPipe { expression, filter, arguments, .. } => {
                 let mut val = self.eval(expression)?;
                 let args: Result<Vec<_>, _> = arguments.iter().map(|a| self.eval(a)).collect();
-                val = apply_filter(filter, val, &args?, self.capabilities, self.custom)?;
+                val = apply_filter(filter, val, &args?, self.capabilities, self.custom, self.warnings)?;
                 Ok(val)
             }
             _ => Err(diag_render(codes::INVALID_EXPRESSION_NODE)),
@@ -1029,10 +1044,7 @@ fn partial_parts(body: &IrNode) -> Option<(&[crate::types::PartialParam], &[IrNo
 /// The caller context is never consulted: a parameter is either present in
 /// `with`, has a literal default, or is a hard error. Undeclared keys are
 /// rejected so typos surface at render time.
-fn bind_partial(
-    params: &[crate::types::PartialParam],
-    with: Option<&Value>,
-) -> Result<HashMap<String, Value>, IrError> {
+fn bind_partial(params: &[crate::types::PartialParam], with: Option<&Value>) -> Result<HashMap<String, Value>, IrError> {
     let entries = match with {
         Some(Value::Object(map)) => Some(map),
         _ => None,
@@ -1130,14 +1142,17 @@ fn apply_filter(
     args: &[Value],
     capabilities: CapabilitySet,
     custom: Option<&dyn CustomRegistry>,
+    warnings: Option<&WarningSink>,
 ) -> Result<Value, IrError> {
     let spec = match validate_filter(name, args.len(), capabilities) {
         Ok(spec) => spec,
         Err(FilterLookupError::Unknown) => {
-            let Some(registry) = custom else {
+            let Some(registry) = custom
+            else {
                 return Err(diag_render(codes::UNKNOWN_FILTER).arg("filter", name));
             };
-            let Some(entry) = custom_entry(registry.entries(), Namespace::Filter, name) else {
+            let Some(entry) = custom_entry(registry.entries(), Namespace::Filter, name)
+            else {
                 return Err(diag_render(codes::UNKNOWN_FILTER).arg("filter", name));
             };
             if args.len() < entry.min_args || args.len() > entry.max_args {
@@ -1165,10 +1180,10 @@ fn apply_filter(
             return Err(capability_denied(spec.name, spec.capability));
         }
     };
-    apply_builtin_filter(spec.name, value, args)
+    apply_builtin_filter(spec.name, value, args, warnings)
 }
 
-fn apply_builtin_filter(name: &str, value: Value, args: &[Value]) -> Result<Value, IrError> {
+fn apply_builtin_filter(name: &str, value: Value, args: &[Value], warnings: Option<&WarningSink>) -> Result<Value, IrError> {
     match name {
         // ——大小写——
         "uppercase" => Ok(Value::String(value_to_string(&value).to_uppercase())),
@@ -1177,7 +1192,8 @@ fn apply_builtin_filter(name: &str, value: Value, args: &[Value]) -> Result<Valu
         "default" => {
             if matches!(value, Value::Null) || matches!(&value, Value::String(s) if s.is_empty()) {
                 Ok(args.first().cloned().unwrap_or(Value::Null))
-            } else {
+            }
+            else {
                 Ok(value)
             }
         }
@@ -1202,6 +1218,11 @@ fn apply_builtin_filter(name: &str, value: Value, args: &[Value]) -> Result<Valu
         // ——HTML escape 过滤器：内部做 escape，renderer 识别为 safe 不再二次 escape——
         "escape" => Ok(Value::String(html_escape(&value_to_string(&value)))),
         "safe" => Ok(value),
+        // ——上下文敏感 escape filter 族：输出是普通字符串，管道自动 escape 仍生效——
+        "escape_attr" => Ok(Value::String(html_escape(&value_to_string(&value)))),
+        "escape_url" => Ok(escape_url_value(&value_to_string(&value), warnings)),
+        "escape_js" => Ok(Value::String(escape_js_value(&value_to_string(&value)))),
+        "escape_css" => Ok(Value::String(escape_css_value(&value_to_string(&value)))),
         // ——日期（最小 strftime：%Y %m %d %H %M %S %%）——
         "date" => {
             let pattern = args.first().map(value_to_string).unwrap_or_else(|| "%Y-%m-%d".into());
@@ -1218,17 +1239,12 @@ fn apply_builtin_filter(name: &str, value: Value, args: &[Value]) -> Result<Valu
 
 /// `dejavu.template.capability-not-allowed` for an entry the host did not grant.
 pub(crate) fn capability_denied(name: &str, capability: Capability) -> IrError {
-    diag_render(codes::CAPABILITY_NOT_ALLOWED)
-        .arg("name", name)
-        .arg("capability", capability.as_str())
+    diag_render(codes::CAPABILITY_NOT_ALLOWED).arg("name", name).arg("capability", capability.as_str())
 }
 
 /// `dejavu.template.custom-invocation` for a host implementation that failed.
 pub(crate) fn custom_failure(namespace: Namespace, name: &str, error: CustomError) -> IrError {
-    diag_render(codes::CUSTOM_INVOCATION)
-        .arg("namespace", namespace.as_str())
-        .arg("name", name)
-        .arg("message", error.message)
+    diag_render(codes::CUSTOM_INVOCATION).arg("namespace", namespace.as_str()).arg("name", name).arg("message", error.message)
 }
 
 /// 最小 strftime — 支持 `%Y %m %d %H %M %S %%`。
@@ -1242,7 +1258,8 @@ fn format_date(input: &str, pattern: &str) -> String {
         s if s.chars().all(|c| c.is_ascii_digit()) => chrono_from_epoch_ms(s),
         s => chrono_from_iso(s),
     };
-    let Some((y, mo, d, h, mi, se)) = dt else {
+    let Some((y, mo, d, h, mi, se)) = dt
+    else {
         return String::new();
     };
     let pad = |n: u32| format!("{:02}", n);
@@ -1258,9 +1275,7 @@ fn format_date(input: &str, pattern: &str) -> String {
 }
 
 fn chrono_now() -> Option<(i32, u32, u32, u32, u32, u32)> {
-    let d = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .ok()?;
+    let d = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok()?;
     chrono_from_epoch(d.as_secs() as i64)
 }
 
@@ -1286,10 +1301,14 @@ fn chrono_from_epoch(secs: i64) -> Option<(i32, u32, u32, u32, u32, u32)> {
     loop {
         let leap = is_leap_year(year);
         let ydays = if leap { 366 } else { 365 };
-        if d < ydays { break; }
+        if d < ydays {
+            break;
+        }
         d -= ydays;
         year += 1;
-        if year > 9999 { return None; }
+        if year > 9999 {
+            return None;
+        }
     }
     let (month, mday) = month_and_day(year, d as u32)?;
     Some((year, month, mday, hour, min, sec))
@@ -1317,11 +1336,10 @@ fn chrono_from_iso(s: &str) -> Option<(i32, u32, u32, u32, u32, u32)> {
     let s = s.trim();
     let parts: Vec<&str> = s.split(['T', ' ']).collect();
     let date = parts.first()?;
-    let (y_str, mo_str, d_str) = date.split_once('-')
-        .and_then(|(a, b)| {
-            let (mo, d) = b.split_once('-')?;
-            Some((a, mo, d))
-        })?;
+    let (y_str, mo_str, d_str) = date.split_once('-').and_then(|(a, b)| {
+        let (mo, d) = b.split_once('-')?;
+        Some((a, mo, d))
+    })?;
     let year: i32 = y_str.parse().ok()?;
     let month: u32 = mo_str.parse().ok()?;
     let day: u32 = d_str.parse().ok()?;
@@ -1343,11 +1361,7 @@ fn chrono_from_iso(s: &str) -> Option<(i32, u32, u32, u32, u32, u32)> {
         hour = tp.first().and_then(|v| v.parse().ok()).unwrap_or(0);
         min = tp.get(1).and_then(|v| v.parse().ok()).unwrap_or(0);
         // `...:05.000Z` 的秒字段可能带小数部分，只取整数秒。
-        sec = tp
-            .get(2)
-            .and_then(|v| v.split(['.', ',']).next())
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(0);
+        sec = tp.get(2).and_then(|v| v.split(['.', ',']).next()).and_then(|v| v.parse().ok()).unwrap_or(0);
     }
 
     // 时间字段也要合法
@@ -1398,18 +1412,15 @@ fn slugify(s: &str) -> String {
             || matches!(cp, COMBINING_SYMBOLS_START..=COMBINING_SYMBOLS_END)
     };
 
-    let folded: String = s
-        .nfkd()
-        .filter(|c| !is_combining(*c))
-        .collect::<String>()
-        .to_lowercase();
+    let folded: String = s.nfkd().filter(|c| !is_combining(*c)).collect::<String>().to_lowercase();
     let mut out = String::new();
     let mut prev_dash = false;
     for c in folded.chars() {
         if c.is_ascii_alphanumeric() {
             out.push(c);
             prev_dash = false;
-        } else if !prev_dash {
+        }
+        else if !prev_dash {
             out.push('-');
             prev_dash = true;
         }
@@ -1463,15 +1474,14 @@ fn value_to_string(v: &Value) -> String {
             // 与 JS `String(number)` 对齐：整数值不输出 `.0`。
             if let Some(i) = n.as_i64() {
                 i.to_string()
-            } else if let Some(u) = n.as_u64() {
+            }
+            else if let Some(u) = n.as_u64() {
                 u.to_string()
-            } else if let Some(f) = n.as_f64() {
-                if f.is_finite() && f.fract() == 0.0 && f.abs() < 1e21 {
-                    format!("{f:.0}")
-                } else {
-                    n.to_string()
-                }
-            } else {
+            }
+            else if let Some(f) = n.as_f64() {
+                if f.is_finite() && f.fract() == 0.0 && f.abs() < 1e21 { format!("{f:.0}") } else { n.to_string() }
+            }
+            else {
                 n.to_string()
             }
         }
@@ -1491,4 +1501,126 @@ fn html_escape(s: &str) -> String {
             c => c.to_string(),
         })
         .collect()
+}
+
+// ---------------------------------------------------------------------------
+// 上下文敏感 escape filter 族（escape_attr / escape_url / escape_js / escape_css）
+// ---------------------------------------------------------------------------
+
+/// `escape_url` 的 scheme 分类结果。
+enum UrlScheme {
+    /// 允许输出：allowlist scheme（`http` / `https` / `mailto`）或站点相对路径。
+    Allowed,
+    /// 拒绝输出：值为小写 scheme；protocol-relative（`//host`）记空串。
+    Rejected(String),
+}
+
+/// scheme 检测：`^[A-Za-z][A-Za-z0-9+.-]*:` 命中即 scheme。
+///
+/// 命中后小写并与 allowlist 比较；未命中 scheme 时，以 `//` 开头按
+/// protocol-relative 拒绝，其余（含空串、`/`、`?`、`#`、相对路径）放行。
+fn classify_url_scheme(s: &str) -> UrlScheme {
+    if let Some(colon) = s.find(':') {
+        let head = &s[..colon];
+        let mut chars = head.chars();
+        if let Some(first) = chars.next() {
+            if first.is_ascii_alphabetic() && chars.all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '-' || c == '.') {
+                let scheme = head.to_lowercase();
+                return if matches!(scheme.as_str(), "http" | "https" | "mailto") {
+                    UrlScheme::Allowed
+                }
+                else {
+                    UrlScheme::Rejected(scheme)
+                };
+            }
+        }
+    }
+    if s.starts_with("//") {
+        return UrlScheme::Rejected(String::new());
+    }
+    UrlScheme::Allowed
+}
+
+/// percent-encode：保留 RFC 3986 unreserved + reserved 集，其余按 UTF-8
+/// 字节输出大写 `%XX`（`%` 本身 → `%25`）。
+fn percent_encode(s: &str) -> String {
+    const KEEP: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~:/?#[]@!$&'()*+,;=";
+    let mut out = String::with_capacity(s.len());
+    for byte in s.as_bytes() {
+        if KEEP.contains(byte) {
+            out.push(*byte as char);
+        }
+        else {
+            out.push('%');
+            out.push_str(&format!("{byte:02X}"));
+        }
+    }
+    out
+}
+
+/// `escape_url`：拒绝 → `Value::Null` + Warning 诊断（sink 缺省则丢弃）；
+/// 放行 → percent-encode 后的字符串。
+fn escape_url_value(s: &str, warnings: Option<&WarningSink>) -> Value {
+    match classify_url_scheme(s) {
+        UrlScheme::Allowed => Value::String(percent_encode(s)),
+        UrlScheme::Rejected(scheme) => {
+            if let Some(sink) = warnings {
+                sink.push(
+                    Diagnostic::new(Severity::Warning, codes::URL_SCHEME_REJECTED, Stage::Render)
+                        .arg("scheme", scheme)
+                        .arg("url", s),
+                );
+            }
+            Value::Null
+        }
+    }
+}
+
+/// `escape_js`：JS 字符串字面量转义，输出含首尾双引号。
+///
+/// `\` `"` 与 C0 控制字符转义；U+2028 / U+2029 必须转义（字面量分隔符）；
+/// `< > & ' /` 保持原样——HTML text 转义归插值管道负责。
+fn escape_js_value(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\u{0008}' => out.push_str("\\b"),
+            '\t' => out.push_str("\\t"),
+            '\n' => out.push_str("\\n"),
+            '\u{000C}' => out.push_str("\\f"),
+            '\r' => out.push_str("\\r"),
+            '\u{2028}' => out.push_str("\\u2028"),
+            '\u{2029}' => out.push_str("\\u2029"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+/// `escape_css`：CSS 标识符 / 值转义。
+///
+/// `[A-Za-z0-9_-]` 与码点 ≥ 0x80 原样；`\` → `\\`；其余 → `\` + 小写 hex
+/// （无前导零）+ 一个终结空格（如 `;` → `\3b `、换行 → `\a `）。
+fn escape_css_value(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+            out.push(c);
+        }
+        else if c == '\\' {
+            out.push_str("\\\\");
+        }
+        else if (c as u32) >= 0x80 {
+            out.push(c);
+        }
+        else {
+            out.push_str(&format!("\\{:x} ", c as u32));
+        }
+    }
+    out
 }

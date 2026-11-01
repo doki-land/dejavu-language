@@ -44,9 +44,7 @@ fn continue_node() -> Value {
 }
 
 fn compile(ir: &Value) -> String {
-    precompile_single(&serde_json::to_string(ir).unwrap(), None)
-        .expect("compile")
-        .code
+    precompile_single(&serde_json::to_string(ir).unwrap(), None).expect("compile").code
 }
 
 #[test]

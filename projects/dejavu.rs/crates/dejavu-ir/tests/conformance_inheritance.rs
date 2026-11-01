@@ -7,8 +7,8 @@
 use std::collections::HashMap;
 
 use dejavu_ir::{
-    IrDocument, IrError, RenderOptions, ResolvedTemplate, TemplateLoader, codes, default_language, diag_load,
-    render_ir_opts, render_ir_with_loader,
+    IrDocument, IrError, RenderOptions, ResolvedTemplate, TemplateLoader, codes, default_language, diag_load, render_ir_opts,
+    render_ir_with_loader,
 };
 use serde_json::Value;
 
@@ -111,15 +111,8 @@ impl InMemoryLoader {
 
 impl TemplateLoader for InMemoryLoader {
     fn resolve(&mut self, ref_: &str, _from: Option<&str>) -> Result<ResolvedTemplate, IrError> {
-        let doc = self
-            .docs
-            .get(ref_)
-            .cloned()
-            .ok_or_else(|| diag_load(codes::TEMPLATE_NOT_FOUND).arg("template", ref_))?;
-        Ok(ResolvedTemplate {
-            id: ref_.to_string(),
-            document: doc,
-        })
+        let doc = self.docs.get(ref_).cloned().ok_or_else(|| diag_load(codes::TEMPLATE_NOT_FOUND).arg("template", ref_))?;
+        Ok(ResolvedTemplate { id: ref_.to_string(), document: doc })
     }
 }
 
@@ -130,30 +123,18 @@ impl TemplateLoader for InMemoryLoader {
 #[test]
 fn extends_block_override() {
     // base.dejavu: "<html><body><% block content %>default<% end %></body></html>"
-    let base = tpl_ir(vec![
-        text_node("<html><body>"),
-        block_node("content", vec![text_node("default")]),
-        text_node("</body></html>"),
-    ]);
+    let base =
+        tpl_ir(vec![text_node("<html><body>"), block_node("content", vec![text_node("default")]), text_node("</body></html>")]);
 
     // child.dejavu: "<% extends 'base.dejavu' %><% block content %>hello<% end %>"
-    let child = tpl_ir(vec![
-        extends_node("base.dejavu"),
-        block_node("content", vec![text_node("hello")]),
-    ]);
+    let child = tpl_ir(vec![extends_node("base.dejavu"), block_node("content", vec![text_node("hello")])]);
 
-    let loader = InMemoryLoader::new()
-        .insert("base.dejavu", base)
-        .insert("child.dejavu", child);
+    let loader = InMemoryLoader::new().insert("base.dejavu", base).insert("child.dejavu", child);
 
     // 需要 &mut 但 InMemoryLoader 不是 Copy/Clone —— 重构
     let mut loader = loader;
     let entry = (loader.resolve("child.dejavu", None).unwrap().document);
-    let output = render_ir_with_loader(
-        &entry,
-        &Value::Object(serde_json::Map::new()),
-        &mut loader,
-    ).unwrap();
+    let output = render_ir_with_loader(&entry, &Value::Object(serde_json::Map::new()), &mut loader).unwrap();
 
     assert_eq!(output, "<html><body>hello</body></html>");
 }
@@ -168,22 +149,12 @@ fn include_partial() {
     let partial = tpl_ir(vec![text_node("<!-- nav -->")]);
 
     // main.dejavu: "<html><% include 'partial.dejavu' %></html>"
-    let main = tpl_ir(vec![
-        text_node("<html>"),
-        include_node("partial.dejavu"),
-        text_node("</html>"),
-    ]);
+    let main = tpl_ir(vec![text_node("<html>"), include_node("partial.dejavu"), text_node("</html>")]);
 
-    let mut loader = InMemoryLoader::new()
-        .insert("partial.dejavu", partial)
-        .insert("main.dejavu", main);
+    let mut loader = InMemoryLoader::new().insert("partial.dejavu", partial).insert("main.dejavu", main);
 
     let entry = (loader.resolve("main.dejavu", None).unwrap().document);
-    let output = render_ir_with_loader(
-        &entry,
-        &Value::Object(serde_json::Map::new()),
-        &mut loader,
-    ).unwrap();
+    let output = render_ir_with_loader(&entry, &Value::Object(serde_json::Map::new()), &mut loader).unwrap();
 
     assert_eq!(output, "<html><!-- nav --></html>");
 }
@@ -195,32 +166,18 @@ fn include_partial() {
 #[test]
 fn super_renders_parent_block_body() {
     // base.dejavu: "A<% block body %>original<% end %>B"
-    let base = tpl_ir(vec![
-        text_node("A"),
-        block_node("body", vec![text_node("original")]),
-        text_node("B"),
-    ]);
+    let base = tpl_ir(vec![text_node("A"), block_node("body", vec![text_node("original")]), text_node("B")]);
 
     // child.dejavu: "<% extends 'base.dejavu' %><% block body %>before <% super %> after<% end %>"
     let child = tpl_ir(vec![
         extends_node("base.dejavu"),
-        block_node("body", vec![
-            text_node("before "),
-            super_node(),
-            text_node(" after"),
-        ]),
+        block_node("body", vec![text_node("before "), super_node(), text_node(" after")]),
     ]);
 
-    let mut loader = InMemoryLoader::new()
-        .insert("base.dejavu", base)
-        .insert("child.dejavu", child);
+    let mut loader = InMemoryLoader::new().insert("base.dejavu", base).insert("child.dejavu", child);
 
     let entry = (loader.resolve("child.dejavu", None).unwrap().document);
-    let output = render_ir_with_loader(
-        &entry,
-        &Value::Object(serde_json::Map::new()),
-        &mut loader,
-    ).unwrap();
+    let output = render_ir_with_loader(&entry, &Value::Object(serde_json::Map::new()), &mut loader).unwrap();
 
     assert_eq!(output, "Abefore original afterB");
 }
@@ -232,26 +189,15 @@ fn super_renders_parent_block_body() {
 #[test]
 fn block_override_without_super_replaces() {
     // base.dejavu: "<% block title %>Base<% end %>"
-    let base = tpl_ir(vec![
-        block_node("title", vec![text_node("Base")]),
-    ]);
+    let base = tpl_ir(vec![block_node("title", vec![text_node("Base")])]);
 
     // child.dejavu: "<% extends 'base.dejavu' %><% block title %>Override<% end %>"
-    let child = tpl_ir(vec![
-        extends_node("base.dejavu"),
-        block_node("title", vec![text_node("Override")]),
-    ]);
+    let child = tpl_ir(vec![extends_node("base.dejavu"), block_node("title", vec![text_node("Override")])]);
 
-    let mut loader = InMemoryLoader::new()
-        .insert("base.dejavu", base)
-        .insert("child.dejavu", child);
+    let mut loader = InMemoryLoader::new().insert("base.dejavu", base).insert("child.dejavu", child);
 
     let entry = (loader.resolve("child.dejavu", None).unwrap().document);
-    let output = render_ir_with_loader(
-        &entry,
-        &Value::Object(serde_json::Map::new()),
-        &mut loader,
-    ).unwrap();
+    let output = render_ir_with_loader(&entry, &Value::Object(serde_json::Map::new()), &mut loader).unwrap();
 
     assert_eq!(output, "Override");
 }
@@ -263,27 +209,15 @@ fn block_override_without_super_replaces() {
 #[test]
 fn missing_block_in_child_falls_back_to_parent() {
     // base.dejavu: "<% block a %>AAA<% end %><% block b %>BBB<% end %>"
-    let base = tpl_ir(vec![
-        block_node("a", vec![text_node("AAA")]),
-        block_node("b", vec![text_node("BBB")]),
-    ]);
+    let base = tpl_ir(vec![block_node("a", vec![text_node("AAA")]), block_node("b", vec![text_node("BBB")])]);
 
     // child.dejavu: "<% extends 'base.dejavu' %><% block a %>overridden<% end %>"
-    let child = tpl_ir(vec![
-        extends_node("base.dejavu"),
-        block_node("a", vec![text_node("overridden")]),
-    ]);
+    let child = tpl_ir(vec![extends_node("base.dejavu"), block_node("a", vec![text_node("overridden")])]);
 
-    let mut loader = InMemoryLoader::new()
-        .insert("base.dejavu", base)
-        .insert("child.dejavu", child);
+    let mut loader = InMemoryLoader::new().insert("base.dejavu", base).insert("child.dejavu", child);
 
     let entry = (loader.resolve("child.dejavu", None).unwrap().document);
-    let output = render_ir_with_loader(
-        &entry,
-        &Value::Object(serde_json::Map::new()),
-        &mut loader,
-    ).unwrap();
+    let output = render_ir_with_loader(&entry, &Value::Object(serde_json::Map::new()), &mut loader).unwrap();
 
     assert_eq!(output, "overriddenBBB");
 }
@@ -297,25 +231,16 @@ fn circular_extends_is_detected() {
     let a = tpl_ir(vec![extends_node("b.dejavu")]);
     let b = tpl_ir(vec![extends_node("a.dejavu")]);
 
-    let mut loader = InMemoryLoader::new()
-        .insert("a.dejavu", a)
-        .insert("b.dejavu", b);
+    let mut loader = InMemoryLoader::new().insert("a.dejavu", a).insert("b.dejavu", b);
 
     let entry = (loader.resolve("a.dejavu", None).unwrap().document);
-    let result = render_ir_with_loader(
-        &entry,
-        &Value::Object(serde_json::Map::new()),
-        &mut loader,
-    );
+    let result = render_ir_with_loader(&entry, &Value::Object(serde_json::Map::new()), &mut loader);
 
     assert!(result.is_err());
     match result.unwrap_err() {
         IrError::Diagnostic(d) => {
             assert_eq!(d.code, codes::CIRCULAR_EXTENDS);
-            assert_eq!(
-                d.args.get("chain"),
-                Some(&dejavu_diagnostic::ArgValue::String("b.dejavu".into()))
-            );
+            assert_eq!(d.args.get("chain"), Some(&dejavu_diagnostic::ArgValue::String("b.dejavu".into())));
         }
         other => panic!("expected Diagnostic, got {other:?}"),
     }
@@ -328,18 +253,12 @@ fn circular_extends_is_detected() {
 #[test]
 fn render_ir_without_loader_errors_on_include() {
     let main = tpl_ir(vec![include_node("partial.dejavu")]);
-    let result = dejavu_ir::render_ir(
-        &main,
-        &Value::Object(serde_json::Map::new()),
-    );
+    let result = dejavu_ir::render_ir(&main, &Value::Object(serde_json::Map::new()));
     assert!(result.is_err());
     match result.unwrap_err() {
         IrError::Diagnostic(d) => {
             assert_eq!(d.code, codes::MISSING_LOADER);
-            assert_eq!(
-                d.args.get("feature"),
-                Some(&dejavu_diagnostic::ArgValue::String("include".into()))
-            );
+            assert_eq!(d.args.get("feature"), Some(&dejavu_diagnostic::ArgValue::String("include".into())));
         }
         other => panic!("expected Diagnostic, got {other:?}"),
     }
@@ -353,20 +272,13 @@ fn render_ir_without_loader_errors_on_include() {
 fn strict_undefined_throws_on_missing_var() {
     let doc = tpl_ir(vec![interpolation_identifier("missing")]);
     let ctx = Value::Object(serde_json::Map::new());
-    let opts = RenderOptions {
-        strict_undefined: true,
-        name: Some("t".into()),
-        ..Default::default()
-    };
+    let opts = RenderOptions { strict_undefined: true, name: Some("t".into()), ..Default::default() };
     let result = render_ir_opts(&doc, &ctx, opts, None);
     assert!(result.is_err());
     match result.unwrap_err() {
         IrError::Diagnostic(d) => {
             assert_eq!(d.code, codes::UNDEFINED_VARIABLE);
-            assert_eq!(
-                d.args.get("name"),
-                Some(&dejavu_diagnostic::ArgValue::String("missing".into()))
-            );
+            assert_eq!(d.args.get("name"), Some(&dejavu_diagnostic::ArgValue::String("missing".into())));
         }
         other => panic!("expected Diagnostic, got {other:?}"),
     }
@@ -376,11 +288,7 @@ fn strict_undefined_throws_on_missing_var() {
 fn strict_undefined_disabled_returns_null_as_empty() {
     let doc = tpl_ir(vec![interpolation_identifier("missing")]);
     let ctx = Value::Object(serde_json::Map::new());
-    let opts = RenderOptions {
-        strict_undefined: false,
-        name: Some("t".into()),
-        ..Default::default()
-    };
+    let opts = RenderOptions { strict_undefined: false, name: Some("t".into()), ..Default::default() };
     let out = render_ir_opts(&doc, &ctx, opts, None).unwrap();
     assert_eq!(out, "");
 }
@@ -477,24 +385,15 @@ fn circular_include_abba_detected() {
     let a = tpl_ir(vec![text_node("A("), include_node("b"), text_node(")")]);
     let b = tpl_ir(vec![text_node("B("), include_node("a"), text_node(")")]);
 
-    let mut loader = InMemoryLoader::new()
-        .insert("a", a)
-        .insert("b", b);
+    let mut loader = InMemoryLoader::new().insert("a", a).insert("b", b);
 
     let entry = loader.resolve("a", None).unwrap().document;
-    let result = render_ir_with_loader(
-        &entry,
-        &Value::Object(serde_json::Map::new()),
-        &mut loader,
-    );
+    let result = render_ir_with_loader(&entry, &Value::Object(serde_json::Map::new()), &mut loader);
     assert!(result.is_err());
     match result.unwrap_err() {
         IrError::Diagnostic(d) => {
             assert_eq!(d.code, codes::CIRCULAR_INCLUDE);
-            assert_eq!(
-                d.args.get("chain"),
-                Some(&dejavu_diagnostic::ArgValue::String("b -> a -> b".into()))
-            );
+            assert_eq!(d.args.get("chain"), Some(&dejavu_diagnostic::ArgValue::String("b -> a -> b".into())));
         }
         other => panic!("expected Diagnostic, got {other:?}"),
     }
@@ -521,19 +420,10 @@ impl AliasLoader {
 
 impl TemplateLoader for AliasLoader {
     fn resolve(&mut self, ref_: &str, _from: Option<&str>) -> Result<ResolvedTemplate, IrError> {
-        let canonical_id = ref_
-            .split_once(':')
-            .map(|(id, _)| id.to_string())
-            .unwrap_or_else(|| ref_.to_string());
-        let doc = self
-            .docs
-            .get(&canonical_id)
-            .cloned()
-            .ok_or_else(|| diag_load(codes::TEMPLATE_NOT_FOUND).arg("template", ref_))?;
-        Ok(ResolvedTemplate {
-            id: canonical_id,
-            document: doc,
-        })
+        let canonical_id = ref_.split_once(':').map(|(id, _)| id.to_string()).unwrap_or_else(|| ref_.to_string());
+        let doc =
+            self.docs.get(&canonical_id).cloned().ok_or_else(|| diag_load(codes::TEMPLATE_NOT_FOUND).arg("template", ref_))?;
+        Ok(ResolvedTemplate { id: canonical_id, document: doc })
     }
 }
 
@@ -545,16 +435,10 @@ fn extends_cycle_via_canonical_id_alias() {
     let parent = tpl_ir(vec![extends_node("parent:parent.alias"), text_node("parent-body")]);
     let child = tpl_ir(vec![extends_node("parent:real/parent.dejavu"), text_node("child-body")]);
 
-    let mut loader = AliasLoader::new()
-        .insert("parent", parent)
-        .insert("child", child);
+    let mut loader = AliasLoader::new().insert("parent", parent).insert("child", child);
 
     let entry = loader.resolve("child", None).unwrap().document;
-    let result = render_ir_with_loader(
-        &entry,
-        &Value::Object(serde_json::Map::new()),
-        &mut loader,
-    );
+    let result = render_ir_with_loader(&entry, &Value::Object(serde_json::Map::new()), &mut loader);
     assert!(result.is_err(), "should detect canonical-id-level extends cycle");
     match result.unwrap_err() {
         IrError::Diagnostic(d) => assert_eq!(d.code, codes::CIRCULAR_EXTENDS),
@@ -573,27 +457,14 @@ fn three_level_extends_child_block_wins() {
     // base:     "<% block body %>BASE<% end %>"
     let base = tpl_ir(vec![block_node("body", vec![text_node("BASE")])]);
     // middle:   "<% extends 'base' %><% block body %>MIDDLE<% end %>"
-    let middle = tpl_ir(vec![
-        extends_node("base"),
-        block_node("body", vec![text_node("MIDDLE")]),
-    ]);
+    let middle = tpl_ir(vec![extends_node("base"), block_node("body", vec![text_node("MIDDLE")])]);
     // child:    "<% extends 'middle' %><% block body %>CHILD<% end %>"
-    let child = tpl_ir(vec![
-        extends_node("middle"),
-        block_node("body", vec![text_node("CHILD")]),
-    ]);
+    let child = tpl_ir(vec![extends_node("middle"), block_node("body", vec![text_node("CHILD")])]);
 
-    let mut loader = InMemoryLoader::new()
-        .insert("base", base)
-        .insert("middle", middle)
-        .insert("child", child);
+    let mut loader = InMemoryLoader::new().insert("base", base).insert("middle", middle).insert("child", child);
 
     let entry = loader.resolve("child", None).unwrap().document;
-    let out = render_ir_with_loader(
-        &entry,
-        &Value::Object(serde_json::Map::new()),
-        &mut loader,
-    ).unwrap();
+    let out = render_ir_with_loader(&entry, &Value::Object(serde_json::Map::new()), &mut loader).unwrap();
 
     assert_eq!(out, "CHILD", "最底层 child 的 block override 必须穿透整条继承链");
 }
@@ -622,14 +493,8 @@ fn chained_include_restores_current_id() {
     let a = tpl_ir(vec![include_node("b")]);
     let b = tpl_ir(vec![text_node("B")]);
 
-    let mut loader = TraceLoader {
-        docs: HashMap::from([
-            ("main".into(), main),
-            ("a".into(), a),
-            ("b".into(), b),
-        ]),
-        calls: vec![],
-    };
+    let mut loader =
+        TraceLoader { docs: HashMap::from([("main".into(), main), ("a".into(), a), ("b".into(), b)]), calls: vec![] };
 
     let entry = loader.resolve("main", None).unwrap().document;
     let out = render_ir_opts(
@@ -637,14 +502,12 @@ fn chained_include_restores_current_id() {
         &Value::Object(serde_json::Map::new()),
         RenderOptions { name: Some("main".into()), ..Default::default() },
         Some(&mut loader),
-    ).unwrap();
+    )
+    .unwrap();
 
     assert_eq!(out, "B");
     // 每次 include 的 from 必须正确：a 来自 main，b 来自 a（不是 main）
-    assert_eq!(loader.calls, vec![
-        ("a".into(), Some("main".into())),
-        ("b".into(), Some("a".into())),
-    ]);
+    assert_eq!(loader.calls, vec![("a".into(), Some("main".into())), ("b".into(), Some("a".into())),]);
 }
 
 /// include 带 extends 的模板：被 include 的模板自身有 extends 链，必须独立解析。
@@ -655,24 +518,14 @@ fn include_template_that_has_extends() {
     // base: "<% block body %>BASE<% end %>"
     let base = tpl_ir(vec![block_node("body", vec![text_node("BASE")])]);
     // child_of_base: "<% extends 'base' %><% block body %>INCLUDED_CHILD<% end %>"
-    let child_of_base = tpl_ir(vec![
-        extends_node("base"),
-        block_node("body", vec![text_node("INCLUDED_CHILD")]),
-    ]);
+    let child_of_base = tpl_ir(vec![extends_node("base"), block_node("body", vec![text_node("INCLUDED_CHILD")])]);
     // main: "<% include 'child_of_base' %>"
     let main = tpl_ir(vec![include_node("child_of_base")]);
 
-    let mut loader = InMemoryLoader::new()
-        .insert("base", base)
-        .insert("child_of_base", child_of_base)
-        .insert("main", main);
+    let mut loader = InMemoryLoader::new().insert("base", base).insert("child_of_base", child_of_base).insert("main", main);
 
     let entry = loader.resolve("main", None).unwrap().document;
-    let out = render_ir_with_loader(
-        &entry,
-        &Value::Object(serde_json::Map::new()),
-        &mut loader,
-    ).unwrap();
+    let out = render_ir_with_loader(&entry, &Value::Object(serde_json::Map::new()), &mut loader).unwrap();
 
     // 被 include 的模板成功解析自己的 extends → body block → INCLUDED_CHILD
     assert_eq!(out, "INCLUDED_CHILD");
@@ -688,16 +541,16 @@ fn dynamic_include_path_is_rejected() {
         "trim": "none",
     })]);
 
-    let mut loader = InMemoryLoader::new()
-        .insert("partial.dejavu", partial)
-        .insert("main.dejavu", main);
+    let mut loader = InMemoryLoader::new().insert("partial.dejavu", partial).insert("main.dejavu", main);
     let entry = loader.resolve("main.dejavu", None).unwrap().document;
     let mut ctx = serde_json::Map::new();
     ctx.insert("target".into(), Value::String("partial.dejavu".into()));
 
-    let err = render_ir_with_loader(&entry, &Value::Object(ctx), &mut loader)
-        .expect_err("dynamic include must be rejected");
-    let IrError::Diagnostic(diag) = err else { panic!("expected structured diagnostic, got {err:?}") };
+    let err = render_ir_with_loader(&entry, &Value::Object(ctx), &mut loader).expect_err("dynamic include must be rejected");
+    let IrError::Diagnostic(diag) = err
+    else {
+        panic!("expected structured diagnostic, got {err:?}")
+    };
     assert_eq!(diag.code, codes::INCLUDE_PATH_NOT_LITERAL);
     assert_eq!(diag.stage, dejavu_ir::Stage::Load);
 }
@@ -712,16 +565,16 @@ fn dynamic_extends_path_is_rejected() {
         "trim": "none",
     })]);
 
-    let mut loader = InMemoryLoader::new()
-        .insert("base.dejavu", base)
-        .insert("child.dejavu", child);
+    let mut loader = InMemoryLoader::new().insert("base.dejavu", base).insert("child.dejavu", child);
     let entry = loader.resolve("child.dejavu", None).unwrap().document;
     let mut ctx = serde_json::Map::new();
     ctx.insert("parent".into(), Value::String("base.dejavu".into()));
 
-    let err = render_ir_with_loader(&entry, &Value::Object(ctx), &mut loader)
-        .expect_err("dynamic extends must be rejected");
-    let IrError::Diagnostic(diag) = err else { panic!("expected structured diagnostic, got {err:?}") };
+    let err = render_ir_with_loader(&entry, &Value::Object(ctx), &mut loader).expect_err("dynamic extends must be rejected");
+    let IrError::Diagnostic(diag) = err
+    else {
+        panic!("expected structured diagnostic, got {err:?}")
+    };
     assert_eq!(diag.code, codes::EXTENDS_PATH_NOT_LITERAL);
     assert_eq!(diag.stage, dejavu_ir::Stage::Load);
 }
@@ -734,12 +587,7 @@ fn slug_filter_nfkd_ligature_and_fullwidth() {
     let mut ctx = serde_json::Map::new();
     // ffi 是拉丁连字 U+FB03，ＡＢＣ 是全角大写
     ctx.insert("s".into(), Value::String("ﬃ ＡＢＣ".into()));
-    let out = render_ir_opts(
-        &doc,
-        &Value::Object(ctx),
-        RenderOptions::default(),
-        None,
-    ).unwrap();
+    let out = render_ir_opts(&doc, &Value::Object(ctx), RenderOptions::default(), None).unwrap();
     // NFKD 把 ffi 连字分解成 ffi，全角大写分解成小写字母
     assert_eq!(out, "ffi-abc");
 }

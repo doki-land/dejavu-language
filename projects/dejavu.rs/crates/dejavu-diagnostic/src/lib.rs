@@ -263,11 +263,7 @@ impl Diagnostic {
 
     /// 链式加相关 span。
     pub fn related(mut self, start: usize, end: usize, label: impl Into<String>) -> Self {
-        self.related.push(RelatedSpan {
-            span: Span::new(start, end),
-            label: label.into(),
-            path: self.path.clone(),
-        });
+        self.related.push(RelatedSpan { span: Span::new(start, end), label: label.into(), path: self.path.clone() });
         self
     }
 
@@ -333,6 +329,8 @@ pub mod codes {
     // Render
     pub const UNKNOWN_FILTER: &str = "dejavu.template.unknown-filter";
     pub const FILTER_ARITY: &str = "dejavu.template.filter-arity";
+    /// `escape_url` rejected a disallowed URL scheme; the value renders as null.
+    pub const URL_SCHEME_REJECTED: &str = "dejavu.template.url-scheme-rejected";
     pub const UNKNOWN_FUNCTION: &str = "dejavu.template.unknown-function";
     pub const FUNCTION_ARITY: &str = "dejavu.template.function-arity";
     pub const UNKNOWN_TEST: &str = "dejavu.template.unknown-test";
@@ -425,9 +423,11 @@ mod tests {
 
     #[test]
     fn related_spans_serialize() {
-        let d = Diagnostic::new(Severity::Warning, codes::PARSE_UNEXPECTED_TOKEN, Stage::Parse)
-            .span(10, 15)
-            .related(20, 30, "expected here");
+        let d = Diagnostic::new(Severity::Warning, codes::PARSE_UNEXPECTED_TOKEN, Stage::Parse).span(10, 15).related(
+            20,
+            30,
+            "expected here",
+        );
         let json = serde_json::to_string(&d).unwrap();
         assert!(json.contains("related"));
         assert!(json.contains("expected here"));

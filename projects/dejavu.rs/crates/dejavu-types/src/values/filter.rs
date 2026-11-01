@@ -113,7 +113,8 @@ impl Filter for SliceFilter {
                         Value::Integer(i) => i.max(0) as usize,
                         _ => 0,
                     }
-                } else {
+                }
+                else {
                     0
                 };
 
@@ -122,7 +123,8 @@ impl Filter for SliceFilter {
                         Value::Integer(i) => i.max(start as i64) as usize,
                         _ => s.len(),
                     }
-                } else {
+                }
+                else {
                     s.len()
                 };
 
@@ -193,7 +195,8 @@ impl Filter for DefaultFilter {
     fn apply(&self, value: Value, args: &[Value], _context: &Context) -> DejavuResult<Value> {
         if value.is_truthy() {
             Ok(value)
-        } else {
+        }
+        else {
             if let Some(default_value) = args.get(0) { Ok(default_value.clone()) } else { Ok(Value::String("".to_string())) }
         }
     }
@@ -261,10 +264,12 @@ impl Filter for ReplaceFilter {
                     _ => "",
                 };
                 Ok(Value::String(s.replace(old, new)))
-            } else {
+            }
+            else {
                 Ok(Value::String(s))
             }
-        } else {
+        }
+        else {
             Ok(value)
         }
     }
@@ -287,7 +292,8 @@ impl Filter for SplitFilter {
                 .to_string();
             let parts: Vec<Value> = s.split(&separator).map(|part| Value::String(part.to_string())).collect();
             Ok(Value::Array(parts))
-        } else {
+        }
+        else {
             Ok(value)
         }
     }

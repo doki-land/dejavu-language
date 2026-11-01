@@ -6,8 +6,10 @@
 
 use std::collections::BTreeMap;
 
-use crate::render::{ResolvedTemplate, TemplateLoader};
-use crate::{Diagnostic, IrDocument, IrError, Severity, Stage, codes};
+use crate::{
+    Diagnostic, IrDocument, IrError, Severity, Stage, codes,
+    render::{ResolvedTemplate, TemplateLoader},
+};
 
 /// 单个 root 内的 canonical 路径 → 已解析 IR。
 pub type CatalogFiles = BTreeMap<String, IrDocument>;
@@ -126,7 +128,8 @@ pub fn resolve_ref(
     }
 
     if let Some((scheme, path)) = split_scheme(raw) {
-        let Some(index) = root_by_scheme(roots, scheme) else {
+        let Some(index) = root_by_scheme(roots, scheme)
+        else {
             return Err(load_diag(codes::TEMPLATE_UNKNOWN_SCHEME, reference).arg("scheme", scheme));
         };
         return match probe_root(&roots[index], path, extensions) {
@@ -136,15 +139,18 @@ pub fn resolve_ref(
     }
 
     if raw.starts_with("./") || raw.starts_with("../") {
-        let Some(from) = from else {
+        let Some(from) = from
+        else {
             return Err(load_diag(codes::TEMPLATE_RELATIVE_WITHOUT_FROM, reference));
         };
-        let Some((from_index, from_path)) = parse_canonical_id(roots, from) else {
+        let Some((from_index, from_path)) = parse_canonical_id(roots, from)
+        else {
             return Err(load_diag(codes::TEMPLATE_INVALID_REF, reference)
                 .arg("reason", "non-canonical-from")
                 .arg("from", from));
         };
-        let Ok(joined) = join_posix(&dirname_posix(&from_path), raw) else {
+        let Ok(joined) = join_posix(&dirname_posix(&from_path), raw)
+        else {
             return Err(load_diag(codes::TEMPLATE_RELATIVE_ESCAPE_ROOT, reference).arg("from", from));
         };
         return match probe_root(&roots[from_index], &joined, extensions) {
@@ -201,12 +207,14 @@ impl CatalogLoader<'_> {
 impl TemplateLoader for CatalogLoader<'_> {
     fn resolve(&mut self, ref_: &str, from: Option<&str>) -> Result<ResolvedTemplate, IrError> {
         let hit = self.catalog.resolve_ref(ref_, from)?;
-        let Some(document) = self.catalog.document(&hit) else {
+        let Some(document) = self.catalog.document(&hit)
+        else {
             return Err(IrError::Diagnostic(
                 load_diag(codes::TEMPLATE_NOT_FOUND, ref_).arg("reason", "document-missing").arg("path", &hit.path),
             ));
         };
-        let Some(id) = self.catalog.canonical_id(&hit) else {
+        let Some(id) = self.catalog.canonical_id(&hit)
+        else {
             return Err(IrError::Diagnostic(load_diag(codes::TEMPLATE_NOT_FOUND, ref_)));
         };
         Ok(ResolvedTemplate { id, document: document.clone() })
@@ -238,14 +246,9 @@ fn ambiguous_ref(
     hits: &[(usize, String)],
     roots: &[ResolveRoot],
 ) -> Diagnostic {
-    let names: Vec<crate::ArgValue> = hits
-        .iter()
-        .map(|(index, _)| crate::ArgValue::String(roots[*index].name.clone()))
-        .collect();
-    let candidates: Vec<String> = hits
-        .iter()
-        .map(|(index, path)| canonical_id(&roots[*index].name, path))
-        .collect();
+    let names: Vec<crate::ArgValue> =
+        hits.iter().map(|(index, _)| crate::ArgValue::String(roots[*index].name.clone())).collect();
+    let candidates: Vec<String> = hits.iter().map(|(index, path)| canonical_id(&roots[*index].name, path)).collect();
     let mut diag = load_diag(codes::TEMPLATE_AMBIGUOUS_REF, reference)
         .message(format!(
             "template reference {reference:?} matches {} roots at priority {priority}: {}. \

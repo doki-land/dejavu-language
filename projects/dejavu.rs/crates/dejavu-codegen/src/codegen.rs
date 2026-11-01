@@ -7,17 +7,18 @@
 
 use std::collections::{HashMap, HashSet};
 
-use dejavu_diagnostic::{codes, Diagnostic, Severity, Stage};
+use dejavu_diagnostic::{Diagnostic, Severity, Stage, codes};
 use dejavu_ir::{IrDocument, IrNode, TemplateCatalog, canonical_id as ir_canonical_id};
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::catalog::{
-    collect_all_reachable, collect_blocks, detect_cycle, js_import_name,
-    parse_catalog_json, sanitize_id, split_canonical,
+use crate::{
+    catalog::{
+        collect_all_reachable, collect_blocks, detect_cycle, js_import_name, parse_catalog_json, sanitize_id, split_canonical,
+    },
+    emit::{self, CatalogEmitCtx, CodegenCtx, LineOrigin},
+    options::CodegenOptions,
 };
-use crate::emit::{self, CatalogEmitCtx, CodegenCtx, LineOrigin};
-use crate::options::CodegenOptions;
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -111,15 +112,10 @@ pub(crate) const RUNTIME_IMPORT: &str = "@doki-land/dejavu-engine/runtime";
 ///
 /// - `ir_json` — IR document JSON (as emitted by dejavu-ir / dejavu-language).
 /// - `options_json` — optional JSON string with codegen knobs.
-pub fn precompile_single(
-    ir_json: &str,
-    options_json: Option<&str>,
-) -> Result<PrecompileResult, String> {
-    let doc: IrDocument = serde_json::from_str(ir_json)
-        .map_err(|e| format!("invalid IR JSON: {e}"))?;
+pub fn precompile_single(ir_json: &str, options_json: Option<&str>) -> Result<PrecompileResult, String> {
+    let doc: IrDocument = serde_json::from_str(ir_json).map_err(|e| format!("invalid IR JSON: {e}"))?;
 
-    let opts = CodegenOptions::from_json(options_json)
-        .map_err(|e| format!("invalid options JSON: {e}"))?;
+    let opts = CodegenOptions::from_json(options_json).map_err(|e| format!("invalid options JSON: {e}"))?;
 
     let entry_id = opts.entry_id().to_string();
     let mut ctx = CodegenCtx::new(&opts);
@@ -142,13 +138,7 @@ pub fn precompile_single(
     let code = build_module(&body_str, &macro_fns, &[], &[], None, None);
     let origins = shift_origins(&ctx.origins, module_header_lines(0, macro_lines(&macro_fns)));
 
-    Ok(PrecompileResult {
-        code,
-        dependencies: Vec::new(),
-        diagnostics: ctx.diagnostics,
-        entry_id,
-        origins,
-    })
+    Ok(PrecompileResult { code, dependencies: Vec::new(), diagnostics: ctx.diagnostics, entry_id, origins })
 }
 
 // ---------------------------------------------------------------------------
@@ -168,8 +158,7 @@ pub fn precompile_catalog(
     options_json: Option<&str>,
 ) -> Result<PrecompileCatalogResult, String> {
     let catalog = parse_catalog_json(catalog_json)?;
-    let opts = CodegenOptions::from_json(options_json)
-        .map_err(|e| format!("invalid options JSON: {e}"))?;
+    let opts = CodegenOptions::from_json(options_json).map_err(|e| format!("invalid options JSON: {e}"))?;
 
     // Pick entry id. options.entryId wins; otherwise first file in first root.
     let entry_id = pick_entry_id(&catalog, opts.entry_id.as_deref());
@@ -179,12 +168,7 @@ pub fn precompile_catalog(
     // 1. Cycle detection on include/extends edges.
     if let Err(diag) = detect_cycle(&catalog, &entry_id) {
         diagnostics.push(diag);
-        return Ok(PrecompileCatalogResult {
-            modules: Vec::new(),
-            manifest: String::new(),
-            diagnostics,
-            entry_id,
-        });
+        return Ok(PrecompileCatalogResult { modules: Vec::new(), manifest: String::new(), diagnostics, entry_id });
     }
 
     // 2. Collect the set of reachable template ids (include + extends closure).
@@ -207,7 +191,8 @@ pub fn precompile_catalog(
             // Entry → always "index.js" by default. Callers can customise via
             // an `entryFile` option later; for now we keep it fixed.
             id_to_path.insert(id.clone(), Value::String("index.js".into()));
-        } else {
+        }
+        else {
             let file_name = format!("_internal/{}.js", sanitize_id(id));
             id_to_path.insert(id.clone(), Value::String(file_name));
         }
@@ -235,12 +220,8 @@ pub fn precompile_catalog(
         let live_set: HashSet<&str> = live_names.iter().map(String::as_str).collect();
 
         let used_names = used_call_names(plan, &live_macros);
-        let used_imports: Vec<MacroImport> = plan
-            .macro_imports
-            .iter()
-            .filter(|imported| used_names.contains(&imported.local))
-            .cloned()
-            .collect();
+        let used_imports: Vec<MacroImport> =
+            plan.macro_imports.iter().filter(|imported| used_names.contains(&imported.local)).cloned().collect();
         let macro_nodes: Vec<IrNode> = plan
             .body_children
             .iter()
@@ -269,36 +250,17 @@ pub fn precompile_catalog(
         template_imports.extend(macro_import_lines);
         let exports = macro_export_lines(&live_names, &used_imports);
         let export_name = js_import_name(id);
-        let code = build_module(
-            &body_str,
-            &macro_fns,
-            &template_imports,
-            &exports,
-            Some(&id_to_deps),
-            Some(&export_name),
-        );
-        let origins = shift_origins(
-            &ctx.origins,
-            module_header_lines(template_imports.len(), macro_lines(&macro_fns)),
-        );
+        let code = build_module(&body_str, &macro_fns, &template_imports, &exports, Some(&id_to_deps), Some(&export_name));
+        let origins = shift_origins(&ctx.origins, module_header_lines(template_imports.len(), macro_lines(&macro_fns)));
 
         diagnostics.extend(ctx.diagnostics);
 
         let path = id_to_path.get(id).unwrap().as_str().unwrap_or("").to_string();
-        modules.push(GeneratedModule {
-            path,
-            code,
-            dependencies: plan.dependencies.clone(),
-            origins,
-        });
+        modules.push(GeneratedModule { path, code, dependencies: plan.dependencies.clone(), origins });
     }
 
     // Sort entry first, then alphabetical by path for determinism.
-    let entry_path = id_to_path
-        .get(&entry_id)
-        .and_then(|v| v.as_str())
-        .unwrap_or("index.js")
-        .to_string();
+    let entry_path = id_to_path.get(&entry_id).and_then(|v| v.as_str()).unwrap_or("index.js").to_string();
     modules.sort_by(|a, b| {
         let a_entry = a.path == entry_path;
         let b_entry = b.path == entry_path;
@@ -312,12 +274,7 @@ pub fn precompile_catalog(
     // 5. Build manifest.
     let manifest = build_manifest(&entry_id, &id_to_path);
 
-    Ok(PrecompileCatalogResult {
-        modules,
-        manifest,
-        diagnostics,
-        entry_id,
-    })
+    Ok(PrecompileCatalogResult { modules, manifest, diagnostics, entry_id })
 }
 
 // ---------------------------------------------------------------------------
@@ -340,15 +297,12 @@ fn build_module_plans(
 ) -> Vec<ModulePlan> {
     let mut plans = Vec::new();
     for id in reachable {
-        let Some(doc) = catalog_document(catalog, id) else {
+        let Some(doc) = catalog_document(catalog, id)
+        else {
             diagnostics.push(
-                Diagnostic::new(
-                    Severity::Error,
-                    "dejavu.compile.template-missing",
-                    Stage::Compile,
-                )
-                .template_id(id)
-                .message(format!("template {id:?} referenced by catalog but not found")),
+                Diagnostic::new(Severity::Error, "dejavu.compile.template-missing", Stage::Compile)
+                    .template_id(id)
+                    .message(format!("template {id:?} referenced by catalog but not found")),
             );
             continue;
         };
@@ -376,19 +330,17 @@ fn build_module_plans(
         dependencies.dedup();
 
         let render_doc = if id == entry_id {
-            let Some(parent) = catalog_document(catalog, &topmost_parent_id) else {
+            let Some(parent) = catalog_document(catalog, &topmost_parent_id)
+            else {
                 diagnostics.push(
-                    Diagnostic::new(
-                        Severity::Error,
-                        "dejavu.compile.parent-template-missing",
-                        Stage::Compile,
-                    )
-                    .template_id(&topmost_parent_id),
+                    Diagnostic::new(Severity::Error, "dejavu.compile.parent-template-missing", Stage::Compile)
+                        .template_id(&topmost_parent_id),
                 );
                 continue;
             };
             parent
-        } else {
+        }
+        else {
             doc
         };
 
@@ -397,12 +349,9 @@ fn build_module_plans(
                 if partial_ids.contains(id) {
                     // A partial template may only carry whitespace/comments
                     // outside its declaration; emit just the declaration.
-                    children
-                        .iter()
-                        .filter(|n| matches!(n, IrNode::StmtPartial { .. }))
-                        .cloned()
-                        .collect()
-                } else {
+                    children.iter().filter(|n| matches!(n, IrNode::StmtPartial { .. })).cloned().collect()
+                }
+                else {
                     children.clone()
                 }
             }
@@ -411,14 +360,7 @@ fn build_module_plans(
 
         let macro_imports = resolve_macro_imports(catalog, &body_children, id, diagnostics);
 
-        plans.push(ModulePlan {
-            id: id.clone(),
-            body_children,
-            block_chains,
-            include_imports,
-            dependencies,
-            macro_imports,
-        });
+        plans.push(ModulePlan { id: id.clone(), body_children, block_chains, include_imports, dependencies, macro_imports });
     }
     plans
 }
@@ -431,24 +373,16 @@ fn build_module_plans(
 /// module's `from ... import` bindings), matching how the renderer resolves
 /// macro calls.
 fn reachable_macros(plans: &[ModulePlan]) -> HashSet<MacroKey> {
-    let by_id: HashMap<&str, &ModulePlan> =
-        plans.iter().map(|plan| (plan.id.as_str(), plan)).collect();
-    let local: HashMap<&str, HashSet<String>> = plans
-        .iter()
-        .map(|plan| (plan.id.as_str(), macro_names(&plan.body_children).into_iter().collect()))
-        .collect();
+    let by_id: HashMap<&str, &ModulePlan> = plans.iter().map(|plan| (plan.id.as_str(), plan)).collect();
+    let local: HashMap<&str, HashSet<String>> =
+        plans.iter().map(|plan| (plan.id.as_str(), macro_names(&plan.body_children).into_iter().collect())).collect();
     let imports: HashMap<&str, HashMap<String, MacroKey>> = plans
         .iter()
         .map(|plan| {
             let table = plan
                 .macro_imports
                 .iter()
-                .map(|imported| {
-                    (
-                        imported.local.clone(),
-                        (imported.dep_id.clone(), imported.imported.clone()),
-                    )
-                })
+                .map(|imported| (imported.local.clone(), (imported.dep_id.clone(), imported.imported.clone())))
                 .collect();
             (plan.id.as_str(), table)
         })
@@ -485,8 +419,14 @@ fn reachable_macros(plans: &[ModulePlan]) -> HashSet<MacroKey> {
 
     // Expand through live macro bodies.
     while let Some(key) = worklist.pop() {
-        let Some(plan) = by_id.get(key.0.as_str()) else { continue };
-        let Some(node) = macro_node(&plan.body_children, &key.1) else { continue };
+        let Some(plan) = by_id.get(key.0.as_str())
+        else {
+            continue;
+        };
+        let Some(node) = macro_node(&plan.body_children, &key.1)
+        else {
+            continue;
+        };
         let mut names = HashSet::new();
         crate::catalog::collect_macro_calls(std::slice::from_ref(node), false, &mut names);
         for name in names {
@@ -524,9 +464,7 @@ fn used_call_names(plan: &ModulePlan, live: &HashSet<MacroKey>) -> HashSet<Strin
 
 /// The top-level macro declaration named `name`, if any.
 fn macro_node<'a>(children: &'a [IrNode], name: &str) -> Option<&'a IrNode> {
-    children
-        .iter()
-        .find(|node| matches!(node, IrNode::StmtMacro { name: declared, .. } if declared == name))
+    children.iter().find(|node| matches!(node, IrNode::StmtMacro { name: declared, .. } if declared == name))
 }
 
 // ---------------------------------------------------------------------------
@@ -567,7 +505,8 @@ pub(crate) fn build_module(
         let trimmed = line.trim_end();
         if trimmed.is_empty() {
             s.push('\n');
-        } else {
+        }
+        else {
             s.push_str("  ");
             s.push_str(trimmed);
             s.push('\n');
@@ -595,9 +534,7 @@ pub(crate) fn build_module(
 fn module_header_lines(template_imports: usize, macro_lines: u32) -> u32 {
     // runtime import + template imports, blank, macro functions,
     // `export function render`, four prologue statements, blank.
-    u32::try_from(1 + template_imports + 1 + 5 + 1)
-        .unwrap_or(u32::MAX)
-        .saturating_add(macro_lines)
+    u32::try_from(1 + template_imports + 1 + 5 + 1).unwrap_or(u32::MAX).saturating_add(macro_lines)
 }
 
 /// Lines occupied by the emitted macro function block.
@@ -642,10 +579,12 @@ fn resolve_macro_imports(
     let mut out = Vec::new();
     let mut local_names: HashSet<String> = macro_names(children).into_iter().collect();
     for node in children {
-        let IrNode::StmtImport { path, names, .. } = node else {
+        let IrNode::StmtImport { path, names, .. } = node
+        else {
             continue;
         };
-        let Some(lit) = crate::catalog::extract_path_literal(path) else {
+        let Some(lit) = crate::catalog::extract_path_literal(path)
+        else {
             diagnostics.push(
                 Diagnostic::new(Severity::Error, codes::IMPORT_PATH_NOT_LITERAL, Stage::Compile)
                     .template_id(from_id)
@@ -660,15 +599,12 @@ fn resolve_macro_imports(
                 continue;
             }
         };
-        let Some(dep_id) = catalog.canonical_id(&hit) else {
+        let Some(dep_id) = catalog.canonical_id(&hit)
+        else {
             diagnostics.push(
-                Diagnostic::new(
-                    Severity::Error,
-                    "dejavu.compile.template-missing",
-                    Stage::Compile,
-                )
-                .template_id(from_id)
-                .message(format!("template {lit:?} imported but not found in the catalog")),
+                Diagnostic::new(Severity::Error, "dejavu.compile.template-missing", Stage::Compile)
+                    .template_id(from_id)
+                    .message(format!("template {lit:?} imported but not found in the catalog")),
             );
             continue;
         };
@@ -678,10 +614,7 @@ fn resolve_macro_imports(
                 diagnostics.push(
                     Diagnostic::new(Severity::Error, codes::UNKNOWN_IMPORT, Stage::Compile)
                         .template_id(from_id)
-                        .message(format!(
-                            "template {dep_id:?} does not declare macro `{}`",
-                            spec.name
-                        ))
+                        .message(format!("template {dep_id:?} does not declare macro `{}`", spec.name))
                         .arg("path", lit.clone())
                         .arg("name", spec.name.clone()),
                 );
@@ -706,9 +639,7 @@ fn resolve_macro_imports(
 /// Top-level macro names declared by a catalog template (own declarations only).
 fn declared_macro_names(catalog: &TemplateCatalog, id: &str) -> HashSet<String> {
     match catalog_document(catalog, id) {
-        Some(IrDocument { body: IrNode::Template { children, .. }, .. }) => {
-            macro_names(children).into_iter().collect()
-        }
+        Some(IrDocument { body: IrNode::Template { children, .. }, .. }) => macro_names(children).into_iter().collect(),
         _ => HashSet::new(),
     }
 }
@@ -725,7 +656,8 @@ fn build_macro_import_lines(
     };
     let mut out = Vec::new();
     for imported in macro_imports {
-        let Some(Value::String(target_path)) = id_to_path.get(&imported.dep_id) else {
+        let Some(Value::String(target_path)) = id_to_path.get(&imported.dep_id)
+        else {
             continue;
         };
         let rel = relative_import_path(current_path, target_path);
@@ -758,21 +690,13 @@ fn macro_export_lines(live_macros: &[String], macro_imports: &[MacroImport]) -> 
 fn shift_origins(origins: &[LineOrigin], offset: u32) -> Vec<LineOrigin> {
     origins
         .iter()
-        .map(|origin| LineOrigin {
-            line: origin.line.saturating_add(offset),
-            start: origin.start,
-            end: origin.end,
-        })
+        .map(|origin| LineOrigin { line: origin.line.saturating_add(offset), start: origin.start, end: origin.end })
         .collect()
 }
 
 /// Build ESM import statements for a module given its dependencies and
 /// the global id → path map.
-fn build_import_lines(
-    dependencies: &[String],
-    current_id: &str,
-    id_to_path: &serde_json::Map<String, Value>,
-) -> Vec<String> {
+fn build_import_lines(dependencies: &[String], current_id: &str, id_to_path: &serde_json::Map<String, Value>) -> Vec<String> {
     let mut out = Vec::new();
     let current_path = match id_to_path.get(current_id) {
         Some(Value::String(p)) => p.as_str(),
@@ -784,7 +708,10 @@ fn build_import_lines(
         if dep_id == current_id {
             continue;
         }
-        let Some(Value::String(target_path)) = id_to_path.get(dep_id) else { continue; };
+        let Some(Value::String(target_path)) = id_to_path.get(dep_id)
+        else {
+            continue;
+        };
         let binding = js_import_name(dep_id);
         let rel = relative_import_path(current_path, target_path);
         out.push(format!("import {{ {binding} }} from \"{rel}\";"));
@@ -823,7 +750,8 @@ fn relative_import_path(from: &str, to: &str) -> String {
     let mut rel = if up_count == 0 {
         let remaining_to = to_parts[common..].join("/");
         if remaining_to.is_empty() { format!("./{to_file}") } else { format!("./{}/{to_file}", remaining_to) }
-    } else {
+    }
+    else {
         let prefix = "../".repeat(up_count);
         let remaining_to = to_parts[common..].join("/");
         if remaining_to.is_empty() { format!("{prefix}{to_file}") } else { format!("{prefix}{remaining_to}/{to_file}") }
@@ -844,10 +772,10 @@ fn pick_entry_id(catalog: &TemplateCatalog, explicit: Option<&str>) -> String {
         return id.to_string();
     }
     // First file in first root becomes the implicit entry.
-    catalog.roots.iter()
-        .find_map(|r| {
-            r.files.keys().next().map(|p| ir_canonical_id(&r.name, p))
-        })
+    catalog
+        .roots
+        .iter()
+        .find_map(|r| r.files.keys().next().map(|p| ir_canonical_id(&r.name, p)))
         .unwrap_or_else(|| "__entry__".to_string())
 }
 
@@ -863,11 +791,7 @@ fn catalog_document<'a>(catalog: &'a TemplateCatalog, id: &str) -> Option<&'a Ir
 
 /// Walk document children collecting every `Stmt.Include` path literal
 /// and resolving it to a canonical id.
-fn resolve_include_imports(
-    catalog: &TemplateCatalog,
-    doc: &IrDocument,
-    from_id: &str,
-) -> HashMap<String, String> {
+fn resolve_include_imports(catalog: &TemplateCatalog, doc: &IrDocument, from_id: &str) -> HashMap<String, String> {
     let mut out = HashMap::new();
     let body = match &doc.body {
         IrNode::Template { children, .. } => children,
@@ -877,12 +801,7 @@ fn resolve_include_imports(
     out
 }
 
-fn collect_includes_from_nodes(
-    catalog: &TemplateCatalog,
-    nodes: &[IrNode],
-    from_id: &str,
-    out: &mut HashMap<String, String>,
-) {
+fn collect_includes_from_nodes(catalog: &TemplateCatalog, nodes: &[IrNode], from_id: &str, out: &mut HashMap<String, String>) {
     for n in nodes {
         match n {
             IrNode::StmtInclude { path, .. } => {
@@ -926,18 +845,9 @@ fn collect_includes_from_nodes(
 
 /// Build the manifest JSON string.
 fn build_manifest(entry_id: &str, id_to_path: &serde_json::Map<String, Value>) -> String {
-    let entry_module = id_to_path
-        .get(entry_id)
-        .and_then(|v| v.as_str())
-        .unwrap_or("index.js")
-        .to_string();
-    let manifest = Manifest {
-        format: "dejavu.aot.catalog/1",
-        entry_id,
-        entry_module: &entry_module,
-        modules: id_to_path,
-        version: 1,
-    };
+    let entry_module = id_to_path.get(entry_id).and_then(|v| v.as_str()).unwrap_or("index.js").to_string();
+    let manifest =
+        Manifest { format: "dejavu.aot.catalog/1", entry_id, entry_module: &entry_module, modules: id_to_path, version: 1 };
     serde_json::to_string(&manifest).unwrap_or_default()
 }
 
@@ -976,18 +886,12 @@ mod tests {
 
     #[test]
     fn relative_import_path_shared_ancestor() {
-        assert_eq!(
-            relative_import_path("_internal/shared/a.js", "_internal/other/b.js"),
-            "../other/b.js"
-        );
+        assert_eq!(relative_import_path("_internal/shared/a.js", "_internal/other/b.js"), "../other/b.js");
     }
 
     #[test]
     fn relative_import_path_deep() {
         // from dir has 3 segments, to dir has 2 → up 2 levels.
-        assert_eq!(
-            relative_import_path("_internal/layout/deep/a.js", "_internal/partial/b.js"),
-            "../../partial/b.js"
-        );
+        assert_eq!(relative_import_path("_internal/layout/deep/a.js", "_internal/partial/b.js"), "../../partial/b.js");
     }
 }

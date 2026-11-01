@@ -102,10 +102,12 @@ fn strip_one_leading_break(value: &mut String) -> bool {
     if value.starts_with("\r\n") {
         value.drain(..2);
         true
-    } else if value.starts_with('\n') || value.starts_with('\r') {
+    }
+    else if value.starts_with('\n') || value.starts_with('\r') {
         value.drain(..1);
         true
-    } else {
+    }
+    else {
         false
     }
 }
@@ -115,11 +117,13 @@ fn strip_one_trailing_break(value: &mut String) -> bool {
         let n = value.len() - 2;
         value.truncate(n);
         true
-    } else if value.ends_with('\n') || value.ends_with('\r') {
+    }
+    else if value.ends_with('\n') || value.ends_with('\r') {
         let n = value.len() - 1;
         value.truncate(n);
         true
-    } else {
+    }
+    else {
         false
     }
 }

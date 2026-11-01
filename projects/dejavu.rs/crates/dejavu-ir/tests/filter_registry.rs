@@ -2,11 +2,10 @@
 
 use std::collections::HashSet;
 
-use dejavu_ir::registry::{
-    Capability, CapabilitySet, FilterLookupError, filter_spec, validate_filter,
-};
 use dejavu_ir::{
-    IrDocument, IrError, RenderOptions, codes, default_language, render_ir, render_ir_opts,
+    IrDocument, IrError, RenderOptions, codes, default_language,
+    registry::{Capability, CapabilitySet, FilterLookupError, filter_spec, validate_filter},
+    render_ir, render_ir_opts,
 };
 
 #[test]
@@ -35,14 +34,8 @@ fn arity_is_enforced_per_filter() {
         validate_filter("replace", 1, CapabilitySet::all()),
         Err(FilterLookupError::Arity { spec }) if spec.name == "replace"
     ));
-    assert!(matches!(
-        validate_filter("default", 0, CapabilitySet::all()),
-        Err(FilterLookupError::Arity { .. })
-    ));
-    assert!(matches!(
-        validate_filter("missing", 0, CapabilitySet::all()),
-        Err(FilterLookupError::Unknown)
-    ));
+    assert!(matches!(validate_filter("default", 0, CapabilitySet::all()), Err(FilterLookupError::Arity { .. })));
+    assert!(matches!(validate_filter("missing", 0, CapabilitySet::all()), Err(FilterLookupError::Unknown)));
 }
 
 #[test]
@@ -53,10 +46,7 @@ fn capability_allowlist_gates_output_owning_filters() {
         validate_filter("safe", 0, pure_only),
         Err(FilterLookupError::NotAllowed { spec }) if spec.capability == Capability::SafeOutput
     ));
-    assert!(matches!(
-        validate_filter("escape", 0, pure_only),
-        Err(FilterLookupError::NotAllowed { .. })
-    ));
+    assert!(matches!(validate_filter("escape", 0, pure_only), Err(FilterLookupError::NotAllowed { .. })));
     assert!(matches!(
         CapabilitySet::from_names(&["nope".to_string()]),
         Err(name) if name == "nope"
@@ -115,14 +105,12 @@ fn code(err: IrError) -> String {
 
 #[test]
 fn renderer_rejects_out_of_contract_arguments() {
-    let err = render_ir(&pipe_doc("replace", vec![]), &serde_json::json!({}))
-        .expect_err("replace needs two arguments");
+    let err = render_ir(&pipe_doc("replace", vec![]), &serde_json::json!({})).expect_err("replace needs two arguments");
     assert_eq!(code(err), codes::FILTER_ARITY);
 }
 
 #[test]
 fn renderer_rejects_unknown_filters() {
-    let err = render_ir(&pipe_doc("nope", vec![]), &serde_json::json!({}))
-        .expect_err("unknown filter");
+    let err = render_ir(&pipe_doc("nope", vec![]), &serde_json::json!({})).expect_err("unknown filter");
     assert_eq!(code(err), codes::UNKNOWN_FILTER);
 }

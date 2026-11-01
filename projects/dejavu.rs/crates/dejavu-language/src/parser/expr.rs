@@ -4,8 +4,7 @@ use dejavu_diagnostic::codes;
 use dejavu_ir::NativeExpr;
 use serde_json::Value;
 
-use crate::error::ParseError;
-use crate::token::CodeToken;
+use crate::{error::ParseError, token::CodeToken};
 
 pub(crate) struct ExprParser<'a> {
     source: &'a str,
@@ -129,7 +128,8 @@ impl<'a> ExprParser<'a> {
                     }
                 }
                 left = NativeExpr::Pipe { expression: Box::new(left), filter: name, arguments: args };
-            } else {
+            }
+            else {
                 break;
             }
         }
@@ -163,7 +163,8 @@ impl<'a> ExprParser<'a> {
             let negated = if matches!(self.peek(), Some(CodeToken::Not)) {
                 self.bump();
                 true
-            } else {
+            }
+            else {
                 false
             };
             let test = match self.bump() {
@@ -208,12 +209,7 @@ impl<'a> ExprParser<'a> {
                     .with_code(codes::PARSE_UNCLOSED_EXPRESSION));
                 }
             }
-            return Ok(NativeExpr::Test {
-                expression: Box::new(left),
-                test,
-                arguments,
-                negated,
-            });
+            return Ok(NativeExpr::Test { expression: Box::new(left), test, arguments, negated });
         }
         let op = match self.peek() {
             Some(CodeToken::EqEq) => Some("=="),
@@ -229,7 +225,8 @@ impl<'a> ExprParser<'a> {
             self.bump();
             let right = self.parse_add()?;
             Ok(NativeExpr::Binary { operator: op.into(), left: Box::new(left), right: Box::new(right) })
-        } else {
+        }
+        else {
             Ok(left)
         }
     }
@@ -436,15 +433,8 @@ impl<'a> ExprParser<'a> {
                 }
                 if !matches!(self.bump(), Some(CodeToken::RBrace)) {
                     let span = self.peek_span();
-                    return Err(ParseError::at(
-                        self.source,
-                        self.file,
-                        span.start,
-                        span.len(),
-                        "expected `}`",
-                        "expected }",
-                    )
-                    .with_code(codes::PARSE_UNCLOSED_EXPRESSION));
+                    return Err(ParseError::at(self.source, self.file, span.start, span.len(), "expected `}`", "expected }")
+                        .with_code(codes::PARSE_UNCLOSED_EXPRESSION));
                 }
                 Ok(NativeExpr::Object { entries })
             }

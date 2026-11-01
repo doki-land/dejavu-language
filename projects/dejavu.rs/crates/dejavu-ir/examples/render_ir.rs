@@ -2,8 +2,7 @@
 //! Usage: render_ir <ir.json> <ctx.json>
 
 use dejavu_ir::render_ir_json;
-use std::env;
-use std::fs;
+use std::{env, fs};
 
 fn main() {
     let mut args = env::args().skip(1);

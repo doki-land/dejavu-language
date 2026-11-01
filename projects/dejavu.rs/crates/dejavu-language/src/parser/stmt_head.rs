@@ -1,23 +1,41 @@
 //! Classify `<% ... %>` heads from a [`CodeToken`] stream.
 
+use crate::{error::ParseError, token::CodeToken};
 use dejavu_diagnostic::codes;
-use crate::error::ParseError;
-use crate::token::CodeToken;
 
 #[derive(Debug)]
 pub(crate) enum CodeHead<'a> {
-    If { test_src: &'a str, test_base: usize },
-    Loop { item: String, iter_src: &'a str, iter_base: usize },
-    ElseIf { test_src: &'a str, test_base: usize },
+    If {
+        test_src: &'a str,
+        test_base: usize,
+    },
+    Loop {
+        item: String,
+        iter_src: &'a str,
+        iter_base: usize,
+    },
+    ElseIf {
+        test_src: &'a str,
+        test_base: usize,
+    },
     Else,
     EndIf,
     EndLoop,
     EndBlock,
     Super,
-    Block { name: String },
-    Partial { params_src: &'a str, params_base: usize },
+    Block {
+        name: String,
+    },
+    Partial {
+        params_src: &'a str,
+        params_base: usize,
+    },
     EndPartial,
-    Macro { name: String, params_src: &'a str, params_base: usize },
+    Macro {
+        name: String,
+        params_src: &'a str,
+        params_base: usize,
+    },
     EndMacro,
     /// `call name(args)` … `end call`, or `call(a, b) name(args)` when the
     /// caller block declares parameters. `params` is `None` when no
@@ -33,10 +51,25 @@ pub(crate) enum CodeHead<'a> {
     /// `continue` — skips the rest of the bound loop's current iteration.
     Continue,
     /// `from "<path>" import a, b as c`
-    From { path: String, names: Vec<(String, Option<String>)> },
-    Extends { parent_src: &'a str, parent_base: usize },
-    Include { path_src: &'a str, path_base: usize, with_src: Option<&'a str>, with_base: usize, only: bool },
-    Expr { src: &'a str, base: usize },
+    From {
+        path: String,
+        names: Vec<(String, Option<String>)>,
+    },
+    Extends {
+        parent_src: &'a str,
+        parent_base: usize,
+    },
+    Include {
+        path_src: &'a str,
+        path_base: usize,
+        with_src: Option<&'a str>,
+        with_base: usize,
+        only: bool,
+    },
+    Expr {
+        src: &'a str,
+        base: usize,
+    },
 }
 
 #[derive(Clone)]
@@ -114,7 +147,8 @@ pub(crate) fn classify_code<'a>(
                 )
                 .with_code(codes::PARSE_UNEXPECTED_TOKEN));
             }
-            let CodeToken::Ident(item) = &spans[1].tok else {
+            let CodeToken::Ident(item) = &spans[1].tok
+            else {
                 return Err(ParseError::at(
                     source,
                     file,
@@ -154,9 +188,7 @@ pub(crate) fn classify_code<'a>(
             }
             Ok(CodeHead::Extends { parent_src, parent_base })
         }
-        CodeToken::Ident(name) if name == "include" => {
-            classify_include(source, file, content, content_base, &spans)
-        }
+        CodeToken::Ident(name) if name == "include" => classify_include(source, file, content, content_base, &spans),
         CodeToken::Ident(name) if name == "partial" => {
             let (params_src, params_base) = slice(1);
             if params_src.is_empty() {
@@ -178,9 +210,11 @@ pub(crate) fn classify_code<'a>(
                 ParseError::at(source, file, content_base + span.0, span.1, message, label)
                     .with_code(codes::PARSE_UNEXPECTED_TOKEN)
             };
-            let CodeToken::String(path) = &spans.get(1).map(|s| &s.tok).ok_or_else(|| {
-                bad("`from` requires a quoted template path", "expected string literal", 0)
-            })? else {
+            let CodeToken::String(path) = &spans
+                .get(1)
+                .map(|s| &s.tok)
+                .ok_or_else(|| bad("`from` requires a quoted template path", "expected string literal", 0))?
+            else {
                 return Err(bad("`from` requires a quoted template path", "expected string literal", 1));
             };
             if !matches!(spans.get(2).map(|s| &s.tok), Some(CodeToken::Ident(k)) if k == "import") {
@@ -189,23 +223,28 @@ pub(crate) fn classify_code<'a>(
             let mut names: Vec<(String, Option<String>)> = Vec::new();
             let mut i = 3;
             while i < spans.len() {
-                let CodeToken::Ident(local) = &spans[i].tok else {
+                let CodeToken::Ident(local) = &spans[i].tok
+                else {
                     return Err(bad("expected an imported macro name", "expected ident", i));
                 };
                 let mut alias = None;
                 if let Some(CodeToken::Ident(k)) = spans.get(i + 1).map(|s| &s.tok) {
                     if k == "as" {
-                        let CodeToken::Ident(target) = &spans.get(i + 2).map(|s| &s.tok).ok_or_else(|| {
-                            bad("`as` requires a local name", "expected ident", i + 1)
-                        })? else {
+                        let CodeToken::Ident(target) = &spans
+                            .get(i + 2)
+                            .map(|s| &s.tok)
+                            .ok_or_else(|| bad("`as` requires a local name", "expected ident", i + 1))?
+                        else {
                             return Err(bad("`as` requires a local name", "expected ident", i + 2));
                         };
                         alias = Some(target.clone());
                         i += 3;
-                    } else {
+                    }
+                    else {
                         i += 1;
                     }
-                } else {
+                }
+                else {
                     i += 1;
                 }
                 names.push((local.clone(), alias));
@@ -234,27 +273,20 @@ pub(crate) fn classify_code<'a>(
             if spans.len() < 3 {
                 return Err(macro_diag("macro requires a name and a parameter list", "expected `macro name(...)`", 0));
             }
-            let CodeToken::Ident(macro_name) = &spans[1].tok else {
+            let CodeToken::Ident(macro_name) = &spans[1].tok
+            else {
                 return Err(macro_diag("macro requires a name identifier", "expected ident", 1));
             };
             if !matches!(spans[2].tok, CodeToken::LParen) {
                 return Err(macro_diag("macro parameters must be written in parentheses", "expected `(`", 2));
             }
             if !matches!(spans.last().map(|s| &s.tok), Some(CodeToken::RParen)) {
-                return Err(macro_diag(
-                    "macro parameter list must end with `)`",
-                    "expected `)`",
-                    spans.len() - 1,
-                ));
+                return Err(macro_diag("macro parameter list must end with `)`", "expected `)`", spans.len() - 1));
             }
             let open = &spans[2];
             let close = spans.last().expect("checked above");
             let params_src = &content[open.end..close.start];
-            Ok(CodeHead::Macro {
-                name: macro_name.clone(),
-                params_src,
-                params_base: content_base + open.end,
-            })
+            Ok(CodeHead::Macro { name: macro_name.clone(), params_src, params_base: content_base + open.end })
         }
         CodeToken::Ident(name) if name == "call" => {
             let call_diag = |message: &str, label: &str, idx: usize| {
@@ -281,30 +313,19 @@ pub(crate) fn classify_code<'a>(
                         _ => {}
                     }
                 }
-                let Some(close) = close else {
-                    return Err(call_diag(
-                        "call parameter list must end with `)`",
-                        "expected `)`",
-                        spans.len() - 1,
-                    ));
+                let Some(close) = close
+                else {
+                    return Err(call_diag("call parameter list must end with `)`", "expected `)`", spans.len() - 1));
                 };
                 params = Some((&content[open.end..spans[close].start], content_base + open.end));
                 next = close + 1;
             }
             if next >= spans.len() {
-                return Err(call_diag(
-                    "call requires `macro(args)`",
-                    "expected `call name(...)`",
-                    0,
-                ));
+                return Err(call_diag("call requires `macro(args)`", "expected `call name(...)`", 0));
             }
             let start = spans[next].start;
             let end = spans.last().map(|s| s.end).unwrap_or(start);
-            Ok(CodeHead::Call {
-                src: &content[start..end],
-                base: content_base + start,
-                params,
-            })
+            Ok(CodeHead::Call { src: &content[start..end], base: content_base + start, params })
         }
         CodeToken::Ident(name) if name == "block" => {
             if spans.len() != 2 {
@@ -318,7 +339,8 @@ pub(crate) fn classify_code<'a>(
                 )
                 .with_code(codes::PARSE_UNEXPECTED_TOKEN));
             }
-            let CodeToken::Ident(block_name) = &spans[1].tok else {
+            let CodeToken::Ident(block_name) = &spans[1].tok
+            else {
                 return Err(ParseError::at(
                     source,
                     file,
@@ -357,11 +379,7 @@ pub(crate) fn classify_code<'a>(
                 )
                 .with_code(codes::PARSE_UNEXPECTED_TOKEN));
             }
-            if name == "break" {
-                Ok(CodeHead::Break)
-            } else {
-                Ok(CodeHead::Continue)
-            }
+            if name == "break" { Ok(CodeHead::Break) } else { Ok(CodeHead::Continue) }
         }
         CodeToken::Ident(name) if name == "else" => {
             if spans.len() == 1 {

@@ -29,10 +29,8 @@ fn rejects_unknown_versions() {
             .expect_err(&format!("irVersion {bad:?} must be rejected"));
         assert!(err.to_string().contains("irVersion"), "rejection must name the field: {err}");
     }
-    serde_json::from_value::<IrDocument>(doc_json(json!(1.0)))
-        .expect_err("non-string irVersion must be rejected");
-    serde_json::from_value::<IrDocument>(doc_json(Value::Null))
-        .expect_err("null irVersion must be rejected");
+    serde_json::from_value::<IrDocument>(doc_json(json!(1.0))).expect_err("non-string irVersion must be rejected");
+    serde_json::from_value::<IrDocument>(doc_json(Value::Null)).expect_err("null irVersion must be rejected");
 }
 
 #[test]

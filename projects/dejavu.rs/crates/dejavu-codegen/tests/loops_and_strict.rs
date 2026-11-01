@@ -69,9 +69,7 @@ fn index(object: Value, idx: Value) -> Value {
 }
 
 fn compile(ir: &Value, opts_json: Option<&str>) -> String {
-    precompile_single(&serde_json::to_string(ir).unwrap(), opts_json)
-        .expect("compile should succeed")
-        .code
+    precompile_single(&serde_json::to_string(ir).unwrap(), opts_json).expect("compile should succeed").code
 }
 
 // ---------------------------------------------------------------------------
@@ -129,12 +127,7 @@ const { htmlEscape, applyFilter, isTruthy, binary, unary, valueToString, exprIde
 
 /// `Some(Ok((rendered, probe)))`, `Some(Err(message))`, or `None` when Node is
 /// not installed. `probe_js` is evaluated against `__ctx` *after* rendering.
-fn run_render(
-    code: &str,
-    ctx_js: &str,
-    opts_js: &str,
-    probe_js: &str,
-) -> Option<Result<(String, Value), String>> {
+fn run_render(code: &str, ctx_js: &str, opts_js: &str, probe_js: &str) -> Option<Result<(String, Value), String>> {
     let body = code
         .lines()
         .filter(|l| !l.trim_start().starts_with("import ") && !l.trim_start().starts_with("export const "))
@@ -155,11 +148,12 @@ console.log(JSON.stringify({{ value: __value, error: __error, probe: __probe }})
     match std::process::Command::new("node").args(["-e", &script]).output() {
         Ok(o) if o.status.success() => {
             let stdout = String::from_utf8_lossy(&o.stdout);
-            let parsed: Value = serde_json::from_str(stdout.trim())
-                .unwrap_or_else(|e| panic!("bad node output {stdout:?}: {e}"));
+            let parsed: Value =
+                serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("bad node output {stdout:?}: {e}"));
             if let Some(err) = parsed["error"].as_str() {
                 Some(Err(err.to_string()))
-            } else {
+            }
+            else {
                 let value = parsed["value"].as_str().unwrap_or("").to_string();
                 Some(Ok((value, parsed["probe"].clone())))
             }
@@ -188,12 +182,7 @@ fn two_loops_in_one_template_load_and_render() {
         stmt_for(
             "y",
             ident("ys"),
-            vec![
-                interp(member(ident("forloop"), "index0"), false),
-                text("="),
-                interp(ident("y"), false),
-                text(","),
-            ],
+            vec![interp(member(ident("forloop"), "index0"), false), text("="), interp(ident("y"), false), text(",")],
         ),
         text("]"),
     ]);
@@ -230,12 +219,8 @@ fn loop_item_is_restored_after_loop() {
 
     // Without a pre-existing `item`, the loop must delete the key instead of
     // leaving the last iteration value behind.
-    if let Some(out) = run_render(
-        &code,
-        "({ items: ['a','b'] })",
-        "{}",
-        "Object.prototype.hasOwnProperty.call(__ctx, 'item')",
-    ) {
+    if let Some(out) = run_render(&code, "({ items: ['a','b'] })", "{}", "Object.prototype.hasOwnProperty.call(__ctx, 'item')")
+    {
         let (rendered, probe) = out.unwrap();
         assert_eq!(rendered, "[ab]");
         assert_eq!(probe, json!(false));
@@ -252,12 +237,7 @@ fn nested_loops_do_not_clobber_each_other() {
             stmt_for(
                 "inner",
                 ident("outer"),
-                vec![
-                    interp(member(ident("forloop"), "index0"), false),
-                    text(":"),
-                    interp(ident("inner"), false),
-                    text(","),
-                ],
+                vec![interp(member(ident("forloop"), "index0"), false), text(":"), interp(ident("inner"), false), text(",")],
             ),
             text("=>"),
             // After the inner loop, `outer` must hold the current row again.
@@ -305,12 +285,9 @@ fn forloop_nesting_depth_and_restore() {
     )]);
     let code = compile(&ir, None);
 
-    if let Some(out) = run_render(
-        &code,
-        "({ rows: [['a','b'], ['c']] })",
-        "{}",
-        "Object.prototype.hasOwnProperty.call(__ctx, 'forloop')",
-    ) {
+    if let Some(out) =
+        run_render(&code, "({ rows: [['a','b'], ['c']] })", "{}", "Object.prototype.hasOwnProperty.call(__ctx, 'forloop')")
+    {
         let (rendered, probe) = out.unwrap();
         assert_eq!(rendered, "[12:12:21][12:11]");
         assert_eq!(probe, json!(false));
@@ -336,11 +313,7 @@ fn nested_loops_with_same_item_name_restore_outer_value() {
     let ir = doc(vec![stmt_for(
         "v",
         ident("rows"),
-        vec![
-            stmt_for("v", ident("v"), vec![interp(ident("v"), false)]),
-            text("|"),
-            interp(ident("v"), false),
-        ],
+        vec![stmt_for("v", ident("v"), vec![interp(ident("v"), false)]), text("|"), interp(ident("v"), false)],
     )]);
     let code = compile(&ir, None);
 
@@ -399,33 +372,18 @@ fn call_time_strict_true_flags_missing_member_and_index() {
     ]);
     let code = compile(&ir, None);
 
-    if let Some(out) = run_render(
-        &code,
-        "({ user: { name: 'a' }, items: ['x'] })",
-        "{ strictUndefined: true }",
-        "null",
-    ) {
+    if let Some(out) = run_render(&code, "({ user: { name: 'a' }, items: ['x'] })", "{ strictUndefined: true }", "null") {
         let err = out.expect_err("strict member access should throw");
         assert!(err.contains("dejavu.template.undefined-member: nickname"), "{err}");
     }
 
-    if let Some(out) = run_render(
-        &code,
-        "({ user: { nickname: 'n' }, items: ['x'] })",
-        "{ strictUndefined: true }",
-        "null",
-    ) {
+    if let Some(out) = run_render(&code, "({ user: { nickname: 'n' }, items: ['x'] })", "{ strictUndefined: true }", "null") {
         let err = out.expect_err("strict index access should throw");
         assert!(err.contains("dejavu.template.undefined-index: 3"), "{err}");
     }
 
     // Lenient default: both missing accesses collapse to empty segments.
-    if let Some(out) = run_render(
-        &code,
-        "({ user: { name: 'a' }, items: ['x'] })",
-        "{}",
-        "null",
-    ) {
+    if let Some(out) = run_render(&code, "({ user: { name: 'a' }, items: ['x'] })", "{}", "null") {
         assert_eq!(out.unwrap().0, "|");
     }
 }

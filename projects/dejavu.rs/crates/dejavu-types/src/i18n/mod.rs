@@ -110,7 +110,8 @@ impl TranslationProvider for SimpleTranslator {
                 result = result.replace(&format!("{{{}}}", name), value);
             }
             Ok(result)
-        } else {
+        }
+        else {
             Ok(translation)
         }
     }
@@ -228,7 +229,8 @@ impl I18nContext {
             let cache_key = TranslationCacheKey::new(key, locale, args.as_ref());
             if let Some(cached) = self.translation_cache.get(&cache_key) {
                 results.push(cached.clone());
-            } else {
+            }
+            else {
                 missing.push((key.clone(), args.clone()));
                 results.push(String::new()); // Placeholder
             }
@@ -287,22 +289,28 @@ impl I18nContext {
             "zh" | "zh-CN" | "zh-TW" => {
                 if days == 0 {
                     "今天".to_string()
-                } else if days == 1 {
+                }
+                else if days == 1 {
                     "昨天".to_string()
-                } else if days < 7 {
+                }
+                else if days < 7 {
                     format!("{}天前", days)
-                } else {
+                }
+                else {
                     format!("{:?}", date)
                 }
             }
             _ => {
                 if days == 0 {
                     "Today".to_string()
-                } else if days == 1 {
+                }
+                else if days == 1 {
                     "Yesterday".to_string()
-                } else if days < 7 {
+                }
+                else if days < 7 {
                     format!("{} days ago", days)
-                } else {
+                }
+                else {
                     format!("{:?}", date)
                 }
             }
@@ -318,7 +326,8 @@ impl I18nContext {
         if let Some(simple_translator) = AsAny::as_any_mut(&mut *self.translator).downcast_mut::<SimpleTranslator>() {
             simple_translator.add_translations(locale, translations);
             Ok(())
-        } else {
+        }
+        else {
             Err(crate::DejavuError::ParseError("Adding translations is only supported for SimpleTranslator".to_string()))
         }
     }

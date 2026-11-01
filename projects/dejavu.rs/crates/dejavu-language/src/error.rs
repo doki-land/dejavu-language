@@ -62,11 +62,7 @@ impl ParseError {
         message: impl Into<String>,
         label: impl Into<String>,
     ) -> Self {
-        let clamped = if len == 0 {
-            1.min(source.len().saturating_sub(start).max(1))
-        } else {
-            len
-        };
+        let clamped = if len == 0 { 1.min(source.len().saturating_sub(start).max(1)) } else { len };
         Self::new(source.to_string(), name, Span::new(start, start + clamped), message, label)
     }
 
@@ -90,11 +86,7 @@ impl ParseError {
 
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}:{}..{}: {}",
-            self.file, self.span.start, self.span.end, self.message
-        )
+        write!(f, "{}:{}..{}: {}", self.file, self.span.start, self.span.end, self.message)
     }
 }
 

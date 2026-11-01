@@ -76,11 +76,8 @@ fn entry(namespace: &str, name: &str, aliases: &[&str], min: u32, max: u32, capa
 }
 
 fn round_body(s: &str) -> String {
-    let body = s
-        .lines()
-        .skip_while(|l| l.trim_start().starts_with("import ") || l.trim().is_empty())
-        .collect::<Vec<_>>()
-        .join("\n");
+    let body =
+        s.lines().skip_while(|l| l.trim_start().starts_with("import ") || l.trim().is_empty()).collect::<Vec<_>>().join("\n");
     body.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
@@ -91,16 +88,10 @@ fn round_body(s: &str) -> String {
 #[test]
 fn custom_filter_compiles_and_renders() {
     let ir = doc(vec![text("filter="), interp(pipe("shout", ident("name"), vec![]))]);
-    let res = compile(
-        &ir,
-        &options(json!([entry("filter", "shout", &[], 0, 0, "pure")])),
-    );
+    let res = compile(&ir, &options(json!([entry("filter", "shout", &[], 0, 0, "pure")])));
     assert!(res.diagnostics.is_empty(), "{:?}", res.diagnostics);
     let body = round_body(&res.code);
-    assert!(
-        body.contains("applyFilter(\"shout\", exprIdent(ctx, \"name\", __strict), [], __custom)"),
-        "{body}"
-    );
+    assert!(body.contains("applyFilter(\"shout\", exprIdent(ctx, \"name\", __strict), [], __custom)"), "{body}");
 
     let node_stub = r#"
 const __rt = {
@@ -133,10 +124,7 @@ const { htmlEscape, valueToString, exprIdent, applyFilter, runtimeError } = __rt
 #[test]
 fn custom_filter_alias_emits_canonical_name() {
     let ir = doc(vec![interp(pipe("loud", ident("name"), vec![]))]);
-    let res = compile(
-        &ir,
-        &options(json!([entry("filter", "shout", &["loud"], 0, 0, "pure")])),
-    );
+    let res = compile(&ir, &options(json!([entry("filter", "shout", &["loud"], 0, 0, "pure")])));
     assert!(res.diagnostics.is_empty(), "{:?}", res.diagnostics);
     let body = round_body(&res.code);
     assert!(body.contains("applyFilter(\"shout\", exprIdent(ctx, \"name\", __strict), [], __custom)"), "{body}");
@@ -146,10 +134,7 @@ fn custom_filter_alias_emits_canonical_name() {
 #[test]
 fn custom_filter_arity_is_a_compile_diagnostic() {
     let ir = doc(vec![interp(pipe("shout", ident("name"), vec![]))]);
-    let res = compile(
-        &ir,
-        &options(json!([entry("filter", "shout", &[], 1, 2, "pure")])),
-    );
+    let res = compile(&ir, &options(json!([entry("filter", "shout", &[], 1, 2, "pure")])));
     let diagnostic = res.diagnostics.first().expect("expected a diagnostic");
     assert_eq!(diagnostic.code, "dejavu.template.filter-arity");
     assert_eq!(diagnostic.stage, Stage::Compile);
@@ -162,10 +147,7 @@ fn custom_filter_arity_is_a_compile_diagnostic() {
 #[test]
 fn custom_safe_output_filter_skips_auto_escape() {
     let ir = doc(vec![interp(pipe("bolder", ident("markup"), vec![]))]);
-    let res = compile(
-        &ir,
-        &options(json!([entry("filter", "bolder", &[], 0, 0, "safe-output")])),
-    );
+    let res = compile(&ir, &options(json!([entry("filter", "bolder", &[], 0, 0, "safe-output")])));
     assert!(res.diagnostics.is_empty(), "{:?}", res.diagnostics);
     let body = round_body(&res.code);
     assert!(body.contains("__out.push(valueToString(__v));"), "{body}");
@@ -205,20 +187,14 @@ fn custom_function_and_test_use_canonical_names() {
     let func_alias = doc(vec![interp(call("dbl", vec![json!({ "type": "Expr.Literal", "value": 21 })]))]);
     let res = compile(
         &func_alias,
-        &options(json!([
-            entry("function", "twice", &["dbl"], 1, 1, "pure"),
-            entry("test", "evenish", &[], 0, 0, "pure")
-        ])),
+        &options(json!([entry("function", "twice", &["dbl"], 1, 1, "pure"), entry("test", "evenish", &[], 0, 0, "pure")])),
     );
     assert!(res.diagnostics.is_empty(), "{:?}", res.diagnostics);
     let body = round_body(&res.code);
     assert!(body.contains("callFunction(\"twice\", [21], __custom)"), "{body}");
 
     let ir = doc(vec![interp(test_node(ident("n"), "evenish"))]);
-    let res = compile(
-        &ir,
-        &options(json!([entry("test", "evenish", &["fair"], 0, 0, "pure")])),
-    );
+    let res = compile(&ir, &options(json!([entry("test", "evenish", &["fair"], 0, 0, "pure")])));
     assert!(res.diagnostics.is_empty(), "{:?}", res.diagnostics);
     let body = round_body(&res.code);
     assert!(body.contains("applyTest(\"evenish\", exprIdent(ctx, \"n\", __strict), [], false, __custom)"), "{body}");
@@ -227,10 +203,7 @@ fn custom_function_and_test_use_canonical_names() {
 #[test]
 fn custom_function_arity_is_a_compile_diagnostic() {
     let ir = doc(vec![interp(call("twice", vec![]))]);
-    let res = compile(
-        &ir,
-        &options(json!([entry("function", "twice", &[], 1, 1, "pure")])),
-    );
+    let res = compile(&ir, &options(json!([entry("function", "twice", &[], 1, 1, "pure")])));
     let diagnostic = res.diagnostics.first().expect("expected a diagnostic");
     assert_eq!(diagnostic.code, "dejavu.template.function-arity");
     assert_eq!(diagnostic.stage, Stage::Compile);
@@ -251,10 +224,7 @@ fn custom_test_arity_is_a_compile_diagnostic() {
         "trim": "none",
         "raw": false
     })]);
-    let res = compile(
-        &ir,
-        &options(json!([entry("test", "evenish", &[], 0, 0, "pure")])),
-    );
+    let res = compile(&ir, &options(json!([entry("test", "evenish", &[], 0, 0, "pure")])));
     let diagnostic = res.diagnostics.first().expect("expected a diagnostic");
     assert_eq!(diagnostic.code, "dejavu.template.test-arity");
     assert_eq!(diagnostic.stage, Stage::Compile);
@@ -269,10 +239,7 @@ fn custom_test_arity_is_a_compile_diagnostic() {
 fn conflicting_entry_is_a_compile_diagnostic() {
     // `upper` is a built-in filter alias, so registering it is a conflict.
     let ir = doc(vec![text("x")]);
-    let res = compile(
-        &ir,
-        &options(json!([entry("filter", "upper", &[], 0, 0, "pure")])),
-    );
+    let res = compile(&ir, &options(json!([entry("filter", "upper", &[], 0, 0, "pure")])));
     let diagnostic = res.diagnostics.first().expect("expected a diagnostic");
     assert_eq!(diagnostic.code, "dejavu.template.registry-conflict");
     assert_eq!(diagnostic.stage, Stage::Compile);

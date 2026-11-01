@@ -12,14 +12,14 @@
 
 use serde_json::Value;
 
-use crate::IrError;
-use crate::codes;
-use crate::diag_render;
-use crate::registry::{
-    CapabilitySet, CustomEntry, FunctionLookupError, Namespace, TestLookupError, custom_entry, validate_function,
-    validate_test,
+use crate::{
+    IrError, codes, diag_render,
+    registry::{
+        CapabilitySet, CustomEntry, FunctionLookupError, Namespace, TestLookupError, custom_entry, validate_function,
+        validate_test,
+    },
+    render::CustomRegistry,
 };
-use crate::render::CustomRegistry;
 
 /// Maximum number of elements `range` may produce.
 ///
@@ -43,10 +43,12 @@ pub fn call_function_with(
     let spec = match validate_function(name, args.len(), capabilities) {
         Ok(spec) => spec,
         Err(FunctionLookupError::Unknown) => {
-            let Some(registry) = custom else {
+            let Some(registry) = custom
+            else {
                 return Err(diag_render(codes::UNKNOWN_FUNCTION).arg("function", name));
             };
-            let Some(entry) = custom_entry(registry.entries(), Namespace::Function, name) else {
+            let Some(entry) = custom_entry(registry.entries(), Namespace::Function, name)
+            else {
                 return Err(diag_render(codes::UNKNOWN_FUNCTION).arg("function", name));
             };
             validate_custom_arity(entry, args.len(), codes::FUNCTION_ARITY, "function")?;
@@ -94,10 +96,12 @@ pub fn call_test_with(
     let spec = match validate_test(name, args.len(), capabilities) {
         Ok(spec) => spec,
         Err(TestLookupError::Unknown) => {
-            let Some(registry) = custom else {
+            let Some(registry) = custom
+            else {
                 return Err(diag_render(codes::UNKNOWN_TEST).arg("test", name));
             };
-            let Some(entry) = custom_entry(registry.entries(), Namespace::Test, name) else {
+            let Some(entry) = custom_entry(registry.entries(), Namespace::Test, name)
+            else {
                 return Err(diag_render(codes::UNKNOWN_TEST).arg("test", name));
             };
             validate_custom_arity(entry, args.len(), codes::TEST_ARITY, "test")?;
@@ -169,8 +173,14 @@ fn test_lookup_error(err: TestLookupError, got: usize) -> IrError {
 
 /// `range(start, stop, step=1)` over integers.
 fn range(args: &[Value]) -> Value {
-    let Some(start) = integral(&args[0]) else { return Value::Null };
-    let Some(stop) = integral(&args[1]) else { return Value::Null };
+    let Some(start) = integral(&args[0])
+    else {
+        return Value::Null;
+    };
+    let Some(stop) = integral(&args[1])
+    else {
+        return Value::Null;
+    };
     let step = match args.get(2) {
         Some(value) => match integral(value) {
             Some(0) => return Value::Null,
@@ -196,7 +206,10 @@ fn range(args: &[Value]) -> Value {
 
 /// `min(a, b)` / `max(a, b)` over finite numbers.
 fn numeric_pair(args: &[Value], min: bool) -> Value {
-    let (Some(a), Some(b)) = (args[0].as_f64(), args[1].as_f64()) else { return Value::Null };
+    let (Some(a), Some(b)) = (args[0].as_f64(), args[1].as_f64())
+    else {
+        return Value::Null;
+    };
     if !a.is_finite() || !b.is_finite() {
         return Value::Null;
     }

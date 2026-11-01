@@ -1,15 +1,15 @@
 //! Template control-flow parsing (`if` / `loop` / `block`) over classified code heads.
 
 use dejavu_diagnostic::codes;
-use dejavu_ir::types::Span;
-use dejavu_ir::{NativeExpr, NativeImportName, NativeKind, NativeNode, NativeParam};
+use dejavu_ir::{NativeExpr, NativeImportName, NativeKind, NativeNode, NativeParam, types::Span};
 
-use super::expr::parse_expr;
-use super::stmt_head::{CodeHead, classify_code};
-use super::{Parser, STANDALONE_RIGHT, trim_first_text, trim_last_text};
-use crate::error::ParseError;
-use crate::lexer::TrimMode;
-use crate::token::CodeToken;
+use super::{
+    Parser, STANDALONE_RIGHT,
+    expr::parse_expr,
+    stmt_head::{CodeHead, classify_code},
+    trim_first_text, trim_last_text,
+};
+use crate::{error::ParseError, lexer::TrimMode, token::CodeToken};
 
 impl Parser<'_> {
     pub(crate) fn parse_if(
@@ -64,12 +64,10 @@ impl Parser<'_> {
                     i = i3;
                     let end_tag = self.scan_tag(i)?;
                     let end_trim = end_tag.inner.trim();
-                    let end_base =
-                        end_tag.inner_range.start + (end_tag.inner.len() - end_tag.inner.trim_start().len());
+                    let end_base = end_tag.inner_range.start + (end_tag.inner.len() - end_tag.inner.trim_start().len());
                     match classify_code(self.source, self.file, end_trim, end_base)? {
                         CodeHead::EndIf => {
-                            let (e_left, e_right) =
-                                self.standalone_sides(i, end_tag.next, TrimMode::None, TrimMode::None);
+                            let (e_left, e_right) = self.standalone_sides(i, end_tag.next, TrimMode::None, TrimMode::None);
                             if e_left {
                                 trim_branch_tail(&mut consequent, &mut else_ifs, &mut alternate);
                             }
@@ -225,10 +223,7 @@ impl Parser<'_> {
     ) -> (NativeNode, usize) {
         let kind = NativeKind::Import {
             path,
-            names: names
-                .into_iter()
-                .map(|(name, alias)| NativeImportName { name, alias })
-                .collect(),
+            names: names.into_iter().map(|(name, alias)| NativeImportName { name, alias }).collect(),
             trim: trim.as_str().into(),
         };
         (NativeNode::new(kind, Some(Span { start: open, end: i })), i)
@@ -247,7 +242,8 @@ impl Parser<'_> {
     ) -> Result<(NativeNode, usize, Vec<&'static str>), ParseError> {
         let params = if params_src.trim().is_empty() {
             Vec::new()
-        } else {
+        }
+        else {
             parse_params(self.source, self.file, params_src, params_base)?
         };
         if params.iter().any(|p| p.name == "caller") {
@@ -427,9 +423,11 @@ fn trim_branch_tail(
 ) {
     if let Some(alt) = alternate.as_mut() {
         trim_last_text(alt);
-    } else if let Some((_, body)) = else_ifs.last_mut() {
+    }
+    else if let Some((_, body)) = else_ifs.last_mut() {
         trim_last_text(body);
-    } else {
+    }
+    else {
         trim_last_text(consequent);
     }
 }
@@ -444,7 +442,8 @@ fn apply_open_trim(kind: &mut NativeKind, pending: &[&str], trim_end: TrimMode) 
     if levels.is_empty() {
         return;
     }
-    let Some(text) = first_text(kind) else {
+    let Some(text) = first_text(kind)
+    else {
         return;
     };
     for level in levels {
@@ -524,7 +523,8 @@ pub(crate) fn parse_params(
 
     let mut params: Vec<NativeParam> = Vec::new();
     for segment in segments {
-        let Some((CodeToken::Ident(name), name_span)) = tokens.get(segment.start) else {
+        let Some((CodeToken::Ident(name), name_span)) = tokens.get(segment.start)
+        else {
             let span = tokens.get(segment.start).map(|(_, s)| s.clone()).unwrap_or(0..params_src.len().max(1));
             return Err(ParseError::at(
                 source,
@@ -549,7 +549,8 @@ pub(crate) fn parse_params(
         }
         let default = if segment.len() == 1 {
             None
-        } else {
+        }
+        else {
             match tokens.get(segment.start + 1) {
                 Some((CodeToken::Assign, _)) => {}
                 _ => {
@@ -600,12 +601,7 @@ pub(crate) fn parse_params(
 }
 
 /// Parse a `call(...)` parameter list: bare identifiers, no defaults.
-fn parse_caller_params(
-    source: &str,
-    file: &str,
-    params_src: &str,
-    params_base: usize,
-) -> Result<Vec<NativeParam>, ParseError> {
+fn parse_caller_params(source: &str, file: &str, params_src: &str, params_base: usize) -> Result<Vec<NativeParam>, ParseError> {
     let mut tokens: Vec<(CodeToken, std::ops::Range<usize>)> = Vec::new();
     let mut lex = CodeToken::lexer(params_src);
     while let Some(tok) = lex.next() {
@@ -644,7 +640,8 @@ fn parse_caller_params(
     let mut expect_name = true;
     for (tok, span) in &tokens {
         if expect_name {
-            let CodeToken::Ident(name) = tok else {
+            let CodeToken::Ident(name) = tok
+            else {
                 return Err(ParseError::at(
                     source,
                     file,
@@ -678,7 +675,8 @@ fn parse_caller_params(
                 .with_code(codes::PARSE_UNEXPECTED_TOKEN));
             }
             params.push(NativeParam { name: name.clone(), default: None });
-        } else if !matches!(tok, CodeToken::Comma) {
+        }
+        else if !matches!(tok, CodeToken::Comma) {
             return Err(ParseError::at(
                 source,
                 file,

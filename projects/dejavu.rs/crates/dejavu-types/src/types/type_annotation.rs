@@ -49,13 +49,15 @@ impl TypeAnnotationParser {
                         let return_type = self.parse_type_annotation(return_str)?;
 
                         Ok(DejavuType::Function(args, Box::new(return_type)))
-                    } else {
+                    }
+                    else {
                         Err(DejavuError::RuntimeError(RuntimeError::NotImplemented(format!(
                             "Invalid function type annotation: {}",
                             annotation
                         ))))
                     }
-                } else {
+                }
+                else {
                     // Treat as custom type (object by default)
                     Ok(DejavuType::Object(std::collections::HashMap::new()))
                 }

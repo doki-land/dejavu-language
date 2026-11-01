@@ -5,7 +5,8 @@ use dejavu_language::parse;
 
 fn interpolation_expr(source: &str) -> IrNode {
     let doc: IrDocument = parse(source).expect("parse");
-    let IrNode::Template { children, .. } = doc.body else {
+    let IrNode::Template { children, .. } = doc.body
+    else {
         panic!("expected Template body");
     };
     children
@@ -20,7 +21,8 @@ fn interpolation_expr(source: &str) -> IrNode {
 #[test]
 fn plain_test_is_encoded() {
     let expr = interpolation_expr("<% value is empty %>");
-    let IrNode::ExprTest { expression, test, arguments, negated, .. } = expr else {
+    let IrNode::ExprTest { expression, test, arguments, negated, .. } = expr
+    else {
         panic!("expected Expr.Test");
     };
     assert_eq!(test, "empty");
@@ -32,7 +34,8 @@ fn plain_test_is_encoded() {
 #[test]
 fn negated_test_and_null_keyword() {
     let expr = interpolation_expr("<% user is not null %>");
-    let IrNode::ExprTest { expression, test, negated, .. } = expr else {
+    let IrNode::ExprTest { expression, test, negated, .. } = expr
+    else {
         panic!("expected Expr.Test");
     };
     assert_eq!(test, "null");
@@ -43,7 +46,8 @@ fn negated_test_and_null_keyword() {
 #[test]
 fn test_arguments_are_parsed() {
     let expr = interpolation_expr("<% total is divisibleby(3) %>");
-    let IrNode::ExprTest { test, arguments, .. } = expr else {
+    let IrNode::ExprTest { test, arguments, .. } = expr
+    else {
         panic!("expected Expr.Test");
     };
     assert_eq!(test, "divisibleby");
@@ -54,7 +58,8 @@ fn test_arguments_are_parsed() {
 #[test]
 fn test_binds_tighter_than_and() {
     let expr = interpolation_expr("<% a is string && b is number %>");
-    let IrNode::ExprBinary { operator, left, right, .. } = expr else {
+    let IrNode::ExprBinary { operator, left, right, .. } = expr
+    else {
         panic!("expected Expr.Binary");
     };
     assert_eq!(operator, "&&");
@@ -79,7 +84,8 @@ fn missing_test_name_is_rejected() {
 #[test]
 fn call_expression_is_parsed() {
     let expr = interpolation_expr("<% range(0, 3) %>");
-    let IrNode::ExprCall { callee, arguments, .. } = expr else {
+    let IrNode::ExprCall { callee, arguments, .. } = expr
+    else {
         panic!("expected Expr.Call");
     };
     assert!(matches!(*callee, IrNode::ExprIdentifier { name, .. } if name == "range"));

@@ -132,7 +132,8 @@ impl<'a> CodeLexer<'a> {
             }
         }
 
-        let Some(b) = self.bump() else {
+        let Some(b) = self.bump()
+        else {
             return Err(());
         };
 
