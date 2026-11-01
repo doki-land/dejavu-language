@@ -1,0 +1,5 @@
+{
+    "ident": "a-b_9",
+    "backslash": "a\\b",
+    "nonascii": "a\\bé"
+}

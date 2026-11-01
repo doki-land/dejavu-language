@@ -1,0 +1,7 @@
+{
+    "js": "javascript:alert(1)",
+    "data": "data:text/html,<script>",
+    "proto": "//evil.com/x",
+    "upper": "HTTPS://x",
+    "spaced": "java script:alert(1)"
+}

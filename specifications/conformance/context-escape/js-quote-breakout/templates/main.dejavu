@@ -1,0 +1,2 @@
+[<% payload |> escape_js %>]
+[<% control |> escape_js %>]

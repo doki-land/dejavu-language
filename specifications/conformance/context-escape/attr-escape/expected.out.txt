@@ -1,0 +1,2 @@
+[home-page_1]
+[&amp;quot;&amp;gt;&amp;lt;svg onload=alert(1)&amp;gt;]

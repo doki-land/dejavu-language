@@ -1,0 +1,4 @@
+[<% b |> escape_attr |> safe %>]
+[<% js |> escape_js |> safe %>]
+[<% css |> escape_css |> safe %>]
+[<% url |> escape_url |> safe %>]

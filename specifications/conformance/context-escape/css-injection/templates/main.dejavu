@@ -1,0 +1,2 @@
+[<% decl |> escape_css %>]
+[<% nl |> escape_css %>]

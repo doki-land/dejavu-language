@@ -1,0 +1,2 @@
+[<% plain |> escape_attr %>]
+[<% quote |> escape_attr %>]

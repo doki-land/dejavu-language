@@ -1,0 +1,8 @@
+{
+    "https": "https://example.com/a b?q=1&x=2",
+    "mailto": "mailto:a@b.c",
+    "relpath": "/docs/a.md",
+    "query": "?q=1",
+    "frag": "#frag",
+    "empty": ""
+}

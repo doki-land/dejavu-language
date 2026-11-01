@@ -1,0 +1,5 @@
+[]
+[]
+[]
+[HTTPS://x]
+[java%20script:alert(1)]

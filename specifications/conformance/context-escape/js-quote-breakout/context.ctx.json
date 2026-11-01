@@ -1,0 +1,4 @@
+{
+    "payload": "\"; alert(1); \"",
+    "control": "a\nb\u2028c\u0000d"
+}

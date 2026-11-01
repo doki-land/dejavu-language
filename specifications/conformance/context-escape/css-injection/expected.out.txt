@@ -1,0 +1,2 @@
+[red\3b color\3a blue]
+[a\a b]

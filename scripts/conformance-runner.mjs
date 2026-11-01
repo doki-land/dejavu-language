@@ -31,6 +31,7 @@ const CATALOG_SUITES = [
     join(BASE, "macros"),
     join(BASE, "builtin-expressions"),
     join(BASE, "control-flow-catalog"),
+    join(BASE, "context-escape"),
 ];
 /** Diagnostic suites: expected.ir.json + expected.diagnostics.json (`code` / `stage`).
  * `strict-access` cases may also carry `expected.out.txt` to pin the rendered

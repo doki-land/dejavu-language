@@ -1,0 +1,2 @@
+[&quot;\&quot;; alert(1); \&quot;&quot;]
+[&quot;a\nb\u2028c\u0000d&quot;]

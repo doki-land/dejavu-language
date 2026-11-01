@@ -1,0 +1,6 @@
+[<% https |> escape_url %>]
+[<% mailto |> escape_url %>]
+[<% relpath |> escape_url %>]
+[<% query |> escape_url %>]
+[<% frag |> escape_url %>]
+[<% empty |> escape_url %>]

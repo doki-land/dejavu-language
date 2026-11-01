@@ -1,0 +1,5 @@
+[<% js |> escape_url %>]
+[<% data |> escape_url %>]
+[<% proto |> escape_url %>]
+[<% upper |> escape_url %>]
+[<% spaced |> escape_url %>]
