@@ -64,7 +64,9 @@ pub trait CustomRegistry {
 /// 默认 `strict_undefined = false`（缺失变量 → null → 空串），
 /// `capabilities` 默认放开全部注册表能力，`custom` 为空（只有内置条目）。
 pub struct RenderOptions<'a> {
-    /// 开启后，引用未定义变量抛 `UNDEFINED_VARIABLE` 错误。
+    /// 开启后，缺失标识符 / 缺失对象成员 / 越界或缺失下标分别抛
+    /// `UNDEFINED_VARIABLE` / `UNDEFINED_MEMBER` / `UNDEFINED_INDEX`；
+    /// null 接收者仍按缺失归一 null 宽容处理。
     pub strict_undefined: bool,
     /// 模板 canonical id（用于 include 循环检测和依赖追踪）。
     pub name: Option<String>,
@@ -829,6 +831,17 @@ impl<'a> Renderer<'a> {
             }
             IrNode::ExprMember { object, property, .. } => {
                 let obj = self.eval(object)?;
+                // Strict mode reports a missing property on a real object; a
+                // null or non-object receiver stays lenient (normalizes to null).
+                if self.strict_undefined {
+                    if let Value::Object(map) = &obj {
+                        if !map.contains_key(property) {
+                            return Err(diag_render(codes::UNDEFINED_MEMBER)
+                                .arg("name", property.clone())
+                                .arg("path", access_path(expr)));
+                        }
+                    }
+                }
                 match obj {
                     Value::Object(map) => Ok(map.get(property).cloned().unwrap_or(Value::Null)),
                     _ => Ok(Value::Null),
@@ -837,6 +850,30 @@ impl<'a> Renderer<'a> {
             IrNode::ExprIndex { object, index, .. } => {
                 let obj = self.eval(object)?;
                 let idx = self.eval(index)?;
+                // Only the combinations that actually perform a lookup can be
+                // reported; negative / fractional / mismatched indexes keep the
+                // lenient null normalization even under strict mode.
+                if self.strict_undefined {
+                    match (&obj, &idx) {
+                        (Value::Array(a), Value::Number(n)) => {
+                            if let Some(i) = n.as_u64() {
+                                if (i as usize) >= a.len() {
+                                    return Err(diag_render(codes::UNDEFINED_INDEX)
+                                        .arg("name", value_to_string(&idx))
+                                        .arg("path", access_path(expr)));
+                                }
+                            }
+                        }
+                        (Value::Object(map), Value::String(k)) => {
+                            if !map.contains_key(k) {
+                                return Err(diag_render(codes::UNDEFINED_INDEX)
+                                    .arg("name", k.clone())
+                                    .arg("path", access_path(expr)));
+                            }
+                        }
+                        _ => {}
+                    }
+                }
                 match (obj, idx) {
                     (Value::Array(a), Value::Number(n)) => {
                         let i = n.as_u64().unwrap_or(0) as usize;
@@ -1388,6 +1425,33 @@ fn is_truthy(v: &Value) -> bool {
         Value::String(s) => !s.is_empty(),
         Value::Array(a) => !a.is_empty(),
         Value::Object(o) => !o.is_empty(),
+    }
+}
+
+/// Syntax-level access path used by strict undefined member/index args.
+///
+/// Derived purely from the IR shape (no runtime values): identifiers print
+/// their name, member/index chains join with `.` / `[...]`. A literal integer
+/// index prints as its integer string, a literal string index prints as-is,
+/// anything dynamic prints `?`. Non-access expression roots also yield `?`.
+fn access_path(expr: &IrNode) -> String {
+    match expr {
+        IrNode::ExprIdentifier { name, .. } => name.clone(),
+        IrNode::ExprMember { object, property, .. } => {
+            format!("{}.{}", access_path(object), property)
+        }
+        IrNode::ExprIndex { object, index, .. } => {
+            let label = match index.as_ref() {
+                IrNode::ExprLiteral { value, .. } => match value {
+                    Value::Number(n) if n.as_u64().is_some() => n.to_string(),
+                    Value::String(s) => s.clone(),
+                    _ => "?".to_string(),
+                },
+                _ => "?".to_string(),
+            };
+            format!("{}[{}]", access_path(object), label)
+        }
+        _ => "?".to_string(),
     }
 }
 

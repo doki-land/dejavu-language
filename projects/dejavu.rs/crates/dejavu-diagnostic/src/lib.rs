@@ -347,6 +347,10 @@ pub mod codes {
     pub const CUSTOM_INVOCATION: &str = "dejavu.template.custom-invocation";
     pub const INVALID_ITERABLE: &str = "dejavu.template.invalid-iterable";
     pub const UNDEFINED_VARIABLE: &str = "dejavu.template.undefined-variable";
+    /// Strict mode: a member access names a property the object does not carry.
+    pub const UNDEFINED_MEMBER: &str = "dejavu.template.undefined-member";
+    /// Strict mode: an index access is out of bounds or names a missing key.
+    pub const UNDEFINED_INDEX: &str = "dejavu.template.undefined-index";
     pub const SUPER_OUTSIDE_BLOCK: &str = "dejavu.template.super-outside-block";
     /// A `break` / `continue` signal escaped every enclosing loop in the document.
     pub const CONTROL_OUTSIDE_LOOP: &str = "dejavu.template.control-outside-loop";
