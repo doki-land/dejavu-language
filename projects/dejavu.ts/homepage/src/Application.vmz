@@ -1,0 +1,41 @@
+<template>
+    <div class="site">
+        <a href="#main" class="skip-link">{{ skipLabel }}</a>
+        <SiteHeader />
+        <main class="site-main" id="main">
+            <slot />
+        </main>
+        <SiteFooter />
+    </div>
+</template>
+
+<script client>
+import { skipToContent } from "#locales/common";
+import { readLocaleId, withLocaleHint, watchDocumentLocale } from "./lib/locale-copy.ts";
+
+/**
+ * Root shell: one header, one footer, one skip link around every page.
+ * Pages own the content inside the slot, so section rhythm never depends
+ * on the shell.
+ */
+export default class Application {
+    skipLabel = "";
+    _unwatchLocale = null;
+
+    onMount() {
+        this.applyLocaleCopy();
+        this._unwatchLocale = watchDocumentLocale((id) => this.applyLocaleCopy(id));
+    }
+
+    onDestroy() {
+        if (typeof this._unwatchLocale === "function") this._unwatchLocale();
+        this._unwatchLocale = null;
+    }
+
+    applyLocaleCopy(preferred) {
+        withLocaleHint(readLocaleId(preferred), () => {
+            this.skipLabel = skipToContent();
+        });
+    }
+}
+</script>

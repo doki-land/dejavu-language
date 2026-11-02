@@ -1,0 +1,222 @@
+<template>
+    <div class="playground wrap">
+        <header class="page-heading">
+            <p class="overline"><span class="overline__rule"></span>{{ playgroundEyebrowLabel }}</p>
+            <h1>{{ playgroundTitleLabel }}</h1>
+            <p class="section-lede">{{ playgroundLedeLabel }}</p>
+            <p class="playground__status" :data-state="engineState"><span class="playground__status-dot" aria-hidden="true"></span>{{ engineStatusLabel }}</p>
+        </header>
+
+        <section class="playground__grid">
+            <div class="playground__panel">
+                <div class="playground__panel-top"><span>{{ playgroundSourceLabelLabel }}</span><span class="playground__panel-note">template.dejavu</span></div>
+                <textarea
+                    id="playground-source"
+                    class="playground__input playground__input--code"
+                    rows="12"
+                    spellcheck="false"
+                    @input="onSourceInput"
+                ></textarea>
+                <div class="playground__panel-top"><span>{{ playgroundContextLabelLabel }}</span><span class="playground__panel-note">context.json</span></div>
+                <textarea
+                    id="playground-context"
+                    class="playground__input playground__input--context"
+                    rows="6"
+                    spellcheck="false"
+                    @input="onContextInput"
+                ></textarea>
+                <div class="playground__actions">
+                    <Button type="button" @click="run">{{ playgroundRunLabel }}</Button>
+                    <Button type="button" variant="secondary" @click="reset">{{ playgroundResetLabel }}</Button>
+                    <span class="playground__engine-note">{{ playgroundEngineNoteLabel }}</span>
+                </div>
+            </div>
+
+            <div class="playground__panel">
+                <div class="playground__panel-top"><span>{{ playgroundOutputLabelLabel }}</span><span class="playground__panel-note">render(IR, ctx)</span></div>
+                <pre class="playground__output" aria-live="polite">{{ output }}</pre>
+                <div class="playground__panel-top"><span>{{ playgroundDiagnosticsLabelLabel }}</span></div>
+                <ul class="playground__diagnostics">
+                    <li v-if="diagnosticsEmpty" class="playground__diagnostic playground__diagnostic--empty">{{ playgroundNoDiagnosticsLabel }}</li>
+                    <li v-for="diag in diagnostics" :key="diag.key" class="playground__diagnostic" :data-severity="diag.severity">
+                        <code>{{ diag.code }}</code>
+                        <span>{{ diag.message }}</span>
+                    </li>
+                </ul>
+            </div>
+        </section>
+
+        <div class="playground__links">
+            <a class="action action--ghost" href="/d/">{{ playgroundDocsLinkLabel }}</a>
+            <a class="action action--ghost" href="/ecosystem">{{ playgroundEcosystemLinkLabel }}</a>
+        </div>
+    </div>
+</template>
+
+<script client>
+import {
+    playgroundEyebrow,
+    playgroundTitle,
+    playgroundLede,
+    playgroundSourceLabel,
+    playgroundContextLabel,
+    playgroundRun,
+    playgroundReset,
+    playgroundOutputLabel,
+    playgroundDiagnosticsLabel,
+    playgroundNoDiagnostics,
+    playgroundStatusLoading,
+    playgroundStatusReady,
+    playgroundStatusFailed,
+    playgroundEngineNote,
+    playgroundDocsLink,
+    playgroundEcosystemLink,
+    titlePlayground,
+} from "#locales/common";
+import { readLocaleId, withLocaleHint, watchDocumentLocale } from "../lib/locale-copy.ts";
+import { ensureEngine, renderTemplate } from "../lib/playground-engine.ts";
+
+const SAMPLE_SOURCE = `<% if user.adult %>
+<h1>Hello, <% user.name %>.</h1>
+<% else %>
+<p>Come back later.</p>
+<% end if %>
+<% loop item in items %>
+- <% item |> escape %>
+<% end loop %>`;
+
+const SAMPLE_CONTEXT = `{
+  "user": { "name": "Mira", "adult": true },
+  "items": ["Notebook", "Compass", "Lantern"]
+}`;
+
+export default class PlaygroundPage {
+    source = SAMPLE_SOURCE;
+    contextText = SAMPLE_CONTEXT;
+    output = "";
+    diagnostics = [];
+    diagnosticsEmpty = true;
+    engineState = "loading";
+    playgroundEyebrowLabel = "";
+    playgroundTitleLabel = "";
+    playgroundLedeLabel = "";
+    playgroundSourceLabelLabel = "";
+    playgroundContextLabelLabel = "";
+    playgroundRunLabel = "";
+    playgroundResetLabel = "";
+    playgroundOutputLabelLabel = "";
+    playgroundDiagnosticsLabelLabel = "";
+    playgroundNoDiagnosticsLabel = "";
+    playgroundEngineNoteLabel = "";
+    playgroundDocsLinkLabel = "";
+    playgroundEcosystemLinkLabel = "";
+    engineStatusLabel = "";
+    _statusLoading = "";
+    _statusReady = "";
+    _statusFailed = "";
+    _glue = null;
+    _unwatchLocale = null;
+
+    onMount() {
+        this.applyLocaleCopy();
+        this._unwatchLocale = watchDocumentLocale((id) => this.applyLocaleCopy(id));
+        this.syncEditors();
+        this.bootEngine();
+    }
+
+    onDestroy() {
+        if (typeof this._unwatchLocale === "function") this._unwatchLocale();
+        this._unwatchLocale = null;
+    }
+
+    refreshCopy() {
+        this.playgroundEyebrowLabel = playgroundEyebrow();
+        this.playgroundTitleLabel = playgroundTitle();
+        this.playgroundLedeLabel = playgroundLede();
+        this.playgroundSourceLabelLabel = playgroundSourceLabel();
+        this.playgroundContextLabelLabel = playgroundContextLabel();
+        this.playgroundRunLabel = playgroundRun();
+        this.playgroundResetLabel = playgroundReset();
+        this.playgroundOutputLabelLabel = playgroundOutputLabel();
+        this.playgroundDiagnosticsLabelLabel = playgroundDiagnosticsLabel();
+        this.playgroundNoDiagnosticsLabel = playgroundNoDiagnostics();
+        this.playgroundEngineNoteLabel = playgroundEngineNote();
+        this.playgroundDocsLinkLabel = playgroundDocsLink();
+        this.playgroundEcosystemLinkLabel = playgroundEcosystemLink();
+        this._statusLoading = playgroundStatusLoading();
+        this._statusReady = playgroundStatusReady();
+        this._statusFailed = playgroundStatusFailed();
+        this.syncEngineStatus();
+        if (typeof document !== "undefined") document.title = titlePlayground();
+    }
+
+    applyLocaleCopy(preferred) {
+        withLocaleHint(readLocaleId(preferred), () => this.refreshCopy());
+    }
+
+    syncEngineStatus() {
+        if (this.engineState === "ready") this.engineStatusLabel = this._statusReady;
+        else if (this.engineState === "failed") this.engineStatusLabel = this._statusFailed;
+        else this.engineStatusLabel = this._statusLoading;
+    }
+
+    async bootEngine() {
+        try {
+            this._glue = await ensureEngine();
+            this.engineState = "ready";
+            this.syncEngineStatus();
+            this.run();
+        } catch (error) {
+            this.engineState = "failed";
+            this.syncEngineStatus();
+            this.output = String((error && error.message) || error);
+        }
+    }
+
+    onSourceInput(event) {
+        this.source = event?.target?.value ?? "";
+    }
+
+    onContextInput(event) {
+        this.contextText = event?.target?.value ?? "";
+    }
+
+    /** The editors are plain DOM textareas; keep their contents in lockstep with state. */
+    syncEditors() {
+        if (typeof document === "undefined") return;
+        const sourceEl = document.getElementById("playground-source");
+        if (sourceEl) sourceEl.value = this.source;
+        const contextEl = document.getElementById("playground-context");
+        if (contextEl) contextEl.value = this.contextText;
+    }
+
+    run() {
+        if (this.engineState !== "ready") return;
+        let context;
+        try {
+            context = JSON.parse(this.contextText || "null");
+        } catch (error) {
+            this.output = "";
+            this.diagnostics = [{ key: "context", code: "playground.context-json", severity: "error", message: String((error && error.message) || error) }];
+            this.diagnosticsEmpty = false;
+            return;
+        }
+        const result = renderTemplate(this._glue, this.source, context);
+        this.output = result.output;
+        this.diagnostics = result.diagnostics.map((diag, index) => ({
+            key: `${index}:${diag.code}`,
+            code: diag.code,
+            severity: diag.severity,
+            message: diag.message,
+        }));
+        this.diagnosticsEmpty = this.diagnostics.length === 0;
+    }
+
+    reset() {
+        this.source = SAMPLE_SOURCE;
+        this.contextText = SAMPLE_CONTEXT;
+        this.syncEditors();
+        this.run();
+    }
+}
+</script>

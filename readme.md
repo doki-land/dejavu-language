@@ -112,8 +112,8 @@ Cross-host status matrix: [`documentation/compatibility.md`](./documentation/com
 
 | Kind                | Start here                                                                                                  |
 |---------------------|-------------------------------------------------------------------------------------------------------------|
-| User docs (en-us)   | [`projects/dejavu.ts`](projects/dejavu.ts/homepage/documents/en-us/index.md)     |
-| User docs (zh-hans) | [`projects/dejavu.ts`](projects/dejavu.ts/homepage/documents/zh-hans/index.md) |
+| User docs (en-us)   | [`projects/dejavu.ts`](projects/dejavu.ts/homepage/documentation/en-us/index.md)     |
+| User docs (zh-hans) | [`projects/dejavu.ts`](projects/dejavu.ts/homepage/documentation/zh-hans/index.md) |
 | Developer docs      | [`documentation/index.md`](./documentation/index.md)                                                        |
 | Doc map             | [`documentation/readme.md`](./documentation/readme.md)                                                      |
 | Specs               | [`specifications/`](./specifications/)                                                                      |

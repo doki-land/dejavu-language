@@ -1,0 +1,147 @@
+<template>
+    <div class="ecosystem wrap">
+        <header class="page-heading">
+            <p class="overline"><span class="overline__rule"></span>{{ ecosystemEyebrowLabel }}</p>
+            <h1>{{ ecosystemTitleLabel }}</h1>
+            <p class="section-lede">{{ ecosystemLedeLabel }}</p>
+        </header>
+
+        <section class="ecosystem__hosts">
+            <article v-for="host in hosts" :key="host.id" class="ecosystem__card">
+                <div class="ecosystem__card-head">
+                    <span class="ecosystem__glyph" aria-hidden="true">{{ host.glyph }}</span>
+                    <div>
+                        <h2>{{ host.name }}</h2>
+                        <p class="ecosystem__package">{{ host.packageName }}</p>
+                    </div>
+                    <span class="ecosystem__status" :data-state="host.state">{{ host.status }}</span>
+                </div>
+                <pre class="ecosystem__snippet">{{ host.snippet }}</pre>
+                <p class="ecosystem__note">{{ host.body }}</p>
+            </article>
+        </section>
+
+        <section class="ecosystem__invariant">
+            <p class="overline overline--light"><span class="overline__rule"></span>INVARIANT</p>
+            <h2>{{ ecosystemInvariantTitleLabel }}</h2>
+            <p>{{ ecosystemInvariantBodyLabel }}</p>
+            <code>render_host(IR, ctx) == expected.out.txt</code>
+        </section>
+    </div>
+</template>
+
+<script client>
+import {
+    ecosystemEyebrow,
+    ecosystemTitle,
+    ecosystemLede,
+    ecosystemHostTsName,
+    ecosystemHostRsName,
+    ecosystemHostPyName,
+    ecosystemHostCsName,
+    ecosystemHostKtName,
+    ecosystemHostTsPackage,
+    ecosystemHostRsPackage,
+    ecosystemHostPyPackage,
+    ecosystemHostCsPackage,
+    ecosystemHostKtPackage,
+    ecosystemInvariantTitle,
+    ecosystemInvariantBody,
+    homeHostTsBody,
+    homeHostRsBody,
+    homeHostPyBody,
+    homeHostCsBody,
+    homeHostKtBody,
+    homeHostStatusStable,
+    homeHostStatusSyncing,
+    titleEcosystem,
+} from "#locales/common";
+import { readLocaleId, withLocaleHint, watchDocumentLocale } from "../lib/locale-copy.ts";
+
+export default class EcosystemPage {
+    hosts = [];
+    ecosystemEyebrowLabel = "";
+    ecosystemTitleLabel = "";
+    ecosystemLedeLabel = "";
+    ecosystemInvariantTitleLabel = "";
+    ecosystemInvariantBodyLabel = "";
+    _unwatchLocale = null;
+
+    onMount() {
+        this.applyLocaleCopy();
+        this._unwatchLocale = watchDocumentLocale((id) => this.applyLocaleCopy(id));
+    }
+
+    onDestroy() {
+        if (typeof this._unwatchLocale === "function") this._unwatchLocale();
+        this._unwatchLocale = null;
+    }
+
+    refreshCopy() {
+        const stable = homeHostStatusStable();
+        const syncing = homeHostStatusSyncing();
+        this.ecosystemEyebrowLabel = ecosystemEyebrow();
+        this.ecosystemTitleLabel = ecosystemTitle();
+        this.ecosystemLedeLabel = ecosystemLede();
+        this.ecosystemInvariantTitleLabel = ecosystemInvariantTitle();
+        this.ecosystemInvariantBodyLabel = ecosystemInvariantBody();
+        this.hosts = [
+            {
+                id: "ts",
+                glyph: "TS",
+                name: ecosystemHostTsName(),
+                packageName: ecosystemHostTsPackage(),
+                snippet: `import { render } from "@doki-land/dejavu";\n\nconst html = render("Hello, <% name %>!", { name: "Mira" });`,
+                body: homeHostTsBody(),
+                status: stable,
+                state: "stable",
+            },
+            {
+                id: "rs",
+                glyph: "Rs",
+                name: ecosystemHostRsName(),
+                packageName: ecosystemHostRsPackage(),
+                snippet: "let html = dejavu::render_source(source, ctx)?;",
+                body: homeHostRsBody(),
+                status: stable,
+                state: "stable",
+            },
+            {
+                id: "py",
+                glyph: "Py",
+                name: ecosystemHostPyName(),
+                packageName: ecosystemHostPyPackage(),
+                snippet: "html = dejavu.render_source(source, ctx)",
+                body: homeHostPyBody(),
+                status: syncing,
+                state: "syncing",
+            },
+            {
+                id: "cs",
+                glyph: ".N",
+                name: ecosystemHostCsName(),
+                packageName: ecosystemHostCsPackage(),
+                snippet: "var html = Dejavu.RenderSource(source, ctx);",
+                body: homeHostCsBody(),
+                status: syncing,
+                state: "syncing",
+            },
+            {
+                id: "kt",
+                glyph: "Kt",
+                name: ecosystemHostKtName(),
+                packageName: ecosystemHostKtPackage(),
+                snippet: "val html = Dejavu.renderSource(source, ctx)",
+                body: homeHostKtBody(),
+                status: syncing,
+                state: "syncing",
+            },
+        ];
+        if (typeof document !== "undefined") document.title = titleEcosystem();
+    }
+
+    applyLocaleCopy(preferred) {
+        withLocaleHint(readLocaleId(preferred), () => this.refreshCopy());
+    }
+}
+</script>

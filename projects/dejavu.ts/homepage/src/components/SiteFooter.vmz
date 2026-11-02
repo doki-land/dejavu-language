@@ -1,0 +1,123 @@
+<template>
+    <footer data-vmz-fixture="site-footer" class="site-footer">
+        <div class="site-footer__inner">
+            <div>
+                <p class="site-footer__brand">{{ brandShortLabel }}</p>
+                <p class="site-footer__name">{{ brandFullLabel }}</p>
+                <p class="site-footer__blurb">{{ footerBlurbLabel }}</p>
+            </div>
+            <nav :aria-label="footerProductLabel">
+                <h2>{{ footerProductLabel }}</h2>
+                <ul>
+                    <li><a href="/">{{ footerHomeLabel }}</a></li>
+                    <li><a href="/playground">{{ footerPlaygroundLabel }}</a></li>
+                    <li><a href="/ecosystem">{{ footerEcosystemLabel }}</a></li>
+                    <li><a href="/d/">{{ footerDocsLabel }}</a></li>
+                </ul>
+            </nav>
+            <nav :aria-label="footerResourcesLabel">
+                <h2>{{ footerResourcesLabel }}</h2>
+                <ul>
+                    <li><a :href="releasesHref" target="_blank" rel="noopener noreferrer">{{ footerChangelogLabel }}</a></li>
+                    <li><a :href="conformanceHref" target="_blank" rel="noopener noreferrer">Conformance</a></li>
+                </ul>
+            </nav>
+            <nav :aria-label="footerCommunityLabel">
+                <h2>{{ footerCommunityLabel }}</h2>
+                <ul>
+                    <li><a :href="githubHref" target="_blank" rel="noopener noreferrer">{{ githubLabel }}</a></li>
+                    <li><a :href="discussionsHref" target="_blank" rel="noopener noreferrer">{{ footerDiscussionsLabel }}</a></li>
+                    <li><a :href="issuesHref" target="_blank" rel="noopener noreferrer">{{ footerIssuesLabel }}</a></li>
+                </ul>
+            </nav>
+        </div>
+        <div class="site-footer__bar">
+            <p>{{ copyrightLabel }}</p>
+            <p>{{ footerMonoLabel }}</p>
+        </div>
+    </footer>
+</template>
+
+<script client>
+import {
+    brandShort,
+    brandFull,
+    github,
+    footerBlurb,
+    footerProduct,
+    footerResources,
+    footerCommunity,
+    footerHome,
+    footerPlayground,
+    footerEcosystem,
+    footerDocs,
+    footerChangelog,
+    footerIssues,
+    footerDiscussions,
+    footerCopyright,
+    footerMono,
+} from "#locales/common";
+import { readLocaleId, withLocaleHint, watchDocumentLocale } from "../lib/locale-copy.ts";
+
+const REPO = "https://github.com/doki-land/dejavu-language";
+
+export default class SiteFooter {
+    brandShortLabel = "";
+    brandFullLabel = "";
+    footerBlurbLabel = "";
+    footerProductLabel = "";
+    footerResourcesLabel = "";
+    footerCommunityLabel = "";
+    footerHomeLabel = "";
+    footerPlaygroundLabel = "";
+    footerEcosystemLabel = "";
+    footerDocsLabel = "";
+    footerChangelogLabel = "";
+    footerIssuesLabel = "";
+    footerDiscussionsLabel = "";
+    githubLabel = "";
+    copyrightLabel = "";
+    footerMonoLabel = "";
+    githubHref = REPO;
+    issuesHref = `${REPO}/issues`;
+    discussionsHref = `${REPO}/discussions`;
+    releasesHref = `${REPO}/releases`;
+    conformanceHref = `${REPO}/tree/dev/specifications`;
+    _unwatchLocale = null;
+
+    onMount() {
+        this.applyLocaleCopy();
+        this._unwatchLocale = watchDocumentLocale((id) => this.applyLocaleCopy(id));
+    }
+
+    onDestroy() {
+        if (typeof this._unwatchLocale === "function") {
+            this._unwatchLocale();
+        }
+        this._unwatchLocale = null;
+    }
+
+    refreshCopy() {
+        this.brandShortLabel = brandShort();
+        this.brandFullLabel = brandFull();
+        this.footerBlurbLabel = footerBlurb();
+        this.footerProductLabel = footerProduct();
+        this.footerResourcesLabel = footerResources();
+        this.footerCommunityLabel = footerCommunity();
+        this.footerHomeLabel = footerHome();
+        this.footerPlaygroundLabel = footerPlayground();
+        this.footerEcosystemLabel = footerEcosystem();
+        this.footerDocsLabel = footerDocs();
+        this.footerChangelogLabel = footerChangelog();
+        this.footerIssuesLabel = footerIssues();
+        this.footerDiscussionsLabel = footerDiscussions();
+        this.githubLabel = github();
+        this.copyrightLabel = `© ${footerCopyright()}`;
+        this.footerMonoLabel = footerMono();
+    }
+
+    applyLocaleCopy(preferred) {
+        withLocaleHint(readLocaleId(preferred), () => this.refreshCopy());
+    }
+}
+</script>

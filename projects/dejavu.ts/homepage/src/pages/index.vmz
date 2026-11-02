@@ -1,0 +1,390 @@
+<template>
+    <div class="landing">
+        <section class="hero">
+            <div class="wrap hero__grid">
+                <div class="hero__copy">
+                    <p class="overline"><span class="overline__rule"></span>{{ homeEyebrowLabel }}</p>
+                    <h1 class="hero__title">{{ homeTitleLeadLabel }}<br /><em>{{ homeTitleAccentLabel }}</em></h1>
+                    <p class="hero__lede">{{ homeLedeLabel }}</p>
+                    <div class="hero__actions">
+                        <a class="action action--primary" href="/playground">{{ homeActionPlaygroundLabel }}<span aria-hidden="true">→</span></a>
+                        <a class="action action--ghost" href="/ecosystem">{{ homeActionHostsLabel }}</a>
+                    </div>
+                    <dl class="hero__facts">
+                        <div><dt>{{ homeFact1ValueLabel }}</dt><dd>{{ homeFact1LabelLabel }}</dd></div>
+                        <div><dt>{{ homeFact2ValueLabel }}</dt><dd>{{ homeFact2LabelLabel }}</dd></div>
+                        <div><dt>{{ homeFact3ValueLabel }}</dt><dd>{{ homeFact3LabelLabel }}</dd></div>
+                    </dl>
+                </div>
+
+                <figure class="hero__figure">
+                    <svg class="pipeline" viewBox="0 0 640 520" role="img" aria-label="Template compiled to IR then rendered by every host">
+                        <defs>
+                            <linearGradient id="dj-flow" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0" stop-color="#E9937B" />
+                                <stop offset="1" stop-color="#C74724" />
+                            </linearGradient>
+                        </defs>
+                        <g class="pipeline__grid" fill="none" stroke="currentColor" stroke-width="0.6">
+                            <path d="M-400 130l520 300M-400 130l-520 300" />
+                            <path d="M-342 130l520 300M-342 130l-520 300" />
+                            <path d="M-284 130l520 300M-284 130l-520 300" />
+                            <path d="M-226 130l520 300M-226 130l-520 300" />
+                            <path d="M-168 130l520 300M-168 130l-520 300" />
+                            <path d="M-110 130l520 300M-110 130l-520 300" />
+                            <path d="M-52 130l520 300M-52 130l-520 300" />
+                            <path d="M6 130l520 300M6 130l-520 300" />
+                            <path d="M64 130l520 300M64 130l-520 300" />
+                            <path d="M122 130l520 300M122 130l-520 300" />
+                            <path d="M180 130l520 300M180 130l-520 300" />
+                            <path d="M238 130l520 300M238 130l-520 300" />
+                            <path d="M296 130l520 300M296 130l-520 300" />
+                            <path d="M354 130l520 300M354 130l-520 300" />
+                            <path d="M412 130l520 300M412 130l-520 300" />
+                            <path d="M470 130l520 300M470 130l-520 300" />
+                            <path d="M528 130l520 300M528 130l-520 300" />
+                            <path d="M586 130l520 300M586 130l-520 300" />
+                            <path d="M644 130l520 300M644 130l-520 300" />
+                            <path d="M702 130l520 300M702 130l-520 300" />
+                            <path d="M760 130l520 300M760 130l-520 300" />
+                            <path d="M818 130l520 300M818 130l-520 300" />
+                            <path d="M876 130l520 300M876 130l-520 300" />
+                            <path d="M934 130l520 300M934 130l-520 300" />
+                        </g>
+                        <text class="pipeline__tag" x="48" y="176">01 / SOURCE</text>
+                        <text class="pipeline__tag" x="446" y="176">03 / RENDER</text>
+                        <text class="pipeline__tag pipeline__tag--accent" x="294" y="176">02 / IR</text>
+
+                        <path class="pipeline__wire" d="M228 226 C 258 226 262 226 288 226" />
+                        <path class="pipeline__wire" d="M356 226 C 386 226 390 226 416 226" />
+                        <circle class="pipeline__pulse pipeline__pulse--a" r="4.5" cx="0" cy="0">
+                            <animateMotion dur="2.4s" repeatCount="indefinite" path="M228 226 C 258 226 262 226 288 226" />
+                        </circle>
+                        <circle class="pipeline__pulse pipeline__pulse--b" r="4.5" cx="0" cy="0">
+                            <animateMotion dur="2.4s" begin="1.2s" repeatCount="indefinite" path="M356 226 C 386 226 390 226 416 226" />
+                        </circle>
+
+                        <g class="pipeline__card pipeline__card--source">
+                            <rect x="48" y="190" width="180" height="118" rx="10" />
+                            <text class="pipeline__card-label" x="66" y="216">greeting.dejavu</text>
+                            <text class="pipeline__card-mono" x="66" y="240">&lt;% name %&gt;</text>
+                            <text class="pipeline__card-mono pipeline__card-mono--dim" x="66" y="262">&lt;% if %&gt; … &lt;% end if %&gt;</text>
+                            <text class="pipeline__card-mono pipeline__card-mono--dim" x="66" y="284">&lt;% loop %&gt; … &lt;% end loop %&gt;</text>
+                        </g>
+
+                        <g class="pipeline__core">
+                            <circle class="pipeline__core-orbit" cx="322" cy="226" r="52" />
+                            <circle class="pipeline__core-orbit pipeline__core-orbit--inner" cx="322" cy="226" r="38" />
+                            <path class="pipeline__core-gem" d="M322 190l31 18v36l-31 18-31-18v-36z" />
+                            <path class="pipeline__core-inset" d="M322 210l14 8v16l-14 8-14-8v-16z" />
+                            <text class="pipeline__core-label" x="322" y="302">IR / v0</text>
+                        </g>
+
+                        <g class="pipeline__card pipeline__card--output">
+                            <rect x="416" y="190" width="180" height="118" rx="10" />
+                            <text class="pipeline__card-label" x="434" y="216">output.html</text>
+                            <text class="pipeline__card-mono" x="434" y="240">Hello, Mira.</text>
+                            <text class="pipeline__card-mono pipeline__card-mono--dim" x="434" y="262">deterministic</text>
+                            <text class="pipeline__card-mono pipeline__card-mono--dim" x="434" y="284">byte-identical</text>
+                        </g>
+
+                        <g class="pipeline__hosts">
+                            <path class="pipeline__host-wire" d="M322 282 L 112 396" />
+                            <path class="pipeline__host-wire" d="M322 282 L 217 396" />
+                            <path class="pipeline__host-wire" d="M322 282 L 322 396" />
+                            <path class="pipeline__host-wire" d="M322 282 L 427 396" />
+                            <path class="pipeline__host-wire" d="M322 282 L 532 396" />
+                            <g class="pipeline__host" transform="translate(112 396)"><circle r="16" /><text y="4">TS</text></g>
+                            <g class="pipeline__host" transform="translate(217 396)"><circle r="16" /><text y="4">Rs</text></g>
+                            <g class="pipeline__host" transform="translate(322 396)"><circle r="16" /><text y="4">Py</text></g>
+                            <g class="pipeline__host" transform="translate(427 396)"><circle r="16" /><text y="4">.N</text></g>
+                            <g class="pipeline__host" transform="translate(532 396)"><circle r="16" /><text y="4">Kt</text></g>
+                        </g>
+                        <text class="pipeline__tag" x="48" y="476">SAME SOURCE / SAME MEANING</text>
+                    </svg>
+                    <figcaption class="hero__figure-caption"><span>{{ homeDiagramCaptionLabel }}</span><span aria-hidden="true">FIG. 01</span></figcaption>
+                </figure>
+            </div>
+            <div class="wrap hero__baseline">
+                <div class="hero__install"><span class="hero__install-glyph" aria-hidden="true">$</span><code>npm install @doki-land/dejavu</code><span class="hero__install-hint">{{ homeInstallHintLabel }}</span></div>
+                <span class="hero__edition">{{ homeEditionLabel }}</span>
+            </div>
+        </section>
+
+        <section class="manifesto">
+            <div class="wrap manifesto__inner">
+                <p>{{ homeManifestoTextLabel }}</p>
+                <span>{{ homeManifestoTagLabel }}</span>
+            </div>
+        </section>
+
+        <section class="contract wrap">
+            <div class="contract__heading">
+                <p class="overline"><span class="overline__rule"></span>{{ homeContractEyebrowLabel }}</p>
+                <h2>{{ homeContractTitleLabel }}</h2>
+                <p class="section-lede">{{ homeContractLedeLabel }}</p>
+            </div>
+            <div class="contract__list">
+                <article class="contract__row">
+                    <span class="contract__index">01</span>
+                    <h3>{{ homeContract1TitleLabel }}</h3>
+                    <p>{{ homeContract1BodyLabel }}</p>
+                    <code class="contract__token">{{ homeContract1TokenLabel }}</code>
+                </article>
+                <article class="contract__row">
+                    <span class="contract__index">02</span>
+                    <h3>{{ homeContract2TitleLabel }}</h3>
+                    <p>{{ homeContract2BodyLabel }}</p>
+                    <code class="contract__token">{{ homeContract2TokenLabel }}</code>
+                </article>
+                <article class="contract__row">
+                    <span class="contract__index">03</span>
+                    <h3>{{ homeContract3TitleLabel }}</h3>
+                    <p>{{ homeContract3BodyLabel }}</p>
+                    <code class="contract__token">{{ homeContract3TokenLabel }}</code>
+                </article>
+                <article class="contract__row">
+                    <span class="contract__index">04</span>
+                    <h3>{{ homeContract4TitleLabel }}</h3>
+                    <p>{{ homeContract4BodyLabel }}</p>
+                    <code class="contract__token">{{ homeContract4TokenLabel }}</code>
+                </article>
+            </div>
+        </section>
+
+        <section class="anatomy">
+            <div class="wrap">
+                <div class="anatomy__heading">
+                    <div>
+                        <p class="overline overline--light"><span class="overline__rule"></span>{{ homeAnatomyEyebrowLabel }}</p>
+                        <h2>{{ homeAnatomyTitleLabel }}</h2>
+                    </div>
+                    <p class="section-lede">{{ homeAnatomyLedeLabel }}</p>
+                </div>
+                <div class="anatomy__grid">
+                    <div class="anatomy__pane">
+                        <div class="anatomy__bar"><span>{{ homeAnatomySourceLabelLabel }}</span><small>{{ homeAnatomySourceNoteLabel }}</small></div>
+                        <pre class="anatomy__code"><code><span class="tok-kw">&lt;% if</span> <span class="tok-expr">user.adult</span> <span class="tok-kw">%&gt;</span>
+  &lt;h1&gt;<span class="tok-kw">&lt;%</span> <span class="tok-expr">user.name</span> <span class="tok-kw">%&gt;</span>&lt;/h1&gt;
+<span class="tok-kw">&lt;% else %&gt;</span>
+  &lt;p&gt;<span class="tok-kw">&lt;%</span> <span class="tok-str">"come back later"</span> <span class="tok-kw">%&gt;</span>&lt;/p&gt;
+<span class="tok-kw">&lt;% end if %&gt;</span>
+<span class="tok-kw">&lt;% loop</span> <span class="tok-expr">item in items</span> <span class="tok-kw">%&gt;</span>
+  &lt;li&gt;<span class="tok-kw">&lt;%</span> <span class="tok-expr">item</span> <span class="tok-op">|&gt;</span> <span class="tok-fn">escape</span> <span class="tok-kw">%&gt;</span>&lt;/li&gt;
+<span class="tok-kw">&lt;% end loop %&gt;</span></code></pre>
+                    </div>
+                    <div class="anatomy__pane">
+                        <div class="anatomy__bar"><span>{{ homeAnatomyOutputLabelLabel }}</span><small>{{ homeAnatomyOutputNoteLabel }}</small></div>
+                        <pre class="anatomy__code anatomy__code--output"><code>&lt;h1&gt;Hello, Mira.&lt;/h1&gt;
+&lt;li&gt;Notebook&lt;/li&gt;
+&lt;li&gt;Compass&lt;/li&gt;
+&lt;li&gt;Lantern&lt;/li&gt;</code></pre>
+                    </div>
+                </div>
+                <p class="anatomy__footer"><span class="anatomy__check" aria-hidden="true">✓</span>{{ homeAnatomyFooterLabel }}</p>
+            </div>
+        </section>
+
+        <section class="hosts wrap">
+            <div class="hosts__heading">
+                <div>
+                    <p class="overline"><span class="overline__rule"></span>{{ homeHostsEyebrowLabel }}</p>
+                    <h2>{{ homeHostsTitleLabel }}</h2>
+                </div>
+                <p class="section-lede">{{ homeHostsLedeLabel }}</p>
+            </div>
+            <div class="hosts__rail">
+                <a class="hosts__chip" href="/ecosystem"><span class="hosts__glyph">TS</span><span>TypeScript</span><span class="hosts__arrow" aria-hidden="true">↗</span></a>
+                <a class="hosts__chip" href="/ecosystem"><span class="hosts__glyph">Rs</span><span>Rust</span><span class="hosts__arrow" aria-hidden="true">↗</span></a>
+                <a class="hosts__chip" href="/ecosystem"><span class="hosts__glyph">Py</span><span>Python</span><span class="hosts__arrow" aria-hidden="true">↗</span></a>
+                <a class="hosts__chip" href="/ecosystem"><span class="hosts__glyph">.N</span><span>C# / .NET</span><span class="hosts__arrow" aria-hidden="true">↗</span></a>
+                <a class="hosts__chip" href="/ecosystem"><span class="hosts__glyph">Kt</span><span>Kotlin</span><span class="hosts__arrow" aria-hidden="true">↗</span></a>
+            </div>
+            <div class="hosts__equation"><span>{{ homeHostsEquationLeftLabel }}</span><b>→</b><span>{{ homeHostsEquationMidLabel }}</span><b>→</b><span>{{ homeHostsEquationRightLabel }}</span></div>
+        </section>
+
+        <section class="cta wrap">
+            <div>
+                <p class="overline"><span class="overline__rule"></span>{{ homeCtaEyebrowLabel }}</p>
+                <h2>{{ homeCtaTitleLabel }}</h2>
+            </div>
+            <a class="action action--primary" href="/playground">{{ homeCtaActionLabel }}<span aria-hidden="true">→</span></a>
+        </section>
+    </div>
+</template>
+
+<script client>
+import {
+    homeEyebrow,
+    homeTitleLead,
+    homeTitleAccent,
+    homeLede,
+    homeActionPlayground,
+    homeActionHosts,
+    homeFact1Value,
+    homeFact1Label,
+    homeFact2Value,
+    homeFact2Label,
+    homeFact3Value,
+    homeFact3Label,
+    homeInstallHint,
+    homeEdition,
+    homeDiagramCaption,
+    homeManifestoText,
+    homeManifestoTag,
+    homeContractEyebrow,
+    homeContractTitle,
+    homeContractLede,
+    homeContract1Title,
+    homeContract1Body,
+    homeContract1Token,
+    homeContract2Title,
+    homeContract2Body,
+    homeContract2Token,
+    homeContract3Title,
+    homeContract3Body,
+    homeContract3Token,
+    homeContract4Title,
+    homeContract4Body,
+    homeContract4Token,
+    homeAnatomyEyebrow,
+    homeAnatomyTitle,
+    homeAnatomyLede,
+    homeAnatomySourceLabel,
+    homeAnatomySourceNote,
+    homeAnatomyOutputLabel,
+    homeAnatomyOutputNote,
+    homeAnatomyFooter,
+    homeHostsEyebrow,
+    homeHostsTitle,
+    homeHostsLede,
+    homeHostsEquationLeft,
+    homeHostsEquationMid,
+    homeHostsEquationRight,
+    homeCtaEyebrow,
+    homeCtaTitle,
+    homeCtaAction,
+    titleHome,
+} from "#locales/common";
+import { readLocaleId, withLocaleHint, watchDocumentLocale } from "../lib/locale-copy.ts";
+
+export default class Home {
+    homeEyebrowLabel = "";
+    homeTitleLeadLabel = "";
+    homeTitleAccentLabel = "";
+    homeLedeLabel = "";
+    homeActionPlaygroundLabel = "";
+    homeActionHostsLabel = "";
+    homeFact1ValueLabel = "";
+    homeFact1LabelLabel = "";
+    homeFact2ValueLabel = "";
+    homeFact2LabelLabel = "";
+    homeFact3ValueLabel = "";
+    homeFact3LabelLabel = "";
+    homeInstallHintLabel = "";
+    homeEditionLabel = "";
+    homeDiagramCaptionLabel = "";
+    homeManifestoTextLabel = "";
+    homeManifestoTagLabel = "";
+    homeContractEyebrowLabel = "";
+    homeContractTitleLabel = "";
+    homeContractLedeLabel = "";
+    homeContract1TitleLabel = "";
+    homeContract1BodyLabel = "";
+    homeContract1TokenLabel = "";
+    homeContract2TitleLabel = "";
+    homeContract2BodyLabel = "";
+    homeContract2TokenLabel = "";
+    homeContract3TitleLabel = "";
+    homeContract3BodyLabel = "";
+    homeContract3TokenLabel = "";
+    homeContract4TitleLabel = "";
+    homeContract4BodyLabel = "";
+    homeContract4TokenLabel = "";
+    homeAnatomyEyebrowLabel = "";
+    homeAnatomyTitleLabel = "";
+    homeAnatomyLedeLabel = "";
+    homeAnatomySourceLabelLabel = "";
+    homeAnatomySourceNoteLabel = "";
+    homeAnatomyOutputLabelLabel = "";
+    homeAnatomyOutputNoteLabel = "";
+    homeAnatomyFooterLabel = "";
+    homeHostsEyebrowLabel = "";
+    homeHostsTitleLabel = "";
+    homeHostsLedeLabel = "";
+    homeHostsEquationLeftLabel = "";
+    homeHostsEquationMidLabel = "";
+    homeHostsEquationRightLabel = "";
+    homeCtaEyebrowLabel = "";
+    homeCtaTitleLabel = "";
+    homeCtaActionLabel = "";
+    _unwatchLocale = null;
+
+    onMount() {
+        this.applyLocaleCopy();
+        this._unwatchLocale = watchDocumentLocale((id) => this.applyLocaleCopy(id));
+    }
+
+    onDestroy() {
+        if (typeof this._unwatchLocale === "function") this._unwatchLocale();
+        this._unwatchLocale = null;
+    }
+
+    applyLocaleCopy(preferred) {
+        withLocaleHint(readLocaleId(preferred), () => this.refreshCopy());
+    }
+
+    refreshCopy() {
+        this.homeEyebrowLabel = homeEyebrow();
+        this.homeTitleLeadLabel = homeTitleLead();
+        this.homeTitleAccentLabel = homeTitleAccent();
+        this.homeLedeLabel = homeLede();
+        this.homeActionPlaygroundLabel = homeActionPlayground();
+        this.homeActionHostsLabel = homeActionHosts();
+        this.homeFact1ValueLabel = homeFact1Value();
+        this.homeFact1LabelLabel = homeFact1Label();
+        this.homeFact2ValueLabel = homeFact2Value();
+        this.homeFact2LabelLabel = homeFact2Label();
+        this.homeFact3ValueLabel = homeFact3Value();
+        this.homeFact3LabelLabel = homeFact3Label();
+        this.homeInstallHintLabel = homeInstallHint();
+        this.homeEditionLabel = homeEdition();
+        this.homeDiagramCaptionLabel = homeDiagramCaption();
+        this.homeManifestoTextLabel = homeManifestoText();
+        this.homeManifestoTagLabel = homeManifestoTag();
+        this.homeContractEyebrowLabel = homeContractEyebrow();
+        this.homeContractTitleLabel = homeContractTitle();
+        this.homeContractLedeLabel = homeContractLede();
+        this.homeContract1TitleLabel = homeContract1Title();
+        this.homeContract1BodyLabel = homeContract1Body();
+        this.homeContract1TokenLabel = homeContract1Token();
+        this.homeContract2TitleLabel = homeContract2Title();
+        this.homeContract2BodyLabel = homeContract2Body();
+        this.homeContract2TokenLabel = homeContract2Token();
+        this.homeContract3TitleLabel = homeContract3Title();
+        this.homeContract3BodyLabel = homeContract3Body();
+        this.homeContract3TokenLabel = homeContract3Token();
+        this.homeContract4TitleLabel = homeContract4Title();
+        this.homeContract4BodyLabel = homeContract4Body();
+        this.homeContract4TokenLabel = homeContract4Token();
+        this.homeAnatomyEyebrowLabel = homeAnatomyEyebrow();
+        this.homeAnatomyTitleLabel = homeAnatomyTitle();
+        this.homeAnatomyLedeLabel = homeAnatomyLede();
+        this.homeAnatomySourceLabelLabel = homeAnatomySourceLabel();
+        this.homeAnatomySourceNoteLabel = homeAnatomySourceNote();
+        this.homeAnatomyOutputLabelLabel = homeAnatomyOutputLabel();
+        this.homeAnatomyOutputNoteLabel = homeAnatomyOutputNote();
+        this.homeAnatomyFooterLabel = homeAnatomyFooter();
+        this.homeHostsEyebrowLabel = homeHostsEyebrow();
+        this.homeHostsTitleLabel = homeHostsTitle();
+        this.homeHostsLedeLabel = homeHostsLede();
+        this.homeHostsEquationLeftLabel = homeHostsEquationLeft();
+        this.homeHostsEquationMidLabel = homeHostsEquationMid();
+        this.homeHostsEquationRightLabel = homeHostsEquationRight();
+        this.homeCtaEyebrowLabel = homeCtaEyebrow();
+        this.homeCtaTitleLabel = homeCtaTitle();
+        this.homeCtaActionLabel = homeCtaAction();
+        if (typeof document !== "undefined") document.title = titleHome();
+    }
+}
+</script>

@@ -1,0 +1,55 @@
+{
+    "brand": {
+        "primary": "#DF5B3B",
+        "energy": "#708067"
+    },
+    "scale": {
+        "50": "#FBEDE8",
+        "100": "#F6D9CF",
+        "200": "#EFB9A8",
+        "300": "#E9937B",
+        "400": "#E46F52",
+        "500": "#DF5B3B",
+        "600": "#C74724",
+        "700": "#A63A1E",
+        "800": "#7F2E18",
+        "900": "#5B2213",
+        "950": "#3D160C"
+    },
+    "surface": {
+        "paper": "#FFFFFF",
+        "mist": "#FAF3EE",
+        "page": "#F7EDE6",
+        "fill": "#FCF8F5",
+        "ink": "#241512",
+        "graphite": "#5C4A43",
+        "code": "#1E1210",
+        "inverse": "#241512"
+    },
+    "text": {
+        "ink": "#241512",
+        "steel": "#5C4A43",
+        "tertiary": "#7A655C",
+        "muted": "#978176",
+        "on-brand": "#FFFFFF",
+        "on-ink": "#FBF3EE",
+        "on-inverse": "#FBF3EE"
+    },
+    "line": {
+        "default": "#E9D5CA",
+        "subtle": "#F3E4DC",
+        "strong": "#D4B6A7"
+    },
+    "status": {
+        "success": "#0B6E4F",
+        "warning": "#D97706",
+        "error": "#DC2626",
+        "analysis": "#0369A1",
+        "runtime": "#5B6B7C"
+    },
+    "font": {
+        "sans": "\"Segoe UI\", \"PingFang SC\", \"Noto Sans SC\", sans-serif",
+        "mono": "ui-monospace, Consolas, \"Cascadia Mono\", monospace",
+        "display": "\"Segoe UI\", \"PingFang SC\", \"Noto Sans SC\", sans-serif"
+    }
+}

@@ -1,0 +1,51 @@
+<template>
+    <div class="docs wrap">
+        <header class="page-heading">
+            <p class="overline"><span class="overline__rule"></span>{{ docsEyebrowLabel }}</p>
+            <h1>{{ docsTitleLabel }}</h1>
+            <p class="section-lede">{{ docsBodyLabel }}</p>
+        </header>
+        <div class="docs__actions">
+            <a class="action action--primary" :href="docsRepoHref" target="_blank" rel="noopener noreferrer">{{ docsRepoActionLabel }}<span aria-hidden="true">↗</span></a>
+            <a class="action action--ghost" href="/">{{ docsHomeActionLabel }}</a>
+        </div>
+    </div>
+</template>
+
+<script client>
+import { docsEyebrow, docsTitle, docsBody, docsRepoAction, docsHomeAction, titleDocs } from "#locales/common";
+import { readLocaleId, withLocaleHint, watchDocumentLocale } from "../lib/locale-copy.ts";
+
+export default class DocsPage {
+    docsEyebrowLabel = "";
+    docsTitleLabel = "";
+    docsBodyLabel = "";
+    docsRepoActionLabel = "";
+    docsHomeActionLabel = "";
+    docsRepoHref = "https://github.com/doki-land/dejavu-language/tree/dev/projects/dejavu.ts/homepage/documentation";
+    _unwatchLocale = null;
+
+    onMount() {
+        this.applyLocaleCopy();
+        this._unwatchLocale = watchDocumentLocale((id) => this.applyLocaleCopy(id));
+    }
+
+    onDestroy() {
+        if (typeof this._unwatchLocale === "function") this._unwatchLocale();
+        this._unwatchLocale = null;
+    }
+
+    refreshCopy() {
+        this.docsEyebrowLabel = docsEyebrow();
+        this.docsTitleLabel = docsTitle();
+        this.docsBodyLabel = docsBody();
+        this.docsRepoActionLabel = docsRepoAction();
+        this.docsHomeActionLabel = docsHomeAction();
+        if (typeof document !== "undefined") document.title = titleDocs();
+    }
+
+    applyLocaleCopy(preferred) {
+        withLocaleHint(readLocaleId(preferred), () => this.refreshCopy());
+    }
+}
+</script>
