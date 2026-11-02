@@ -256,6 +256,24 @@ html[data-locale="zh-hans"] .playground__panel-top {
     gap: 0.6rem;
 }
 
+/* Mobile-only drawer trigger; the inline nav is the desktop pattern. */
+.site-menu-toggle {
+    display: none;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border: 0;
+    border-radius: var(--vmz-radius-md);
+    background: transparent;
+    color: var(--vmz-text-ink);
+    cursor: pointer;
+}
+
+.site-menu-toggle svg {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
 .site-language {
     position: relative;
 }
@@ -579,6 +597,7 @@ html[data-locale="zh-hans"] .playground__panel-top {
     color: var(--vmz-text-muted);
     font-size: 0.78rem;
     line-height: 1.55;
+    text-wrap: balance;
 }
 
 .hero__figure {
@@ -890,6 +909,35 @@ html[data-locale="zh-hans"] .playground__panel-top {
     height: 5px;
     border-radius: 999px;
     background: #e46f52;
+}
+
+/* Mobile-only folded tally: rows three through five collapse into one line
+   because the third identical line adds scroll cost, not information. */
+.conformance__rest {
+    display: none;
+}
+
+/* Pending hosts carry no evidence: dimmed, no output bytes, no pass dot.
+   The row drops the bytes cell so the host list never wraps. */
+.conformance__row--pending {
+    grid-template-columns: minmax(7rem, auto) minmax(0, 1fr) 3rem;
+}
+
+.conformance__row--pending .conformance__host {
+    color: #5a5a5a;
+}
+
+.conformance__row--pending .conformance__pkg {
+    color: #6a6a6a;
+}
+
+.conformance__bytes--pending {
+    display: none;
+}
+
+.conformance__diff--pending {
+    color: #737373;
+    font-weight: 500;
 }
 
 .conformance__foot {
@@ -1392,35 +1440,85 @@ html[data-locale="zh-hans"] .playground__panel-top {
 }
 
 @media (max-width: 680px) {
+    /* Mobile type scale — concrete steps, not a shrunk desktop scale:
+       body 16px/1.7, lede 16px/1.75, section title 27.2px, hero 41.6px,
+       labels stay at the 12px floor. */
+    body {
+        line-height: 1.7;
+    }
+
     .wrap {
         width: min(100% - 2rem, 42rem);
     }
 
+    .site-header {
+        padding-top: env(safe-area-inset-top);
+    }
+
     .site-header__inner {
-        flex-wrap: wrap;
-        gap: 0.4rem 0.8rem;
+        flex-wrap: nowrap;
+        gap: 0.6rem;
         width: min(100% - 2rem, 42rem);
-        padding-block: 0.6rem;
+        min-height: 3.5rem;
+        padding-block: 0;
     }
 
     .site-brand__tag {
         display: none;
     }
 
-    .site-nav {
-        order: 3;
-        width: 100%;
-        margin-inline: 0;
-        overflow-x: auto;
-    }
-
-    .site-nav a {
-        padding-inline: 0.55rem;
-        white-space: nowrap;
+    .site-menu-toggle {
+        display: grid;
     }
 
     .site-header__tools {
+        gap: 0.35rem;
         margin-left: auto;
+    }
+
+    /* Drawer nav: absolute panel under the sticky bar, 44px touch rows. */
+    .site-nav {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        display: none;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+        margin: 0;
+        padding: 0.35rem 1rem calc(0.7rem + env(safe-area-inset-bottom));
+        border-bottom: 1px solid var(--vmz-line-default);
+        background: var(--vmz-surface-paper);
+    }
+
+    .site-nav[data-open="true"] {
+        display: flex;
+    }
+
+    .site-nav a {
+        display: flex;
+        align-items: center;
+        min-height: 2.75rem;
+        padding: 0 0.25rem;
+        border-radius: 0;
+        font-size: 1rem;
+    }
+
+    .site-nav a::after {
+        left: 0.25rem;
+        right: 0.25rem;
+        bottom: 0.3rem;
+    }
+
+    .site-language summary {
+        min-height: 2.75rem;
+        padding: 0 0.8rem;
+    }
+
+    .site-header__icon {
+        width: 2.75rem;
+        height: 2.75rem;
     }
 
     .hero {
@@ -1432,7 +1530,31 @@ html[data-locale="zh-hans"] .playground__panel-top {
     }
 
     .hero__title {
-        font-size: clamp(2.6rem, 12vw, 3.6rem);
+        font-size: 2.6rem;
+        line-height: 1.1;
+    }
+
+    .hero__lede,
+    .section-lede,
+    .conformance__lede {
+        font-size: 1rem;
+        line-height: 1.75;
+    }
+
+    .page-heading h1 {
+        font-size: 2.1rem;
+    }
+
+    .conformance__head h2,
+    .contract__heading h2,
+    .hosts__heading h2,
+    .cta h2 {
+        font-size: 1.7rem;
+        line-height: 1.18;
+    }
+
+    .contract__row p {
+        line-height: 1.7;
     }
 
     .hero__facts {
@@ -1494,6 +1616,35 @@ html[data-locale="zh-hans"] .playground__panel-top {
         padding-block: 0.9rem;
     }
 
+    /* Two full rows prove the repetition; the remaining three hosts fold
+       into one tally line so the block stays one viewport tall. */
+    .conformance__row--fold {
+        display: none;
+    }
+
+    .conformance__rest {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 2.2rem;
+        align-items: center;
+        padding: 0.8rem 0;
+        border-bottom: 1px solid #262626;
+    }
+
+    .conformance__rest-hosts {
+        color: #8a8a8a;
+        font-family: var(--vmz-font-mono);
+        font-size: 0.78rem;
+    }
+
+    .conformance__rest .conformance__diff {
+        justify-content: flex-end;
+    }
+
+    .conformance__row--pending {
+        grid-template-columns: minmax(6rem, auto) minmax(0, 1fr) 2.2rem;
+        grid-template-areas: "host pkg diff";
+    }
+
     .conformance__host {
         grid-area: host;
     }
@@ -1504,7 +1655,7 @@ html[data-locale="zh-hans"] .playground__panel-top {
 
     .conformance__bytes {
         grid-area: bytes;
-        font-size: 1.15rem;
+        font-size: 1.35rem;
     }
 
     .conformance__diff {
@@ -1557,5 +1708,6 @@ html[data-locale="zh-hans"] .playground__panel-top {
     .site-footer__bar {
         flex-direction: column;
         width: min(100% - 2rem, 42rem);
+        padding-bottom: calc(1.3rem + env(safe-area-inset-bottom));
     }
 }
