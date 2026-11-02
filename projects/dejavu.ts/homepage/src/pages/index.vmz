@@ -18,69 +18,22 @@
                 </div>
 
                 <figure class="hero__figure">
-                    <svg class="pipeline" viewBox="0 0 640 520" role="img" aria-label="Template compiled to IR then rendered by every host">
-                        <g class="pipeline__rules" fill="none">
-                            <path d="M32 148H608" />
-                            <path d="M32 188H608" />
-                            <path d="M32 228H608" />
-                            <path d="M32 268H608" />
-                            <path d="M32 308H608" />
-                            <path d="M32 348H608" />
-                            <path d="M32 388H608" />
-                            <path d="M32 428H608" />
-                        </g>
-                        <text class="pipeline__tag" x="48" y="162">01 / SOURCE</text>
-                        <text class="pipeline__tag" x="468" y="162">03 / RENDER</text>
-                        <text class="pipeline__tag pipeline__tag--signal" x="294" y="162">02 / IR</text>
-
-                        <path class="pipeline__wire" d="M228 249 C 258 249 262 249 290 249" />
-                        <path class="pipeline__wire" d="M354 249 C 384 249 388 249 416 249" />
-                        <circle class="pipeline__pulse pipeline__pulse--a" r="3.5" cx="0" cy="0">
-                            <animateMotion dur="2.4s" repeatCount="indefinite" path="M228 249 C 258 249 262 249 290 249" />
-                        </circle>
-                        <circle class="pipeline__pulse pipeline__pulse--b" r="3.5" cx="0" cy="0">
-                            <animateMotion dur="2.4s" begin="1.2s" repeatCount="indefinite" path="M354 249 C 384 249 388 249 416 249" />
-                        </circle>
-
-                        <g class="pipeline__card pipeline__card--source">
-                            <rect x="48" y="190" width="180" height="118" rx="4" />
-                            <text class="pipeline__card-label" x="66" y="216">greeting.dejavu</text>
-                            <text class="pipeline__card-mono" x="66" y="240">&lt;% name %&gt;</text>
-                            <text class="pipeline__card-mono pipeline__card-mono--dim" x="66" y="262">&lt;% if %&gt; … &lt;% end if %&gt;</text>
-                            <text class="pipeline__card-mono pipeline__card-mono--dim" x="66" y="284">&lt;% loop %&gt; … &lt;% end loop %&gt;</text>
-                        </g>
-
-                        <g class="pipeline__core">
-                            <circle class="pipeline__core-orbit" cx="322" cy="249" r="52" />
-                            <circle class="pipeline__core-orbit pipeline__core-orbit--inner" cx="322" cy="249" r="38" />
-                            <path class="pipeline__core-gem" d="M322 213l31 18v36l-31 18-31-18v-36z" />
-                            <path class="pipeline__core-inset" d="M322 233l14 8v16l-14 8-14-8v-16z" />
-                            <circle class="pipeline__core-dot" cx="322" cy="249" r="4" />
-                            <text class="pipeline__core-label" x="322" y="325">IR / v0</text>
-                        </g>
-
-                        <g class="pipeline__card pipeline__card--output">
-                            <rect x="416" y="190" width="180" height="118" rx="4" />
-                            <text class="pipeline__card-label" x="434" y="216">output.html</text>
-                            <text class="pipeline__card-mono" x="434" y="240">Hello, Mira.</text>
-                            <text class="pipeline__card-mono pipeline__card-mono--dim" x="434" y="262">deterministic</text>
-                            <text class="pipeline__card-mono pipeline__card-mono--dim" x="434" y="284">byte-identical</text>
-                        </g>
-
-                        <g class="pipeline__hosts">
-                            <path class="pipeline__host-wire" d="M322 305 L 112 404" />
-                            <path class="pipeline__host-wire" d="M322 305 L 217 404" />
-                            <path class="pipeline__host-wire" d="M322 305 L 322 404" />
-                            <path class="pipeline__host-wire" d="M322 305 L 427 404" />
-                            <path class="pipeline__host-wire" d="M322 305 L 532 404" />
-                            <g class="pipeline__host" transform="translate(112 420)"><circle r="16" /><text y="4">TS</text></g>
-                            <g class="pipeline__host" transform="translate(217 420)"><circle r="16" /><text y="4">Rs</text></g>
-                            <g class="pipeline__host" transform="translate(322 420)"><circle r="16" /><text y="4">Py</text></g>
-                            <g class="pipeline__host" transform="translate(427 420)"><circle r="16" /><text y="4">.N</text></g>
-                            <g class="pipeline__host" transform="translate(532 420)"><circle r="16" /><text y="4">Kt</text></g>
-                        </g>
-                        <text class="pipeline__tag" x="48" y="486">SAME SOURCE / SAME MEANING</text>
-                    </svg>
+                    <div class="specimen">
+                        <div class="specimen__bar">
+                            <code>{{ homeSpecimenSourceLabelLabel }}</code>
+                            <small>{{ homeSpecimenSourceNoteLabel }}</small>
+                        </div>
+                        <pre class="specimen__code"><code v-html="specimenSourceHtml"></code></pre>
+                        <div class="specimen__seam">
+                            <span aria-hidden="true">↓</span>
+                            <code>{{ homeSpecimenEquationLabel }}</code>
+                        </div>
+                        <div class="specimen__bar specimen__bar--out">
+                            <code>{{ homeSpecimenOutputLabelLabel }}</code>
+                            <small>{{ homeSpecimenOutputNoteLabel }}</small>
+                        </div>
+                        <pre class="specimen__code specimen__code--out"><code v-html="specimenOutputHtml"></code></pre>
+                    </div>
                     <figcaption class="hero__figure-caption"><span>{{ homeDiagramCaptionLabel }}</span><span aria-hidden="true">FIG. 01</span></figcaption>
                 </figure>
             </div>
@@ -90,10 +43,53 @@
             </div>
         </section>
 
-        <section class="proof">
-            <div class="wrap proof__inner">
-                <p>{{ homeProofStatementLabel }} <code>{{ homeProofEquationLabel }}</code></p>
-                <span>{{ homeProofTagLabel }}</span>
+        <section class="conformance">
+            <div class="wrap">
+                <div class="conformance__head">
+                    <p class="overline overline--light"><span class="overline__rule"></span>{{ homeConformanceEyebrowLabel }}</p>
+                    <h2>{{ homeConformanceTitleLabel }}</h2>
+                    <p class="conformance__lede">{{ homeConformanceLedeLabel }}</p>
+                </div>
+                <div class="conformance__rail" role="table" aria-label="Five hosts produce the same output bytes">
+                    <div class="conformance__meta" role="row">
+                        <span>{{ homeConformanceFixtureLabel }}</span>
+                        <span>{{ homeConformanceExpectedLabel }}</span>
+                    </div>
+                    <div class="conformance__row" role="row">
+                        <span class="conformance__host">ts</span>
+                        <span class="conformance__pkg">@doki-land/dejavu</span>
+                        <code class="conformance__bytes">&lt;h1&gt;Hello, Mira.&lt;/h1&gt;</code>
+                        <span class="conformance__diff"><i aria-hidden="true"></i>0</span>
+                    </div>
+                    <div class="conformance__row" role="row">
+                        <span class="conformance__host">rs</span>
+                        <span class="conformance__pkg">dejavu · crates.io</span>
+                        <code class="conformance__bytes">&lt;h1&gt;Hello, Mira.&lt;/h1&gt;</code>
+                        <span class="conformance__diff"><i aria-hidden="true"></i>0</span>
+                    </div>
+                    <div class="conformance__row" role="row">
+                        <span class="conformance__host">py</span>
+                        <span class="conformance__pkg">dejavu · PyPI</span>
+                        <code class="conformance__bytes">&lt;h1&gt;Hello, Mira.&lt;/h1&gt;</code>
+                        <span class="conformance__diff"><i aria-hidden="true"></i>0</span>
+                    </div>
+                    <div class="conformance__row" role="row">
+                        <span class="conformance__host">net</span>
+                        <span class="conformance__pkg">Dejavu · NuGet</span>
+                        <code class="conformance__bytes">&lt;h1&gt;Hello, Mira.&lt;/h1&gt;</code>
+                        <span class="conformance__diff"><i aria-hidden="true"></i>0</span>
+                    </div>
+                    <div class="conformance__row" role="row">
+                        <span class="conformance__host">kt</span>
+                        <span class="conformance__pkg">dejavu · JVM</span>
+                        <code class="conformance__bytes">&lt;h1&gt;Hello, Mira.&lt;/h1&gt;</code>
+                        <span class="conformance__diff"><i aria-hidden="true"></i>0</span>
+                    </div>
+                </div>
+                <div class="conformance__foot">
+                    <code>render_host(IR, ctx) == expected.out.txt</code>
+                    <span class="conformance__tally"><i aria-hidden="true"></i>{{ homeConformanceTallyLabel }}</span>
+                </div>
             </div>
         </section>
 
@@ -128,29 +124,6 @@
                     <p>{{ homeContract4BodyLabel }}</p>
                     <code class="contract__token">{{ homeContract4TokenLabel }}</code>
                 </article>
-            </div>
-        </section>
-
-        <section class="anatomy">
-            <div class="wrap">
-                <div class="anatomy__heading">
-                    <div>
-                        <p class="overline overline--light"><span class="overline__rule"></span>{{ homeAnatomyEyebrowLabel }}</p>
-                        <h2>{{ homeAnatomyTitleLabel }}</h2>
-                    </div>
-                    <p class="section-lede">{{ homeAnatomyLedeLabel }}</p>
-                </div>
-                <div class="anatomy__grid">
-                    <div class="anatomy__pane">
-                        <div class="anatomy__bar"><span>{{ homeAnatomySourceLabelLabel }}</span><small>{{ homeAnatomySourceNoteLabel }}</small></div>
-                        <pre class="anatomy__code"><code v-html="anatomySourceHtml"></code></pre>
-                    </div>
-                    <div class="anatomy__pane">
-                        <div class="anatomy__bar"><span>{{ homeAnatomyOutputLabelLabel }}</span><small>{{ homeAnatomyOutputNoteLabel }}</small></div>
-                        <pre class="anatomy__code"><code v-html="anatomyOutputHtml"></code></pre>
-                    </div>
-                </div>
-                <p class="anatomy__footer"><span class="anatomy__check" aria-hidden="true">✓</span>{{ homeAnatomyFooterLabel }}</p>
             </div>
         </section>
 
@@ -199,9 +172,17 @@ import {
     homeInstallHint,
     homeEdition,
     homeDiagramCaption,
-    homeProofStatement,
-    homeProofEquation,
-    homeProofTag,
+    homeSpecimenSourceLabel,
+    homeSpecimenSourceNote,
+    homeSpecimenOutputLabel,
+    homeSpecimenOutputNote,
+    homeSpecimenEquation,
+    homeConformanceEyebrow,
+    homeConformanceTitle,
+    homeConformanceLede,
+    homeConformanceFixture,
+    homeConformanceExpected,
+    homeConformanceTally,
     homeContractEyebrow,
     homeContractTitle,
     homeContractLede,
@@ -217,14 +198,6 @@ import {
     homeContract4Title,
     homeContract4Body,
     homeContract4Token,
-    homeAnatomyEyebrow,
-    homeAnatomyTitle,
-    homeAnatomyLede,
-    homeAnatomySourceLabel,
-    homeAnatomySourceNote,
-    homeAnatomyOutputLabel,
-    homeAnatomyOutputNote,
-    homeAnatomyFooter,
     homeHostsEyebrow,
     homeHostsTitle,
     homeHostsLede,
@@ -254,9 +227,17 @@ export default class Home {
     homeInstallHintLabel = "";
     homeEditionLabel = "";
     homeDiagramCaptionLabel = "";
-    homeProofStatementLabel = "";
-    homeProofEquationLabel = "";
-    homeProofTagLabel = "";
+    homeSpecimenSourceLabelLabel = "";
+    homeSpecimenSourceNoteLabel = "";
+    homeSpecimenOutputLabelLabel = "";
+    homeSpecimenOutputNoteLabel = "";
+    homeSpecimenEquationLabel = "";
+    homeConformanceEyebrowLabel = "";
+    homeConformanceTitleLabel = "";
+    homeConformanceLedeLabel = "";
+    homeConformanceFixtureLabel = "";
+    homeConformanceExpectedLabel = "";
+    homeConformanceTallyLabel = "";
     homeContractEyebrowLabel = "";
     homeContractTitleLabel = "";
     homeContractLedeLabel = "";
@@ -272,14 +253,6 @@ export default class Home {
     homeContract4TitleLabel = "";
     homeContract4BodyLabel = "";
     homeContract4TokenLabel = "";
-    homeAnatomyEyebrowLabel = "";
-    homeAnatomyTitleLabel = "";
-    homeAnatomyLedeLabel = "";
-    homeAnatomySourceLabelLabel = "";
-    homeAnatomySourceNoteLabel = "";
-    homeAnatomyOutputLabelLabel = "";
-    homeAnatomyOutputNoteLabel = "";
-    homeAnatomyFooterLabel = "";
     homeHostsEyebrowLabel = "";
     homeHostsTitleLabel = "";
     homeHostsLedeLabel = "";
@@ -289,7 +262,7 @@ export default class Home {
     homeCtaEyebrowLabel = "";
     homeCtaTitleLabel = "";
     homeCtaActionLabel = "";
-    anatomySourceHtml = [
+    specimenSourceHtml = [
         '<span class="tok-kw">&lt;% if</span> <span class="tok-expr">user.adult</span> <span class="tok-kw">%&gt;</span>',
         '  &lt;h1&gt;<span class="tok-kw">&lt;%</span> <span class="tok-expr">user.name</span> <span class="tok-kw">%&gt;</span>&lt;/h1&gt;',
         '<span class="tok-kw">&lt;% else %&gt;</span>',
@@ -299,7 +272,7 @@ export default class Home {
         '  &lt;li&gt;<span class="tok-kw">&lt;%</span> <span class="tok-expr">item</span> <span class="tok-op">|&gt;</span> <span class="tok-fn">escape</span> <span class="tok-kw">%&gt;</span>&lt;/li&gt;',
         '<span class="tok-kw">&lt;% end loop %&gt;</span>',
     ].join("\n");
-    anatomyOutputHtml = [
+    specimenOutputHtml = [
         '&lt;h1&gt;Hello, Mira.&lt;/h1&gt;',
         '&lt;li&gt;Notebook&lt;/li&gt;',
         '&lt;li&gt;Compass&lt;/li&gt;',
@@ -337,9 +310,17 @@ export default class Home {
         this.homeInstallHintLabel = homeInstallHint();
         this.homeEditionLabel = homeEdition();
         this.homeDiagramCaptionLabel = homeDiagramCaption();
-        this.homeProofStatementLabel = homeProofStatement();
-        this.homeProofEquationLabel = homeProofEquation();
-        this.homeProofTagLabel = homeProofTag();
+        this.homeSpecimenSourceLabelLabel = homeSpecimenSourceLabel();
+        this.homeSpecimenSourceNoteLabel = homeSpecimenSourceNote();
+        this.homeSpecimenOutputLabelLabel = homeSpecimenOutputLabel();
+        this.homeSpecimenOutputNoteLabel = homeSpecimenOutputNote();
+        this.homeSpecimenEquationLabel = homeSpecimenEquation();
+        this.homeConformanceEyebrowLabel = homeConformanceEyebrow();
+        this.homeConformanceTitleLabel = homeConformanceTitle();
+        this.homeConformanceLedeLabel = homeConformanceLede();
+        this.homeConformanceFixtureLabel = homeConformanceFixture();
+        this.homeConformanceExpectedLabel = homeConformanceExpected();
+        this.homeConformanceTallyLabel = homeConformanceTally();
         this.homeContractEyebrowLabel = homeContractEyebrow();
         this.homeContractTitleLabel = homeContractTitle();
         this.homeContractLedeLabel = homeContractLede();
@@ -355,14 +336,6 @@ export default class Home {
         this.homeContract4TitleLabel = homeContract4Title();
         this.homeContract4BodyLabel = homeContract4Body();
         this.homeContract4TokenLabel = homeContract4Token();
-        this.homeAnatomyEyebrowLabel = homeAnatomyEyebrow();
-        this.homeAnatomyTitleLabel = homeAnatomyTitle();
-        this.homeAnatomyLedeLabel = homeAnatomyLede();
-        this.homeAnatomySourceLabelLabel = homeAnatomySourceLabel();
-        this.homeAnatomySourceNoteLabel = homeAnatomySourceNote();
-        this.homeAnatomyOutputLabelLabel = homeAnatomyOutputLabel();
-        this.homeAnatomyOutputNoteLabel = homeAnatomyOutputNote();
-        this.homeAnatomyFooterLabel = homeAnatomyFooter();
         this.homeHostsEyebrowLabel = homeHostsEyebrow();
         this.homeHostsTitleLabel = homeHostsTitle();
         this.homeHostsLedeLabel = homeHostsLede();

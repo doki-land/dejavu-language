@@ -48,8 +48,8 @@
         "runtime": "#5B6B7C"
     },
     "font": {
-        "sans": "\"Segoe UI\", \"PingFang SC\", \"Noto Sans SC\", sans-serif",
-        "mono": "ui-monospace, Consolas, \"Cascadia Mono\", monospace",
-        "display": "\"Segoe UI\", \"PingFang SC\", \"Noto Sans SC\", sans-serif"
+        "sans": "\"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei UI\", \"Microsoft YaHei\", \"Noto Sans SC\", sans-serif",
+        "mono": "ui-monospace, Consolas, \"Cascadia Mono\", \"PingFang SC\", \"Microsoft YaHei UI\", \"Noto Sans SC\", monospace",
+        "display": "\"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei UI\", \"Microsoft YaHei\", \"Noto Sans SC\", sans-serif"
     }
 }
