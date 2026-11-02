@@ -18,27 +18,27 @@
     },
     "surface": {
         "paper": "#FFFFFF",
-        "mist": "#FAF3EE",
-        "page": "#F7EDE6",
-        "fill": "#FCF8F5",
-        "ink": "#241512",
-        "graphite": "#5C4A43",
-        "code": "#1E1210",
-        "inverse": "#241512"
+        "mist": "#FAFAFA",
+        "page": "#F5F5F5",
+        "fill": "#FCFCFC",
+        "ink": "#171717",
+        "graphite": "#525252",
+        "code": "#171717",
+        "inverse": "#171717"
     },
     "text": {
-        "ink": "#241512",
-        "steel": "#5C4A43",
-        "tertiary": "#7A655C",
-        "muted": "#978176",
+        "ink": "#171717",
+        "steel": "#404040",
+        "tertiary": "#595959",
+        "muted": "#7A7A7A",
         "on-brand": "#FFFFFF",
-        "on-ink": "#FBF3EE",
-        "on-inverse": "#FBF3EE"
+        "on-ink": "#F5F5F5",
+        "on-inverse": "#F5F5F5"
     },
     "line": {
-        "default": "#E9D5CA",
-        "subtle": "#F3E4DC",
-        "strong": "#D4B6A7"
+        "default": "#E0E0E0",
+        "subtle": "#EBEBEB",
+        "strong": "#B8B8B8"
     },
     "status": {
         "success": "#0B6E4F",

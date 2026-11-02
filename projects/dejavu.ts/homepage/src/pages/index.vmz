@@ -19,53 +19,31 @@
 
                 <figure class="hero__figure">
                     <svg class="pipeline" viewBox="0 0 640 520" role="img" aria-label="Template compiled to IR then rendered by every host">
-                        <defs>
-                            <linearGradient id="dj-flow" x1="0" y1="0" x2="1" y2="1">
-                                <stop offset="0" stop-color="#E9937B" />
-                                <stop offset="1" stop-color="#C74724" />
-                            </linearGradient>
-                        </defs>
-                        <g class="pipeline__grid" fill="none" stroke="currentColor" stroke-width="0.6">
-                            <path d="M-400 130l520 300M-400 130l-520 300" />
-                            <path d="M-342 130l520 300M-342 130l-520 300" />
-                            <path d="M-284 130l520 300M-284 130l-520 300" />
-                            <path d="M-226 130l520 300M-226 130l-520 300" />
-                            <path d="M-168 130l520 300M-168 130l-520 300" />
-                            <path d="M-110 130l520 300M-110 130l-520 300" />
-                            <path d="M-52 130l520 300M-52 130l-520 300" />
-                            <path d="M6 130l520 300M6 130l-520 300" />
-                            <path d="M64 130l520 300M64 130l-520 300" />
-                            <path d="M122 130l520 300M122 130l-520 300" />
-                            <path d="M180 130l520 300M180 130l-520 300" />
-                            <path d="M238 130l520 300M238 130l-520 300" />
-                            <path d="M296 130l520 300M296 130l-520 300" />
-                            <path d="M354 130l520 300M354 130l-520 300" />
-                            <path d="M412 130l520 300M412 130l-520 300" />
-                            <path d="M470 130l520 300M470 130l-520 300" />
-                            <path d="M528 130l520 300M528 130l-520 300" />
-                            <path d="M586 130l520 300M586 130l-520 300" />
-                            <path d="M644 130l520 300M644 130l-520 300" />
-                            <path d="M702 130l520 300M702 130l-520 300" />
-                            <path d="M760 130l520 300M760 130l-520 300" />
-                            <path d="M818 130l520 300M818 130l-520 300" />
-                            <path d="M876 130l520 300M876 130l-520 300" />
-                            <path d="M934 130l520 300M934 130l-520 300" />
+                        <g class="pipeline__rules" fill="none">
+                            <path d="M32 148H608" />
+                            <path d="M32 188H608" />
+                            <path d="M32 228H608" />
+                            <path d="M32 268H608" />
+                            <path d="M32 308H608" />
+                            <path d="M32 348H608" />
+                            <path d="M32 388H608" />
+                            <path d="M32 428H608" />
                         </g>
-                        <text class="pipeline__tag" x="48" y="176">01 / SOURCE</text>
-                        <text class="pipeline__tag" x="446" y="176">03 / RENDER</text>
-                        <text class="pipeline__tag pipeline__tag--accent" x="294" y="176">02 / IR</text>
+                        <text class="pipeline__tag" x="48" y="162">01 / SOURCE</text>
+                        <text class="pipeline__tag" x="468" y="162">03 / RENDER</text>
+                        <text class="pipeline__tag pipeline__tag--signal" x="294" y="162">02 / IR</text>
 
-                        <path class="pipeline__wire" d="M228 226 C 258 226 262 226 288 226" />
-                        <path class="pipeline__wire" d="M356 226 C 386 226 390 226 416 226" />
-                        <circle class="pipeline__pulse pipeline__pulse--a" r="4.5" cx="0" cy="0">
-                            <animateMotion dur="2.4s" repeatCount="indefinite" path="M228 226 C 258 226 262 226 288 226" />
+                        <path class="pipeline__wire" d="M228 249 C 258 249 262 249 290 249" />
+                        <path class="pipeline__wire" d="M354 249 C 384 249 388 249 416 249" />
+                        <circle class="pipeline__pulse pipeline__pulse--a" r="3.5" cx="0" cy="0">
+                            <animateMotion dur="2.4s" repeatCount="indefinite" path="M228 249 C 258 249 262 249 290 249" />
                         </circle>
-                        <circle class="pipeline__pulse pipeline__pulse--b" r="4.5" cx="0" cy="0">
-                            <animateMotion dur="2.4s" begin="1.2s" repeatCount="indefinite" path="M356 226 C 386 226 390 226 416 226" />
+                        <circle class="pipeline__pulse pipeline__pulse--b" r="3.5" cx="0" cy="0">
+                            <animateMotion dur="2.4s" begin="1.2s" repeatCount="indefinite" path="M354 249 C 384 249 388 249 416 249" />
                         </circle>
 
                         <g class="pipeline__card pipeline__card--source">
-                            <rect x="48" y="190" width="180" height="118" rx="10" />
+                            <rect x="48" y="190" width="180" height="118" rx="4" />
                             <text class="pipeline__card-label" x="66" y="216">greeting.dejavu</text>
                             <text class="pipeline__card-mono" x="66" y="240">&lt;% name %&gt;</text>
                             <text class="pipeline__card-mono pipeline__card-mono--dim" x="66" y="262">&lt;% if %&gt; … &lt;% end if %&gt;</text>
@@ -73,15 +51,16 @@
                         </g>
 
                         <g class="pipeline__core">
-                            <circle class="pipeline__core-orbit" cx="322" cy="226" r="52" />
-                            <circle class="pipeline__core-orbit pipeline__core-orbit--inner" cx="322" cy="226" r="38" />
-                            <path class="pipeline__core-gem" d="M322 190l31 18v36l-31 18-31-18v-36z" />
-                            <path class="pipeline__core-inset" d="M322 210l14 8v16l-14 8-14-8v-16z" />
-                            <text class="pipeline__core-label" x="322" y="302">IR / v0</text>
+                            <circle class="pipeline__core-orbit" cx="322" cy="249" r="52" />
+                            <circle class="pipeline__core-orbit pipeline__core-orbit--inner" cx="322" cy="249" r="38" />
+                            <path class="pipeline__core-gem" d="M322 213l31 18v36l-31 18-31-18v-36z" />
+                            <path class="pipeline__core-inset" d="M322 233l14 8v16l-14 8-14-8v-16z" />
+                            <circle class="pipeline__core-dot" cx="322" cy="249" r="4" />
+                            <text class="pipeline__core-label" x="322" y="325">IR / v0</text>
                         </g>
 
                         <g class="pipeline__card pipeline__card--output">
-                            <rect x="416" y="190" width="180" height="118" rx="10" />
+                            <rect x="416" y="190" width="180" height="118" rx="4" />
                             <text class="pipeline__card-label" x="434" y="216">output.html</text>
                             <text class="pipeline__card-mono" x="434" y="240">Hello, Mira.</text>
                             <text class="pipeline__card-mono pipeline__card-mono--dim" x="434" y="262">deterministic</text>
@@ -89,18 +68,18 @@
                         </g>
 
                         <g class="pipeline__hosts">
-                            <path class="pipeline__host-wire" d="M322 282 L 112 396" />
-                            <path class="pipeline__host-wire" d="M322 282 L 217 396" />
-                            <path class="pipeline__host-wire" d="M322 282 L 322 396" />
-                            <path class="pipeline__host-wire" d="M322 282 L 427 396" />
-                            <path class="pipeline__host-wire" d="M322 282 L 532 396" />
-                            <g class="pipeline__host" transform="translate(112 396)"><circle r="16" /><text y="4">TS</text></g>
-                            <g class="pipeline__host" transform="translate(217 396)"><circle r="16" /><text y="4">Rs</text></g>
-                            <g class="pipeline__host" transform="translate(322 396)"><circle r="16" /><text y="4">Py</text></g>
-                            <g class="pipeline__host" transform="translate(427 396)"><circle r="16" /><text y="4">.N</text></g>
-                            <g class="pipeline__host" transform="translate(532 396)"><circle r="16" /><text y="4">Kt</text></g>
+                            <path class="pipeline__host-wire" d="M322 305 L 112 404" />
+                            <path class="pipeline__host-wire" d="M322 305 L 217 404" />
+                            <path class="pipeline__host-wire" d="M322 305 L 322 404" />
+                            <path class="pipeline__host-wire" d="M322 305 L 427 404" />
+                            <path class="pipeline__host-wire" d="M322 305 L 532 404" />
+                            <g class="pipeline__host" transform="translate(112 420)"><circle r="16" /><text y="4">TS</text></g>
+                            <g class="pipeline__host" transform="translate(217 420)"><circle r="16" /><text y="4">Rs</text></g>
+                            <g class="pipeline__host" transform="translate(322 420)"><circle r="16" /><text y="4">Py</text></g>
+                            <g class="pipeline__host" transform="translate(427 420)"><circle r="16" /><text y="4">.N</text></g>
+                            <g class="pipeline__host" transform="translate(532 420)"><circle r="16" /><text y="4">Kt</text></g>
                         </g>
-                        <text class="pipeline__tag" x="48" y="476">SAME SOURCE / SAME MEANING</text>
+                        <text class="pipeline__tag" x="48" y="486">SAME SOURCE / SAME MEANING</text>
                     </svg>
                     <figcaption class="hero__figure-caption"><span>{{ homeDiagramCaptionLabel }}</span><span aria-hidden="true">FIG. 01</span></figcaption>
                 </figure>
@@ -111,10 +90,10 @@
             </div>
         </section>
 
-        <section class="manifesto">
-            <div class="wrap manifesto__inner">
-                <p>{{ homeManifestoTextLabel }}</p>
-                <span>{{ homeManifestoTagLabel }}</span>
+        <section class="proof">
+            <div class="wrap proof__inner">
+                <p>{{ homeProofStatementLabel }} <code>{{ homeProofEquationLabel }}</code></p>
+                <span>{{ homeProofTagLabel }}</span>
             </div>
         </section>
 
@@ -164,21 +143,11 @@
                 <div class="anatomy__grid">
                     <div class="anatomy__pane">
                         <div class="anatomy__bar"><span>{{ homeAnatomySourceLabelLabel }}</span><small>{{ homeAnatomySourceNoteLabel }}</small></div>
-                        <pre class="anatomy__code"><code><span class="tok-kw">&lt;% if</span> <span class="tok-expr">user.adult</span> <span class="tok-kw">%&gt;</span>
-  &lt;h1&gt;<span class="tok-kw">&lt;%</span> <span class="tok-expr">user.name</span> <span class="tok-kw">%&gt;</span>&lt;/h1&gt;
-<span class="tok-kw">&lt;% else %&gt;</span>
-  &lt;p&gt;<span class="tok-kw">&lt;%</span> <span class="tok-str">"come back later"</span> <span class="tok-kw">%&gt;</span>&lt;/p&gt;
-<span class="tok-kw">&lt;% end if %&gt;</span>
-<span class="tok-kw">&lt;% loop</span> <span class="tok-expr">item in items</span> <span class="tok-kw">%&gt;</span>
-  &lt;li&gt;<span class="tok-kw">&lt;%</span> <span class="tok-expr">item</span> <span class="tok-op">|&gt;</span> <span class="tok-fn">escape</span> <span class="tok-kw">%&gt;</span>&lt;/li&gt;
-<span class="tok-kw">&lt;% end loop %&gt;</span></code></pre>
+                        <pre class="anatomy__code"><code v-html="anatomySourceHtml"></code></pre>
                     </div>
                     <div class="anatomy__pane">
                         <div class="anatomy__bar"><span>{{ homeAnatomyOutputLabelLabel }}</span><small>{{ homeAnatomyOutputNoteLabel }}</small></div>
-                        <pre class="anatomy__code anatomy__code--output"><code>&lt;h1&gt;Hello, Mira.&lt;/h1&gt;
-&lt;li&gt;Notebook&lt;/li&gt;
-&lt;li&gt;Compass&lt;/li&gt;
-&lt;li&gt;Lantern&lt;/li&gt;</code></pre>
+                        <pre class="anatomy__code"><code v-html="anatomyOutputHtml"></code></pre>
                     </div>
                 </div>
                 <p class="anatomy__footer"><span class="anatomy__check" aria-hidden="true">✓</span>{{ homeAnatomyFooterLabel }}</p>
@@ -230,8 +199,9 @@ import {
     homeInstallHint,
     homeEdition,
     homeDiagramCaption,
-    homeManifestoText,
-    homeManifestoTag,
+    homeProofStatement,
+    homeProofEquation,
+    homeProofTag,
     homeContractEyebrow,
     homeContractTitle,
     homeContractLede,
@@ -284,8 +254,9 @@ export default class Home {
     homeInstallHintLabel = "";
     homeEditionLabel = "";
     homeDiagramCaptionLabel = "";
-    homeManifestoTextLabel = "";
-    homeManifestoTagLabel = "";
+    homeProofStatementLabel = "";
+    homeProofEquationLabel = "";
+    homeProofTagLabel = "";
     homeContractEyebrowLabel = "";
     homeContractTitleLabel = "";
     homeContractLedeLabel = "";
@@ -318,6 +289,22 @@ export default class Home {
     homeCtaEyebrowLabel = "";
     homeCtaTitleLabel = "";
     homeCtaActionLabel = "";
+    anatomySourceHtml = [
+        '<span class="tok-kw">&lt;% if</span> <span class="tok-expr">user.adult</span> <span class="tok-kw">%&gt;</span>',
+        '  &lt;h1&gt;<span class="tok-kw">&lt;%</span> <span class="tok-expr">user.name</span> <span class="tok-kw">%&gt;</span>&lt;/h1&gt;',
+        '<span class="tok-kw">&lt;% else %&gt;</span>',
+        '  &lt;p&gt;<span class="tok-kw">&lt;%</span> <span class="tok-str">"come back later"</span> <span class="tok-kw">%&gt;</span>&lt;/p&gt;',
+        '<span class="tok-kw">&lt;% end if %&gt;</span>',
+        '<span class="tok-kw">&lt;% loop</span> <span class="tok-expr">item in items</span> <span class="tok-kw">%&gt;</span>',
+        '  &lt;li&gt;<span class="tok-kw">&lt;%</span> <span class="tok-expr">item</span> <span class="tok-op">|&gt;</span> <span class="tok-fn">escape</span> <span class="tok-kw">%&gt;</span>&lt;/li&gt;',
+        '<span class="tok-kw">&lt;% end loop %&gt;</span>',
+    ].join("\n");
+    anatomyOutputHtml = [
+        '&lt;h1&gt;Hello, Mira.&lt;/h1&gt;',
+        '&lt;li&gt;Notebook&lt;/li&gt;',
+        '&lt;li&gt;Compass&lt;/li&gt;',
+        '&lt;li&gt;Lantern&lt;/li&gt;',
+    ].join("\n");
     _unwatchLocale = null;
 
     onMount() {
@@ -350,8 +337,9 @@ export default class Home {
         this.homeInstallHintLabel = homeInstallHint();
         this.homeEditionLabel = homeEdition();
         this.homeDiagramCaptionLabel = homeDiagramCaption();
-        this.homeManifestoTextLabel = homeManifestoText();
-        this.homeManifestoTagLabel = homeManifestoTag();
+        this.homeProofStatementLabel = homeProofStatement();
+        this.homeProofEquationLabel = homeProofEquation();
+        this.homeProofTagLabel = homeProofTag();
         this.homeContractEyebrowLabel = homeContractEyebrow();
         this.homeContractTitleLabel = homeContractTitle();
         this.homeContractLedeLabel = homeContractLede();

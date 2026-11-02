@@ -2,7 +2,7 @@
     "entries": [
         {
             "key": { "path": ["action", "primary", "background"] },
-            "value": "#DF5B3B"
+            "value": "#C74724"
         },
         {
             "key": { "path": ["action", "primary", "foreground"] },
@@ -10,35 +10,35 @@
         },
         {
             "key": { "path": ["action", "primary", "hover"] },
-            "value": "#E46F52"
+            "value": "#DF5B3B"
         },
         {
             "key": { "path": ["action", "primary", "active"] },
-            "value": "#C74724"
+            "value": "#A63A1E"
         },
         {
             "key": { "path": ["action", "primary", "soft"] },
-            "value": "#FBEDE8"
+            "value": "#F5F5F5"
         },
         {
             "key": { "path": ["action", "secondary", "background"] },
-            "value": "rgba(255, 255, 255, 0.55)"
+            "value": "#FFFFFF"
         },
         {
             "key": { "path": ["action", "secondary", "foreground"] },
-            "value": "#241512"
+            "value": "#171717"
         },
         {
             "key": { "path": ["action", "secondary", "border"] },
-            "value": "rgba(223, 91, 59, 0.32)"
+            "value": "#B8B8B8"
         },
         {
             "key": { "path": ["action", "secondary", "hover"] },
-            "value": "rgba(255, 255, 255, 0.78)"
+            "value": "#FAFAFA"
         },
         {
             "key": { "path": ["action", "secondary", "active"] },
-            "value": "rgba(255, 255, 255, 0.92)"
+            "value": "#F5F5F5"
         },
         {
             "key": { "path": ["action", "link", "foreground"] },
