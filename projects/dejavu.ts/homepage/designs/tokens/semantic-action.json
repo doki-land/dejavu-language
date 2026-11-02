@@ -18,7 +18,7 @@
         },
         {
             "key": { "path": ["action", "primary", "soft"] },
-            "value": "#F5F5F5"
+            "value": "#FFFFFF"
         },
         {
             "key": { "path": ["action", "secondary", "background"] },
@@ -34,11 +34,11 @@
         },
         {
             "key": { "path": ["action", "secondary", "hover"] },
-            "value": "#FAFAFA"
+            "value": "#FFFFFF"
         },
         {
             "key": { "path": ["action", "secondary", "active"] },
-            "value": "#F5F5F5"
+            "value": "#FFFFFF"
         },
         {
             "key": { "path": ["action", "link", "foreground"] },

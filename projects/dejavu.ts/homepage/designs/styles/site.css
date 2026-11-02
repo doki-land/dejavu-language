@@ -1,7 +1,9 @@
 /* ==========================================================================
-   DejaVu site styles — neutral paper, ink typography, letterpress details.
-   Terracotta is a signal color only: deep #C74724 for links/CTA, bright
-   #E46F52 for node points. No warm-tinted surfaces, no large color blocks.
+   DejaVu site styles — white ground, ink typography, hairline structure.
+   Structure comes from 1px rules, spacing and type scale, never from tinted
+   fills or elevation. Terracotta is a signal color only: deep #C74724 for
+   links/CTA, bright #E46F52 for node points. The ink specimen block is the
+   only place that borrows letterpress language.
    Layers: 1 base  2 chrome  3 shared  4 landing  5 playground  6 ecosystem
            7 docs  8 motion
    ========================================================================== */
@@ -121,7 +123,7 @@ pre {
     top: 0;
     z-index: 50;
     border-bottom: 1px solid var(--vmz-line-subtle);
-    background: color-mix(in srgb, var(--vmz-surface-page) 90%, transparent);
+    background: color-mix(in srgb, var(--vmz-surface-page) 92%, transparent);
     backdrop-filter: blur(14px);
 }
 
@@ -208,7 +210,6 @@ pre {
 
 .site-nav a:hover {
     color: var(--vmz-text-ink);
-    background: var(--vmz-action-primary-soft);
 }
 
 .site-nav a[aria-current="page"] {
@@ -285,7 +286,6 @@ pre {
 }
 
 .site-language__menu button:hover {
-    background: var(--vmz-action-primary-soft);
     color: var(--vmz-text-ink);
 }
 
@@ -307,7 +307,6 @@ pre {
 
 .site-header__icon:hover {
     color: var(--vmz-text-ink);
-    background: var(--vmz-action-primary-soft);
 }
 
 .site-header__icon svg {
@@ -443,9 +442,7 @@ pre {
     font-size: 0.9rem;
     font-weight: 650;
     cursor: pointer;
-    transition: transform var(--vmz-motion-control-duration) var(--vmz-motion-control-easing),
-        box-shadow var(--vmz-motion-control-duration) var(--vmz-motion-control-easing),
-        background var(--vmz-motion-control-duration) var(--vmz-motion-control-easing),
+    transition: background var(--vmz-motion-control-duration) var(--vmz-motion-control-easing),
         border-color var(--vmz-motion-control-duration) var(--vmz-motion-control-easing),
         color var(--vmz-motion-control-duration) var(--vmz-motion-control-easing);
 }
@@ -458,14 +455,10 @@ pre {
 .action--primary:hover {
     background: var(--vmz-action-primary-hover);
     color: var(--vmz-action-primary-foreground);
-    transform: translateY(-2px);
-    box-shadow: 3px 4px 0 rgba(23, 23, 23, 0.9);
 }
 
 .action--primary:active {
     background: var(--vmz-action-primary-active);
-    transform: translateY(0);
-    box-shadow: none;
 }
 
 .action--ghost {
@@ -478,8 +471,6 @@ pre {
     border-color: var(--vmz-text-ink);
     background: var(--vmz-surface-paper);
     color: var(--vmz-text-ink);
-    transform: translateY(-2px);
-    box-shadow: 3px 4px 0 rgba(23, 23, 23, 0.12);
 }
 
 .page-heading {
@@ -499,9 +490,7 @@ pre {
     position: relative;
     overflow: hidden;
     padding-block: 4.5rem 0;
-    background:
-        repeating-linear-gradient(to bottom, transparent 0, transparent 6px, rgba(23, 23, 23, 0.025) 6px, rgba(23, 23, 23, 0.025) 7px),
-        var(--vmz-surface-page);
+    background: var(--vmz-surface-page);
 }
 
 .hero__grid {
@@ -607,14 +596,6 @@ pre {
     stroke-width: 1.2;
 }
 
-.pipeline__card--source {
-    animation: pipeline-float 7s ease-in-out infinite;
-}
-
-.pipeline__card--output {
-    animation: pipeline-float 7s ease-in-out 1.8s infinite;
-}
-
 .pipeline__card-label {
     fill: var(--vmz-text-muted);
     font-family: var(--vmz-font-mono);
@@ -655,8 +636,6 @@ pre {
     fill: var(--vmz-surface-paper);
     stroke: var(--vmz-text-ink);
     stroke-width: 1.4;
-    transform-origin: 322px 226px;
-    animation: pipeline-core-breathe 3.4s ease-in-out infinite;
 }
 
 .pipeline__core-inset {
@@ -760,7 +739,7 @@ pre {
 
 .proof {
     border-block: 1px solid var(--vmz-line-subtle);
-    background: var(--vmz-surface-mist);
+    background: var(--vmz-surface-paper);
 }
 
 .proof__inner {
@@ -817,11 +796,11 @@ pre {
     align-items: baseline;
     padding: 1.3rem 0;
     border-bottom: 1px solid var(--vmz-line-default);
-    transition: background var(--vmz-motion-control-duration) var(--vmz-motion-control-easing);
+    transition: border-color var(--vmz-motion-control-duration) var(--vmz-motion-control-easing);
 }
 
 .contract__row:hover {
-    background: var(--vmz-surface-mist);
+    border-bottom-color: var(--vmz-text-ink);
 }
 
 .contract__index {
@@ -1007,16 +986,13 @@ pre {
     color: var(--vmz-text-ink);
     font-size: 0.88rem;
     font-weight: 600;
-    transition: transform var(--vmz-motion-control-duration) var(--vmz-motion-control-easing),
-        border-color var(--vmz-motion-control-duration) var(--vmz-motion-control-easing),
-        box-shadow var(--vmz-motion-control-duration) var(--vmz-motion-control-easing);
+    transition: border-color var(--vmz-motion-control-duration) var(--vmz-motion-control-easing),
+        color var(--vmz-motion-control-duration) var(--vmz-motion-control-easing);
 }
 
 .hosts__chip:hover {
     border-color: var(--vmz-text-ink);
     color: var(--vmz-text-ink);
-    transform: translateY(-3px);
-    box-shadow: 3px 4px 0 rgba(23, 23, 23, 0.1);
 }
 
 .hosts__glyph {
@@ -1136,7 +1112,6 @@ pre {
     border: 1px solid var(--vmz-line-default);
     border-radius: var(--vmz-radius-lg);
     background: var(--vmz-surface-paper);
-    box-shadow: var(--vmz-elevation-1);
 }
 
 .playground__panel-top {
@@ -1270,15 +1245,11 @@ pre {
     border: 1px solid var(--vmz-line-default);
     border-radius: var(--vmz-radius-lg);
     background: var(--vmz-surface-paper);
-    transition: transform var(--vmz-motion-control-duration) var(--vmz-motion-control-easing),
-        border-color var(--vmz-motion-control-duration) var(--vmz-motion-control-easing),
-        box-shadow var(--vmz-motion-control-duration) var(--vmz-motion-control-easing);
+    transition: border-color var(--vmz-motion-control-duration) var(--vmz-motion-control-easing);
 }
 
 .ecosystem__card:hover {
     border-color: var(--vmz-text-ink);
-    transform: translateY(-3px);
-    box-shadow: 3px 4px 0 rgba(23, 23, 23, 0.1);
 }
 
 .ecosystem__card-head {
@@ -1400,38 +1371,15 @@ pre {
     }
 }
 
-@keyframes pipeline-float {
-    0%,
-    100% {
-        transform: translateY(0);
-    }
-    50% {
-        transform: translateY(-6px);
-    }
-}
-
 @keyframes pipeline-orbit-spin {
     to {
         transform: rotate(360deg);
     }
 }
 
-@keyframes pipeline-core-breathe {
-    0%,
-    100% {
-        transform: scale(1);
-    }
-    50% {
-        transform: scale(1.05);
-    }
-}
-
 @media (prefers-reduced-motion: reduce) {
     .pipeline__wire,
-    .pipeline__card--source,
-    .pipeline__card--output,
-    .pipeline__core-orbit,
-    .pipeline__core-gem {
+    .pipeline__core-orbit {
         animation: none;
     }
 

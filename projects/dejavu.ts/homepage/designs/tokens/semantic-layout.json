@@ -58,15 +58,15 @@
         },
         {
             "key": { "path": ["elevation", "1"] },
-            "value": "0 1px 2px 0 rgba(23,23,23,.05), 0 1px 4px -1px rgba(23,23,23,.04)"
+            "value": "none"
         },
         {
             "key": { "path": ["elevation", "2"] },
-            "value": "0 4px 12px 0 rgba(23,23,23,.09), 0 1px 3px 0 rgba(23,23,23,.05)"
+            "value": "none"
         },
         {
             "key": { "path": ["elevation", "3"] },
-            "value": "0 12px 32px 0 rgba(23,23,23,.13), 0 2px 8px 0 rgba(23,23,23,.07)"
+            "value": "none"
         },
         {
             "key": { "path": ["layout", "gutter"] },

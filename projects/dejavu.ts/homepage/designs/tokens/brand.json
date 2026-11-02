@@ -18,9 +18,9 @@
     },
     "surface": {
         "paper": "#FFFFFF",
-        "mist": "#FAFAFA",
-        "page": "#F5F5F5",
-        "fill": "#FCFCFC",
+        "mist": "#FFFFFF",
+        "page": "#FFFFFF",
+        "fill": "#FFFFFF",
         "ink": "#171717",
         "graphite": "#525252",
         "code": "#171717",
@@ -37,7 +37,7 @@
     },
     "line": {
         "default": "#E0E0E0",
-        "subtle": "#EBEBEB",
+        "subtle": "#EDEDED",
         "strong": "#B8B8B8"
     },
     "status": {
