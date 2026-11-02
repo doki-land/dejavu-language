@@ -50,40 +50,44 @@
                     <h2>{{ homeConformanceTitleLabel }}</h2>
                     <p class="conformance__lede">{{ homeConformanceLedeLabel }}</p>
                 </div>
-                <div class="conformance__rail" role="table" aria-label="Five hosts produce the same output bytes">
+                <div class="conformance__rail" role="table" aria-label="Four execution paths produce the same output bytes">
                     <div class="conformance__meta" role="row">
                         <span>{{ homeConformanceFixtureLabel }}</span>
                         <span>{{ homeConformanceExpectedLabel }}</span>
                     </div>
                     <div class="conformance__row" role="row">
                         <span class="conformance__host">ts</span>
-                        <span class="conformance__pkg">@doki-land/dejavu</span>
-                        <code class="conformance__bytes">&lt;h1&gt;Hello, Mira.&lt;/h1&gt;</code>
+                        <span class="conformance__pkg">@doki-land/dejavu · JIT</span>
+                        <code class="conformance__bytes">Hello, World!</code>
+                        <span class="conformance__diff"><i aria-hidden="true"></i>0</span>
+                    </div>
+                    <div class="conformance__row conformance__row--fold" role="row">
+                        <span class="conformance__host">aot</span>
+                        <span class="conformance__pkg">@doki-land/dejavu · AOT</span>
+                        <code class="conformance__bytes">Hello, World!</code>
+                        <span class="conformance__diff"><i aria-hidden="true"></i>0</span>
+                    </div>
+                    <div class="conformance__row conformance__row--fold" role="row">
+                        <span class="conformance__host">wasm</span>
+                        <span class="conformance__pkg">dejavu.wasm/0</span>
+                        <code class="conformance__bytes">Hello, World!</code>
                         <span class="conformance__diff"><i aria-hidden="true"></i>0</span>
                     </div>
                     <div class="conformance__row" role="row">
                         <span class="conformance__host">rs</span>
                         <span class="conformance__pkg">dejavu · crates.io</span>
-                        <code class="conformance__bytes">&lt;h1&gt;Hello, Mira.&lt;/h1&gt;</code>
+                        <code class="conformance__bytes">Hello, World!</code>
                         <span class="conformance__diff"><i aria-hidden="true"></i>0</span>
                     </div>
-                    <div class="conformance__row" role="row">
-                        <span class="conformance__host">py</span>
-                        <span class="conformance__pkg">dejavu · PyPI</span>
-                        <code class="conformance__bytes">&lt;h1&gt;Hello, Mira.&lt;/h1&gt;</code>
+                    <div class="conformance__rest" role="row">
+                        <span class="conformance__rest-hosts">{{ homeConformanceRestHostsLabel }}</span>
                         <span class="conformance__diff"><i aria-hidden="true"></i>0</span>
                     </div>
-                    <div class="conformance__row" role="row">
-                        <span class="conformance__host">net</span>
-                        <span class="conformance__pkg">Dejavu · NuGet</span>
-                        <code class="conformance__bytes">&lt;h1&gt;Hello, Mira.&lt;/h1&gt;</code>
-                        <span class="conformance__diff"><i aria-hidden="true"></i>0</span>
-                    </div>
-                    <div class="conformance__row" role="row">
-                        <span class="conformance__host">kt</span>
-                        <span class="conformance__pkg">dejavu · JVM</span>
-                        <code class="conformance__bytes">&lt;h1&gt;Hello, Mira.&lt;/h1&gt;</code>
-                        <span class="conformance__diff"><i aria-hidden="true"></i>0</span>
+                    <div class="conformance__row conformance__row--pending" role="row">
+                        <span class="conformance__host">py · net · kt</span>
+                        <span class="conformance__pkg">{{ homeConformancePendingLabel }}</span>
+                        <code class="conformance__bytes conformance__bytes--pending" aria-hidden="true">·</code>
+                        <span class="conformance__diff conformance__diff--pending">—</span>
                     </div>
                 </div>
                 <div class="conformance__foot">
@@ -182,6 +186,8 @@ import {
     homeConformanceLede,
     homeConformanceFixture,
     homeConformanceExpected,
+    homeConformancePending,
+    homeConformanceRestHosts,
     homeConformanceTally,
     homeContractEyebrow,
     homeContractTitle,
@@ -237,6 +243,8 @@ export default class Home {
     homeConformanceLedeLabel = "";
     homeConformanceFixtureLabel = "";
     homeConformanceExpectedLabel = "";
+    homeConformancePendingLabel = "";
+    homeConformanceRestHostsLabel = "";
     homeConformanceTallyLabel = "";
     homeContractEyebrowLabel = "";
     homeContractTitleLabel = "";
@@ -320,6 +328,8 @@ export default class Home {
         this.homeConformanceLedeLabel = homeConformanceLede();
         this.homeConformanceFixtureLabel = homeConformanceFixture();
         this.homeConformanceExpectedLabel = homeConformanceExpected();
+        this.homeConformancePendingLabel = homeConformancePending();
+        this.homeConformanceRestHostsLabel = homeConformanceRestHosts();
         this.homeConformanceTallyLabel = homeConformanceTally();
         this.homeContractEyebrowLabel = homeContractEyebrow();
         this.homeContractTitleLabel = homeContractTitle();
