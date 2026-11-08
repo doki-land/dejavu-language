@@ -8,6 +8,7 @@ pub mod native;
 pub mod normalize;
 pub mod registry;
 pub mod render;
+mod template_bridge;
 pub mod trim;
 pub mod types;
 
