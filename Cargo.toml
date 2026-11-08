@@ -17,7 +17,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "0.0.18"
+version = "0.0.19"
 authors = ["Yggdrasill Team <192607617@qq.com>"]
 edition = "2024"
 license = "MPL-2.0"
@@ -58,18 +58,18 @@ miette = "7"
 napi = { version = "3.12.1", default-features = true, features = ["napi4", "serde-json"] }
 napi-derive = "3.6.3"
 
-dejavu = { path = "projects/dejavu.rs/crates/dejavu", version = "0.0.18" }
-dejavu-runtime = { path = "projects/dejavu.rs/crates/dejavu-runtime", version = "0.0.18" }
-dejavu-engine = { path = "projects/dejavu.rs/crates/dejavu-engine", version = "0.0.18" }
-dejavu-types = { path = "projects/dejavu.rs/crates/dejavu-types", version = "0.0.18" }
-dejavu-config = { path = "projects/dejavu.rs/crates/dejavu-config", version = "0.0.18" }
-dejavu-macros = { path = "projects/dejavu.rs/crates/dejavu-macros", version = "0.0.18" }
-dejavu-ir = { path = "projects/dejavu.rs/crates/dejavu-ir", version = "0.0.18" }
-dejavu-language = { path = "projects/dejavu.rs/crates/dejavu-language", version = "0.0.18" }
-dejavu-diagnostic = { path = "projects/dejavu.rs/crates/dejavu-diagnostic", version = "0.0.18" }
-axum-dejavu = { path = "projects/dejavu.rs/examples/axum-dejavu", version = "0.0.18" }
-dejavu-codegen = { path = "projects/dejavu.rs/crates/dejavu-codegen", version = "0.0.18" }
-dejavu-wasm = { path = "projects/dejavu.rs/crates/dejavu-wasm", version = "0.0.18" }
+dejavu = { path = "projects/dejavu.rs/crates/dejavu", version = "0.0.19" }
+dejavu-runtime = { path = "projects/dejavu.rs/crates/dejavu-runtime", version = "0.0.19" }
+dejavu-engine = { path = "projects/dejavu.rs/crates/dejavu-engine", version = "0.0.19" }
+dejavu-types = { path = "projects/dejavu.rs/crates/dejavu-types", version = "0.0.19" }
+dejavu-config = { path = "projects/dejavu.rs/crates/dejavu-config", version = "0.0.19" }
+dejavu-macros = { path = "projects/dejavu.rs/crates/dejavu-macros", version = "0.0.19" }
+dejavu-ir = { path = "projects/dejavu.rs/crates/dejavu-ir", version = "0.0.19" }
+dejavu-language = { path = "projects/dejavu.rs/crates/dejavu-language", version = "0.0.19" }
+dejavu-diagnostic = { path = "projects/dejavu.rs/crates/dejavu-diagnostic", version = "0.0.19" }
+axum-dejavu = { path = "projects/dejavu.rs/examples/axum-dejavu", version = "0.0.19" }
+dejavu-codegen = { path = "projects/dejavu.rs/crates/dejavu-codegen", version = "0.0.19" }
+dejavu-wasm = { path = "projects/dejavu.rs/crates/dejavu-wasm", version = "0.0.19" }
 
 [profile.release]
 lto = true
