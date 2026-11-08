@@ -10,7 +10,7 @@
  * 2 = invalid argv (handled by commander itself).
  */
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { resolve, dirname, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -296,7 +296,12 @@ const invokedDirectly = (() => {
     try {
         const entry = process.argv[1];
         if (!entry) return false;
-        return fileURLToPath(import.meta.url) === resolve(entry);
+        // `process.argv[1]` keeps the path that was passed in, while
+        // `import.meta.url` is already realpathed. Compare the resolved real
+        // paths so an entry reached through a symlinked directory (macOS
+        // `/var` -> `/private/var`, `npm link`, junctioned checkouts) still
+        // runs the CLI instead of silently exiting 0.
+        return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(resolve(entry));
     } catch {
         return false;
     }
