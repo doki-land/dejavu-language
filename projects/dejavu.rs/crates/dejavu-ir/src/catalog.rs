@@ -1,14 +1,17 @@
-//! path-v1 模板引用解析与 catalog loader —— Rust 侧唯一实现。
+//! path-v1 模板引用解析与 catalog loader —— dejavu 的宿主边界。
 //!
-//! 宿主只提供文件内容与 roots 配置；scheme 判定、相对路径拼接、
-//! priority 排序、扩展名探测与 escape-root 拒绝都在这一个模块里完成。
-//! 旧 TypeScript loader 的语义按位移植，诊断改为稳定 `code` + 结构化 `args`。
+//! 引用分类、相对路径拼接、扩展名探测与根内命中判定由共享
+//! [`document_template::MapTemplateLoader`] 完成；本模块只保留多根优先级、
+//! 同优先级歧义拒绝、scheme 别名翻译与 dejavu 冻结诊断这些宿主策略。
 
 use std::collections::BTreeMap;
+
+use document_template::{TemplateId, codes as shared};
 
 use crate::{
     Diagnostic, IrDocument, IrError, Severity, Stage, codes,
     render::{ResolvedTemplate, TemplateLoader},
+    template_bridge::RootIndex,
 };
 
 /// 单个 root 内的 canonical 路径 → 已解析 IR。
@@ -127,14 +130,18 @@ pub fn resolve_ref(
         return Err(load_diag(codes::TEMPLATE_INVALID_REF, reference).arg("reason", "empty-ref"));
     }
 
+    let index = RootIndex::new(roots);
+    let ext: Vec<&str> = extensions.iter().map(String::as_str).collect();
+
     if let Some((scheme, path)) = split_scheme(raw) {
-        let Some(index) = root_by_scheme(roots, scheme)
+        let Some(root_index) = root_by_scheme(roots, scheme)
         else {
             return Err(load_diag(codes::TEMPLATE_UNKNOWN_SCHEME, reference).arg("scheme", scheme));
         };
-        return match probe_root(&roots[index], path, extensions) {
-            Some(path) => Ok(ResolveHit { root_index: index, path }),
-            None => Err(not_found(reference, None, vec![roots[index].name.clone()])),
+        // 共享合同只按 root `name` 认 scheme，别名在这里翻译成 `name:path`。
+        return match index.resolve(root_index, path, None, &ext) {
+            Ok(id) => Ok(ResolveHit { root_index, path: id.path().to_string() }),
+            Err(error) => Err(shared_or_missing(error, reference, None, vec![roots[root_index].name.clone()])),
         };
     }
 
@@ -149,13 +156,10 @@ pub fn resolve_ref(
                 .arg("reason", "non-canonical-from")
                 .arg("from", from));
         };
-        let Ok(joined) = join_posix(&dirname_posix(&from_path), raw)
-        else {
-            return Err(load_diag(codes::TEMPLATE_RELATIVE_ESCAPE_ROOT, reference).arg("from", from));
-        };
-        return match probe_root(&roots[from_index], &joined, extensions) {
-            Some(path) => Ok(ResolveHit { root_index: from_index, path }),
-            None => Err(not_found(reference, Some(from), vec![roots[from_index].name.clone()])),
+        let from_id = TemplateId::new(roots[from_index].name.clone(), from_path);
+        return match index.resolve(from_index, raw, Some(&from_id), &ext) {
+            Ok(id) => Ok(ResolveHit { root_index: from_index, path: id.path().to_string() }),
+            Err(error) => Err(shared_or_missing(error, reference, Some(from), vec![roots[from_index].name.clone()])),
         };
     }
 
@@ -165,17 +169,18 @@ pub fn resolve_ref(
     // Walk the roots priority-descending. Hits inside one priority level are
     // peers: more than one hit there is an ambiguity, never a silent order win.
     let mut searched: Vec<String> = Vec::new();
-    let mut index = 0;
-    while index < ranked.len() {
-        let priority = roots[ranked[index]].priority;
+    let mut index_at = 0;
+    while index_at < ranked.len() {
+        let priority = roots[ranked[index_at]].priority;
         let mut hits: Vec<(usize, String)> = Vec::new();
-        while index < ranked.len() && roots[ranked[index]].priority == priority {
-            let root_index = ranked[index];
+        while index_at < ranked.len() && roots[ranked[index_at]].priority == priority {
+            let root_index = ranked[index_at];
             searched.push(roots[root_index].name.clone());
-            if let Some(path) = probe_root(&roots[root_index], raw, extensions) {
-                hits.push((root_index, path));
+            // 单根 loader 的未命中是常态，只有 escape 这类共享失败需要上报。
+            if let Ok(id) = index.resolve(root_index, raw, None, &ext) {
+                hits.push((root_index, id.path().to_string()));
             }
-            index += 1;
+            index_at += 1;
         }
         match hits.len() {
             0 => continue,
@@ -238,6 +243,23 @@ fn not_found(reference: &str, from: Option<&str>, searched: Vec<String>) -> Diag
     diag
 }
 
+/// 共享 loader 的失败：escape 保留为冻结码，其余按「根内未命中」处理。
+fn shared_or_missing(
+    error: document_template::TemplateError,
+    reference: &str,
+    from: Option<&str>,
+    searched: Vec<String>,
+) -> Diagnostic {
+    if error.code() == shared::RELATIVE_ESCAPE_ROOT {
+        let mut diag = load_diag(codes::TEMPLATE_RELATIVE_ESCAPE_ROOT, reference);
+        if let Some(from) = from {
+            diag = diag.arg("from", from);
+        }
+        return diag;
+    }
+    not_found(reference, from, searched)
+}
+
 /// 同一 priority 下多个 root 命中同一 bare 引用：拒绝按 catalog 顺序静默取胜。
 fn ambiguous_ref(
     reference: &str,
@@ -295,22 +317,10 @@ fn parse_canonical_id(roots: &[ResolveRoot], id: &str) -> Option<(usize, String)
     Some((index, normalized))
 }
 
-fn probe_root(root: &ResolveRoot, path: &str, extensions: &[String]) -> Option<String> {
-    let normalized = posix_normalize(path).ok()?;
-    let has_known_ext = extensions.iter().any(|e| !e.is_empty() && normalized.ends_with(e.as_str()));
-    if has_known_ext {
-        return root.files.iter().any(|key| key == &normalized).then_some(normalized);
-    }
-    for ext in extensions {
-        let key = format!("{normalized}{ext}");
-        if root.files.iter().any(|known| known == &key) {
-            return Some(key);
-        }
-    }
-    None
-}
-
 /// POSIX 归一化；越出 root 时返回 `Err`。
+///
+/// 保留为 compat 薄函数：只用于 `from` 这类 canonical id 的校验与归一，
+/// 不参与引用解析（解析已交给共享 loader）。
 pub fn posix_normalize(path: &str) -> Result<String, ()> {
     let mut parts: Vec<&str> = Vec::new();
     let unified = path.replace('\\', "/");
@@ -327,18 +337,4 @@ pub fn posix_normalize(path: &str) -> Result<String, ()> {
         parts.push(segment);
     }
     Ok(parts.join("/"))
-}
-
-fn dirname_posix(path: &str) -> String {
-    match path.rfind('/') {
-        Some(index) => path[..index].to_string(),
-        None => String::new(),
-    }
-}
-
-fn join_posix(dir: &str, rel: &str) -> Result<String, ()> {
-    if dir.is_empty() {
-        return posix_normalize(rel);
-    }
-    posix_normalize(&format!("{dir}/{rel}"))
 }
