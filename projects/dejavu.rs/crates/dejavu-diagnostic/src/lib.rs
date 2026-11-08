@@ -383,6 +383,14 @@ pub mod codes {
     /// `caller()` arguments did not match the caller block's parameters.
     pub const CALLER_ARITY: &str = "dejavu.template.caller-arity";
     pub const UNKNOWN_BINARY: &str = "dejavu.template.unknown-binary";
+    /// 单模板源码超过共享预算 `max_source_bytes`。
+    pub const SOURCE_BUDGET: &str = "dejavu.template.source-budget";
+    /// 渲染输出超过共享预算 `max_output_bytes`。
+    pub const OUTPUT_BUDGET: &str = "dejavu.template.output-budget";
+    /// 节点求值超过共享预算 `max_steps`。
+    pub const STEP_BUDGET: &str = "dejavu.template.step-budget";
+    /// include 递归超过共享预算 `max_include_depth`。
+    pub const INCLUDE_DEPTH: &str = "dejavu.template.include-depth";
 
     // Config
     pub const CONFIG_READ_FAILED: &str = "dejavu.config.read-failed";

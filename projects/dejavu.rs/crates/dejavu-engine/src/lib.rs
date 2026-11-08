@@ -33,6 +33,7 @@ pub fn render(doc: &IrDocument, ctx: &Value) -> Result<String, IrError> {
 /// Parse failures are mapped into `IrError::Diagnostic` so callers get a
 /// single error surface — no need for a combined enum.
 pub fn render_source(source: &str, ctx: &Value) -> Result<String, IrError> {
+    dejavu_ir::check_source_budget(source, &dejavu_ir::RenderLimits::default()).map_err(IrError::from)?;
     let doc = parse(source).map_err(|e| IrError::from(parse_error_diagnostic(e)))?;
     dejavu_ir::render_ir(&doc, ctx)
 }

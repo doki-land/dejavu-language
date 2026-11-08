@@ -20,13 +20,14 @@ pub use native::{NativeExpr, NativeImportName, NativeKind, NativeNode, NativePar
 pub use normalize::normalize_value;
 pub use registry::{Capability, CapabilitySet, CustomEntry, Namespace, validate_custom_entries};
 pub use render::{
-    CustomError, CustomRegistry, RenderOptions, ResolvedTemplate, TemplateLoader, WarningSink, render_ir, render_ir_opts,
-    render_ir_with_loader,
+    CustomError, CustomRegistry, RenderOptions, ResolvedTemplate, TemplateLoader, WarningSink, check_source_budget, render_ir,
+    render_ir_opts, render_ir_with_loader,
 };
 pub use trim::{level_of, normalized_children, trim_prefix, trim_suffix};
 pub use types::{IR_VERSION, IrDocument, IrNode, Language, TemplateConfig, default_language};
 
 pub use dejavu_diagnostic::{ArgValue, Diagnostic, RelatedSpan, Severity, Span, Stage, codes};
+pub use document_template::RenderLimits;
 
 use serde_json::Value;
 

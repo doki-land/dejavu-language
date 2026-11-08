@@ -279,6 +279,9 @@ pub fn parse_ir(request: ParseRequest) -> IrResponse {
         .and_then(|s| serde_json::from_str::<dejavu_ir::Language>(s).ok())
         .unwrap_or_else(dejavu_ir::default_language);
     let file = request.file.as_deref().unwrap_or("template.dejavu");
+    if let Err(diagnostic) = dejavu_ir::check_source_budget(&request.source, &dejavu_ir::RenderLimits::default()) {
+        return IrResponse { ir: None, diagnostics: vec![to_js(&diagnostic)] };
+    }
     let parsed = dejavu_language::parse_with(&request.source, file, &language);
 
     match parsed {
@@ -343,6 +346,9 @@ pub fn render_source_api(env: Env, request: RenderSourceRequest, registry: Optio
         .and_then(|raw| serde_json::from_str::<RenderOptionsWire>(raw).ok())
         .and_then(|wire| wire.name)
         .unwrap_or_else(|| "template.dejavu".into());
+    if let Err(diagnostic) = dejavu_ir::check_source_budget(&request.source, &dejavu_ir::RenderLimits::default()) {
+        return RenderResponse { output: None, diagnostics: vec![to_js(&diagnostic)] };
+    }
     let document = dejavu_language::parse_with(&request.source, &file, &language);
     let document = match document {
         Ok(document) => document,
@@ -638,7 +644,14 @@ fn render_document(
     };
     let warnings = WarningSink::new();
     let options =
-        RenderOptions { strict_undefined: wire.strict, name: wire.name, capabilities, custom, warnings: Some(&warnings) };
+        RenderOptions {
+            strict_undefined: wire.strict,
+            name: wire.name,
+            capabilities,
+            custom,
+            warnings: Some(&warnings),
+            limits: dejavu_ir::RenderLimits::default(),
+        };
     let mut loader_state = catalog_state.as_ref().map(dejavu_ir::CatalogLoader::new);
     let loader: Option<&mut dyn TemplateLoader> = match loader_state.as_mut() {
         Some(loader) => Some(loader),

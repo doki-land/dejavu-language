@@ -51,6 +51,7 @@ impl Dejavu {
 
     /// Parse then render with explicit Language config (custom delimiters).
     pub fn render_source_with(source: &str, ctx: &serde_json::Value, language: &Language) -> Result<String, IrError> {
+        dejavu_ir::check_source_budget(source, &dejavu_ir::RenderLimits::default()).map_err(IrError::from)?;
         let doc = Self::parse_with(source, language).map_err(|e| IrError::from(parse_error_diagnostic(e)))?;
         render(&doc, ctx)
     }

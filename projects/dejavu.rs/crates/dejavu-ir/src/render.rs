@@ -1,3 +1,5 @@
+use document_template::{RenderBudget, RenderLimits};
+
 use crate::{
     Diagnostic, IrError, Severity, Stage, codes, diag_load, diag_render,
     registry::{Capability, CapabilitySet, CustomEntry, FilterLookupError, Namespace, custom_entry, validate_filter},
@@ -116,11 +118,20 @@ pub struct RenderOptions<'a> {
     pub custom: Option<&'a dyn CustomRegistry>,
     /// 非致命警告收集通道；缺省（`None`）时警告直接丢弃。
     pub warnings: Option<&'a WarningSink>,
+    /// 共享合同的渲染预算；默认取 `RenderLimits::default()`。
+    pub limits: RenderLimits,
 }
 
 impl Default for RenderOptions<'_> {
     fn default() -> Self {
-        Self { strict_undefined: false, name: None, capabilities: CapabilitySet::all(), custom: None, warnings: None }
+        Self {
+            strict_undefined: false,
+            name: None,
+            capabilities: CapabilitySet::all(),
+            custom: None,
+            warnings: None,
+            limits: RenderLimits::default(),
+        }
     }
 }
 
@@ -172,6 +183,7 @@ pub fn render_ir_opts<'a>(
         crate::registry::validate_custom_entries(custom.entries())?;
     }
     let default_id = opts.name.clone().unwrap_or_else(|| "<main>".into());
+    let budget = RenderBudget::new(opts.limits);
     let mut r = Renderer {
         scope,
         loader,
@@ -191,8 +203,25 @@ pub fn render_ir_opts<'a>(
         partial_depth: 0,
         resolved: HashMap::new(),
         control: None,
+        budget,
     };
-    r.render_doc(doc)
+    let text = r.render_doc(doc)?;
+    let output_limit = r.budget.limits().max_output_bytes;
+    let mut out = String::new();
+    r.budget
+        .write(&mut out, &text)
+        .map_err(|_| diag_render(codes::OUTPUT_BUDGET).arg("limit", output_limit as i64))?;
+    Ok(out)
+}
+
+/// 校验单模板源码是否在共享 `RenderLimits` 的源上限内。
+///
+/// IR 渲染路径拿不到源文本，源预算在解析入口由宿主调用本函数。
+pub fn check_source_budget(source: &str, limits: &RenderLimits) -> Result<(), Diagnostic> {
+    let budget = RenderBudget::new(*limits);
+    budget
+        .source(source)
+        .map_err(|_| Diagnostic::new(Severity::Error, codes::SOURCE_BUDGET, Stage::Load).arg("limit", limits.max_source_bytes as i64))
 }
 
 // ---------------------------------------------------------------------------
@@ -229,6 +258,8 @@ struct Renderer<'a> {
     include_stack: Vec<String>,
     /// 当前已经进入的 partial 层数（`dejavu.template.partial-recursion` 依据）。
     partial_depth: usize,
+    /// 共享合同的单次渲染预算。
+    budget: RenderBudget,
     /// 本次渲染内 `(ref, from)` → 已解析模板。
     ///
     /// Key 包含调用方 canonical id，因为相对路径解析依赖它。缓存只在单次
@@ -590,6 +621,12 @@ impl<'a> Renderer<'a> {
             None => None,
         };
 
+        // 共享合同的 include 深度上限。
+        let max_include_depth = self.budget.limits().max_include_depth;
+        if self.include_stack.len() as u32 >= max_include_depth {
+            return Err(diag_load(codes::INCLUDE_DEPTH).arg("limit", max_include_depth as i64));
+        }
+
         // include 循环栈（canonical id 栈 — 能覆盖 A include B include A 的双向环）
         self.include_stack.push(child.id.clone());
         if partial.is_some() {
@@ -638,7 +675,14 @@ impl<'a> Renderer<'a> {
         out
     }
 
+    /// 记一次节点求值，超过共享预算的步数上限即拒绝。
+    fn step(&mut self) -> Result<(), IrError> {
+        let limit = self.budget.limits().max_steps;
+        self.budget.step().map_err(|_| diag_render(codes::STEP_BUDGET).arg("limit", limit as i64))
+    }
+
     fn render_nodes(&mut self, node: &IrNode) -> Result<String, IrError> {
+        self.step()?;
         match node {
             IrNode::Template { children, .. } => self.render_list(children),
             IrNode::Text { value, .. } => Ok(value.clone()),
