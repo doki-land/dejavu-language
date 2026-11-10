@@ -44,7 +44,7 @@ glob = "0.3.1"
 boost-fs = { git = "https://github.com/oovm/rust-boost", rev = "7ba022a049cafef979dfe7a8adf81d9a0d3dd373" }
 # Shared template contract from `document.rs`; the rev pin keeps CI reproducible
 # because CI checks out only this repository.
-document-template = { git = "https://github.com/notedge/document.rs", rev = "b40af079d156fab91291df48bbe5f12ac5fd36a4" }
+document-template = { git = "https://github.com/notedge/document.rs", rev = "1ceec08b7504b0628f1a36232418e67bf80321d8" }
 fluent = "0.16.0"
 fluent-syntax = "0.11.0"
 fluent-bundle = "0.15.0"

@@ -2,7 +2,7 @@
 
 use dejavu_ir::{
     Diagnostic, TemplateCatalog,
-    catalog::{ResolveRoot, posix_normalize, resolve_ref},
+    catalog::{ResolveRoot, resolve_ref},
     codes,
 };
 
@@ -102,9 +102,19 @@ fn empty_ref_is_invalid() {
 }
 
 #[test]
-fn posix_normalize_rejects_escape() {
-    assert_eq!(posix_normalize("a/./b/../c"), Ok("a/c".to_string()));
-    assert_eq!(posix_normalize("../a"), Err(()));
+fn relative_ref_with_non_canonical_from_is_rejected() {
+    let roots = vec![root("pages", "pages", 0, &["a/shared.dejavu"])];
+    let err = resolve_ref(&roots, &extensions(), "../shared", Some("pages:a/../b")).unwrap_err();
+    assert_eq!(err.code, codes::TEMPLATE_INVALID_REF);
+    assert_eq!(err.args.get("reason").cloned(), Some("non-canonical-from".into()));
+}
+
+#[test]
+fn relative_ref_accepts_scheme_aliased_from_prefix() {
+    let roots = vec![root("pages", "pg", 0, &["a/b/child.dejavu", "a/shared.dejavu"])];
+    let hit = resolve_ref(&roots, &extensions(), "../shared", Some("pg:a/b/child.dejavu")).unwrap();
+    assert_eq!(hit.root_index, 0);
+    assert_eq!(hit.path, "a/shared.dejavu");
 }
 
 #[test]

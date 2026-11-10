@@ -6,7 +6,7 @@
 
 use std::collections::BTreeMap;
 
-use document_template::{TemplateId, codes as shared};
+use document_template::{TemplateId, codes as shared, split_scheme};
 
 use crate::{
     Diagnostic, IrDocument, IrError, Severity, Stage, codes,
@@ -138,7 +138,7 @@ pub fn resolve_ref(
         else {
             return Err(load_diag(codes::TEMPLATE_UNKNOWN_SCHEME, reference).arg("scheme", scheme));
         };
-        // 共享合同只按 root `name` 认 scheme，别名在这里翻译成 `name:path`。
+        // scheme 头分类用共享 `split_scheme`，scheme 到 root 的映射属于多根策略，留在宿主。
         return match index.resolve(root_index, path, None, &ext) {
             Ok(id) => Ok(ResolveHit { root_index, path: id.path().to_string() }),
             Err(error) => Err(shared_or_missing(error, reference, None, vec![roots[root_index].name.clone()])),
@@ -150,13 +150,20 @@ pub fn resolve_ref(
         else {
             return Err(load_diag(codes::TEMPLATE_RELATIVE_WITHOUT_FROM, reference));
         };
-        let Some((from_index, from_path)) = parse_canonical_id(roots, from)
-        else {
-            return Err(load_diag(codes::TEMPLATE_INVALID_REF, reference)
+        let non_canonical_from = || {
+            load_diag(codes::TEMPLATE_INVALID_REF, reference)
                 .arg("reason", "non-canonical-from")
-                .arg("from", from));
+                .arg("from", from)
         };
-        let from_id = TemplateId::new(roots[from_index].name.clone(), from_path);
+        // 规范形判定由共享合同完成，宿主只把 id 前缀映射到 root 下标。
+        let Ok(parsed) = TemplateId::parse(from) else {
+            return Err(non_canonical_from());
+        };
+        let Some(from_index) = root_by_name(roots, parsed.root()).or_else(|| root_by_scheme(roots, parsed.root()))
+        else {
+            return Err(non_canonical_from());
+        };
+        let from_id = TemplateId::new(roots[from_index].name.clone(), parsed.path().to_string());
         return match index.resolve(from_index, raw, Some(&from_id), &ext) {
             Ok(id) => Ok(ResolveHit { root_index: from_index, path: id.path().to_string() }),
             Err(error) => Err(shared_or_missing(error, reference, Some(from), vec![roots[from_index].name.clone()])),
@@ -287,21 +294,6 @@ fn ambiguous_ref(
     diag
 }
 
-/// `^([A-Za-z][A-Za-z0-9_+-]*):(.*)$`
-fn split_scheme(raw: &str) -> Option<(&str, &str)> {
-    let index = raw.find(':')?;
-    let (scheme, rest) = raw.split_at(index);
-    let mut chars = scheme.chars();
-    let first = chars.next()?;
-    if !first.is_ascii_alphabetic() {
-        return None;
-    }
-    if !chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '+' || c == '-') {
-        return None;
-    }
-    Some((scheme, &rest[1..]))
-}
-
 fn root_by_scheme(roots: &[ResolveRoot], scheme: &str) -> Option<usize> {
     roots.iter().rposition(|r| r.scheme == scheme)
 }
@@ -310,31 +302,3 @@ fn root_by_name(roots: &[ResolveRoot], name: &str) -> Option<usize> {
     roots.iter().rposition(|r| r.name == name)
 }
 
-fn parse_canonical_id(roots: &[ResolveRoot], id: &str) -> Option<(usize, String)> {
-    let (name, path) = split_scheme(id)?;
-    let index = root_by_name(roots, name).or_else(|| root_by_scheme(roots, name))?;
-    let normalized = posix_normalize(path).ok()?;
-    Some((index, normalized))
-}
-
-/// POSIX 归一化；越出 root 时返回 `Err`。
-///
-/// 保留为 compat 薄函数：只用于 `from` 这类 canonical id 的校验与归一，
-/// 不参与引用解析（解析已交给共享 loader）。
-pub fn posix_normalize(path: &str) -> Result<String, ()> {
-    let mut parts: Vec<&str> = Vec::new();
-    let unified = path.replace('\\', "/");
-    for segment in unified.split('/') {
-        if segment.is_empty() || segment == "." {
-            continue;
-        }
-        if segment == ".." {
-            if parts.pop().is_none() {
-                return Err(());
-            }
-            continue;
-        }
-        parts.push(segment);
-    }
-    Ok(parts.join("/"))
-}
