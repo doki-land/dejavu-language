@@ -9,11 +9,10 @@ repository.workspace = true
 publish = false
 
 [dependencies]
-dejavu-ir = { workspace = true }
-dejavu-diagnostic = { workspace = true }
-serde = { workspace = true }
+template-input-dejavu-codegen = { workspace = true }
 serde_json = { workspace = true }
-once_cell = { workspace = true }
 
 [dev-dependencies]
 dejavu-language = { workspace = true }
+dejavu-ir = { workspace = true }
+dejavu-diagnostic = { workspace = true }

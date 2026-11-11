@@ -10,11 +10,7 @@ exclude = ["/tests/*"]
 edition.workspace = true
 
 [dependencies]
-serde = { workspace = true, features = ["derive"] }
-toml = { workspace = true }
-toml_edit = { workspace = true }
-figment = { workspace = true, features = ["toml", "env"] }
-dejavu-types = { workspace = true }
+template-input-dejavu-config = { workspace = true }
 
 [dev-dependencies]
 boost-fs.workspace = true

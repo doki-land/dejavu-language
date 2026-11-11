@@ -12,13 +12,8 @@ autotests = false
 autobenches = false
 
 [dependencies]
-serde = { workspace = true }
+template-input-dejavu-types = { workspace = true }
 serde_json = { workspace = true }
-fluent = { workspace = true }
-fluent-syntax = { workspace = true }
-fluent-bundle = { workspace = true }
-unic-langid = { workspace = true }
-lru = { workspace = true }
 
 [features]
 default = []

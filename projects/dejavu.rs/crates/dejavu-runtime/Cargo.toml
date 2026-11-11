@@ -11,6 +11,7 @@ edition.workspace = true
 name = "dejavu_runtime"
 
 [dependencies]
+template-input-dejavu-runtime = { workspace = true }
 
 [features]
 default = []

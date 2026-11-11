@@ -1,15 +1,5 @@
-//! Dejavu core types: values, errors, i18n — no Oak.
+//! 兼容再导出：Dejavu 值、错误与 i18n 类型现由 `template.input.dejavu.types` 提供。
 //!
-//! Parsing lives in `dejavu-language`; IR lives in `dejavu-ir`.
+//! 本仓不再维护第二份定义；对外名称保持不变。
 
-#![deny(missing_docs)]
-
-pub mod errors;
-pub mod i18n;
-pub mod types;
-pub mod values;
-
-pub use errors::{CompileError, DejavuError, DejavuResult, RuntimeError};
-pub use i18n::{SimpleTranslator, TranslationData, TranslationProvider};
-pub use types::*;
-pub use values::{Context, IntoValue, Value};
+pub use template_input_dejavu_types::*;

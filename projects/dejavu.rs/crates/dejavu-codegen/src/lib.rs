@@ -1,27 +1,5 @@
-//! Dejavu AOT codegen: IR → ESM JavaScript.
+//! 兼容再导出：Dejavu AOT codegen 现由 `template.input.dejavu.codegen` 提供。
 //!
-//! This crate is the upstream codegen stage that produces a JS module
-//! consumable by `@doki-land/dejavu-engine/runtime`.
-//!
-//! # Scope
-//!
-//! * One template IR → one ESM module (`precompile_single`), or a whole
-//!   catalog of templates → multiple ESM modules plus a manifest
-//!   (`precompile_catalog`).
-//! * Text / Interpolation / If / ElseIf / For / Expr(Literal, Identifier,
-//!   Member, Index, Binary, Unary, Pipe)
-//! * `ExprCall` → compile-stage diagnostic + syntactic fallback
-//! * `Stmt.Block` / `Stmt.Extends` / `Stmt.Include` / `Stmt.Super` → handled
-//!   at build time in catalog mode; fall back to a compile diagnostic in
-//!   single-template mode
-//! * Line origins: every emitted construct reports the generated line it starts
-//!   on plus its template span, so hosts can build real source maps
+//! 对外名称、诊断码与生成结果保持不变。
 
-pub mod catalog;
-pub mod codegen;
-pub mod emit;
-pub mod options;
-
-pub use codegen::{GeneratedModule, PrecompileCatalogResult, PrecompileResult, precompile_catalog, precompile_single};
-pub use emit::LineOrigin;
-pub use options::CodegenOptions;
+pub use template_input_dejavu_codegen::*;
