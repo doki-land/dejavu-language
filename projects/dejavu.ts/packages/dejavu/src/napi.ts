@@ -24,8 +24,11 @@ import type {
     PrecompileOptions,
     PrecompileResult,
     RenderOptions,
+    RenderTemplateRequest,
+    RenderTemplateResult,
     Severity,
     Span,
+    TemplateCapability,
     TemplateContext,
     TemplateContext as _TemplateContext,
 } from "./types.js";
@@ -90,6 +93,34 @@ type NativeEngine = {
         diagnostics: NativeDiagnostic[];
         entryId: string;
     };
+    templateCapabilities(): NativeTemplateCapability[];
+    renderTemplate(request: {
+        engine: string;
+        source: string;
+        entry?: string;
+        data: unknown;
+        strictUndefined?: boolean;
+        catalog?: Array<{
+            name: string;
+            scheme?: string;
+            priority?: number;
+            files: Array<{ path: string; source: string }>;
+        }>;
+    }): {
+        text?: string | null;
+        content?: string | null;
+        dependencies: string[];
+        diagnostics: NativeDiagnostic[];
+    };
+};
+
+/** `templateCapabilities()` wire shape; mirrors `TemplateCapabilityJs`. */
+type NativeTemplateCapability = {
+    id: string;
+    status: string;
+    content: string;
+    extensions: string[];
+    contract: string;
 };
 
 type NativeSpan = { start: number; end: number };
@@ -384,6 +415,39 @@ export function precompileCatalog(
 /** Binding contract reported by the loaded addon. */
 export function bindingContractVersion(): string {
     return loadNative().bindingContractVersion();
+}
+
+/** Input engines this binding exposes through the shared template contract. */
+export function templateCapabilities(): TemplateCapability[] {
+    return loadNative()
+        .templateCapabilities()
+        .map((capability) => ({
+            id: capability.id,
+            status: capability.status,
+            content: capability.content,
+            extensions: [...capability.extensions],
+            contract: capability.contract,
+        }));
+}
+
+/** Render one template through the shared `template.render/v0` envelope. */
+export function renderTemplate(request: RenderTemplateRequest): RenderTemplateResult {
+    const response = loadNative().renderTemplate({
+        engine: request.engine,
+        source: request.source,
+        ...(request.entry !== undefined ? { entry: request.entry } : {}),
+        data: request.data,
+        ...(request.strictUndefined !== undefined
+            ? { strictUndefined: request.strictUndefined }
+            : {}),
+        ...(request.catalog !== undefined ? { catalog: request.catalog } : {}),
+    });
+    return {
+        text: response.text ?? undefined,
+        content: response.content ?? undefined,
+        dependencies: [...response.dependencies],
+        diagnostics: response.diagnostics.map(translateDiagnostic),
+    };
 }
 
 // ---------------------------------------------------------------------------

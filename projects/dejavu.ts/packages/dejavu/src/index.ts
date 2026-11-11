@@ -24,6 +24,8 @@ import {
     precompileCatalog as nativePrecompileCatalog,
     resolveTemplateRef as nativeResolveTemplateRef,
     bindingContractVersion as nativeBindingContractVersion,
+    templateCapabilities as nativeTemplateCapabilities,
+    renderTemplate as nativeRenderTemplate,
 } from "./napi.js";
 import {
     Template,
@@ -38,8 +40,11 @@ import type {
     PrecompileOptions,
     PrecompileResult,
     RenderOptions,
+    RenderTemplateRequest,
+    RenderTemplateResult,
     ResolveTemplateRefRequest,
     ResolveTemplateRefResult,
+    TemplateCapability,
     TemplateContext,
 } from "./types.js";
 
@@ -68,10 +73,15 @@ export type {
     ParseOptions,
     RelatedSpan,
     RenderOptions,
+    RenderTemplateRequest,
+    RenderTemplateResult,
     ResolveTemplateRefRequest,
     ResolveTemplateRefResult,
     Severity,
     Span,
+    TemplateCapability,
+    TemplateFileInput,
+    TemplateRootInput,
     TemplateContext,
 } from "./types.js";
 
@@ -299,6 +309,24 @@ export function resolveTemplateRef(
 /** Binding contract reported by the loaded native addon. */
 export function bindingContractVersion(): string {
     return nativeBindingContractVersion();
+}
+
+/**
+ * Input engines this build exposes through the shared template contract.
+ */
+export function templateCapabilities(): TemplateCapability[] {
+    return nativeTemplateCapabilities();
+}
+
+/**
+ * Render through the shared `template.render/v0` envelope.
+ *
+ * Unlike `render()`, this takes a typed request (data object, optional
+ * in-memory catalog) and returns the output plus every diagnostic instead of
+ * throwing on error-severity diagnostics.
+ */
+export function renderTemplate(request: RenderTemplateRequest): RenderTemplateResult {
+    return nativeRenderTemplate(request);
 }
 
 // ---------------------------------------------------------------------------

@@ -292,3 +292,69 @@ export type PrecompileCatalogResult = {
     /** Placeholder: source map JSON (NOT YET PRODUCED). */
     sourceMap?: string;
 };
+
+// ---------------------------------------------------------------------------
+// Template contract (`template.render/v0`)
+// ---------------------------------------------------------------------------
+
+/** One input-engine capability reported by `templateCapabilities()`. */
+export type TemplateCapability = {
+    /** Engine id, e.g. `dejavu`. */
+    id: string;
+    /** `ready` / `partial`. */
+    status: string;
+    /** Output content type, `html` / `text`. */
+    content: string;
+    /** Extensions this engine claims. */
+    extensions: string[];
+    /** Engine contract version, e.g. `dejavu/v0`. */
+    contract: string;
+};
+
+/** One template file inside a `renderTemplate` catalog root. */
+export type TemplateFileInput = {
+    /** Canonical path inside the root. */
+    path: string;
+    /** Template source text. */
+    source: string;
+};
+
+/** One catalog root for `renderTemplate`. */
+export type TemplateRootInput = {
+    /** Root name, which is also the default scheme. */
+    name: string;
+    /** Explicit scheme, defaults to `name`. */
+    scheme?: string;
+    /** Priority, higher wins. */
+    priority?: number;
+    /** Every file inside the root. */
+    files: TemplateFileInput[];
+};
+
+/** `template.render/v0` request envelope. */
+export type RenderTemplateRequest = {
+    /** Target engine id. */
+    engine: string;
+    /** Entry template source. */
+    source: string;
+    /** Entry canonical id (`root:path`), required for relative references. */
+    entry?: string;
+    /** Render data. */
+    data: TemplateContext;
+    /** Upgrade missing names and members to errors. */
+    strictUndefined?: boolean;
+    /** Catalog roots. */
+    catalog?: TemplateRootInput[];
+};
+
+/** `template.render/v0` response envelope. */
+export type RenderTemplateResult = {
+    /** Output text on success. */
+    text?: string;
+    /** Output content type, `html` / `text`. */
+    content?: string;
+    /** Canonical ids resolved during this render. */
+    dependencies: string[];
+    /** All diagnostics. */
+    diagnostics: Diagnostic[];
+};
