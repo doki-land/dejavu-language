@@ -11,8 +11,7 @@ description = "Dejavu structured diagnostic contract — language-neutral wire t
 # 纯数据合同：不依赖 miette / thiserror / 任何宿主适配层。
 # 宿主（Rust CLI / Node CLI / Axum / Doki）各自实现展示适配。
 [dependencies]
-serde = { workspace = true }
-serde_json = { workspace = true }
+document-template-input-dejavu = { workspace = true }
 
 [features]
 default = []

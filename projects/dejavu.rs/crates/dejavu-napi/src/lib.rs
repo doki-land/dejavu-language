@@ -14,6 +14,7 @@
 
 use std::collections::BTreeMap;
 
+use boost_diagnostic::MessageArg;
 use dejavu_diagnostic::{Diagnostic, Severity, Stage, codes};
 use dejavu_ir::{
     CatalogRoot, CustomError, CustomRegistry, IrDocument, IrError, RenderOptions, ResolveRoot, TemplateCatalog, TemplateLoader,
@@ -21,6 +22,11 @@ use dejavu_ir::{
     registry::{CapabilitySet, CustomEntry, Namespace},
     render_ir_opts, resolve_ref,
 };
+use document_template::{
+    MapTemplateLoader, RenderOptions as SharedRenderOptions, RenderRequest as SharedRenderRequest, TemplateEngine,
+    TemplateError, TemplateId, TemplateRoot,
+};
+use document_template_input_dejavu::DejavuEngine;
 use napi::bindgen_prelude::{Env, FnArgs, Function, Object, Unknown};
 use napi_derive::napi;
 use serde::Deserialize;
@@ -757,5 +763,226 @@ fn stage_name(stage: Stage) -> &'static str {
         Stage::Compile => "compile",
         Stage::Config => "config",
         Stage::Host => "host",
+    }
+}
+
+// ---------------------------------------------------------------------------
+// `template` 合同导出（§8：templateCapabilities / renderTemplate）
+// ---------------------------------------------------------------------------
+
+/// Code returned when `renderTemplate` names an engine this binding does not expose.
+const TEMPLATE_UNKNOWN_ENGINE: &str = "template.unknown-engine";
+
+/// Catalog 文件：路径 + 模板源码。
+#[napi(object)]
+pub struct TemplateFileInput {
+    /// root 内的 canonical 相对路径。
+    pub path: String,
+    /// 模板源码文本。
+    pub source: String,
+}
+
+/// `renderTemplate` 的 catalog root。
+#[napi(object)]
+pub struct TemplateRootInput {
+    /// root 名称，同时是默认 scheme。
+    pub name: String,
+    /// 显式 scheme，缺省等于 `name`。
+    pub scheme: Option<String>,
+    /// 优先级，越大越先命中。
+    pub priority: Option<u32>,
+    /// root 内全部文件。
+    pub files: Vec<TemplateFileInput>,
+}
+
+/// 一个输入引擎的能力声明。
+#[napi(object)]
+pub struct TemplateCapabilityJs {
+    /// 引擎 id（`dejavu`）。
+    pub id: String,
+    /// `ready` / `partial`。
+    pub status: String,
+    /// `html` / `text`。
+    pub content: String,
+    /// 扩展名探测表。
+    pub extensions: Vec<String>,
+    /// 引擎合同版本（`dejavu/v0`）。
+    pub contract: String,
+}
+
+/// `renderTemplate` 请求（`template.render/v0` 信封）。
+#[napi(object)]
+pub struct RenderTemplateRequest {
+    /// 目标引擎 id。
+    pub engine: String,
+    /// 入口模板源码。
+    pub source: String,
+    /// 入口 canonical id（`root:path`），相对引用需要它。
+    pub entry: Option<String>,
+    /// 渲染数据。
+    pub data: Value,
+    /// 缺失名与成员是否升级为错误。
+    pub strict_undefined: Option<bool>,
+    /// catalog roots。
+    pub catalog: Option<Vec<TemplateRootInput>>,
+}
+
+/// `renderTemplate` 响应。
+#[napi(object)]
+pub struct RenderTemplateResponse {
+    /// 成功时的输出文本。
+    pub text: Option<String>,
+    /// 输出内容类型（`html` / `text`）。
+    pub content: Option<String>,
+    /// 本次渲染解析到的全部 canonical id。
+    pub dependencies: Vec<String>,
+    /// 全部诊断。
+    pub diagnostics: Vec<JsDiagnostic>,
+}
+
+/// 返回本绑定暴露的模板输入引擎能力。
+#[napi(js_name = "templateCapabilities")]
+pub fn template_capabilities() -> Vec<TemplateCapabilityJs> {
+    let engine = DejavuEngine;
+    let capability = engine.capability();
+    vec![TemplateCapabilityJs {
+        id: capability.id.to_string(),
+        status: status_name(capability.status),
+        content: content_name(capability.content),
+        extensions: capability.extensions.iter().map(|extension| (*extension).to_string()).collect(),
+        contract: capability.contract.to_string(),
+    }]
+}
+
+/// 按共享 `template` 合同渲染一个模板源。
+#[napi(js_name = "renderTemplate")]
+pub fn render_template_api(request: RenderTemplateRequest) -> RenderTemplateResponse {
+    if request.engine != DejavuEngine.id() {
+        return RenderTemplateResponse {
+            text: None,
+            content: None,
+            dependencies: Vec::new(),
+            diagnostics: vec![template_diagnostic(
+                TEMPLATE_UNKNOWN_ENGINE,
+                format!("unknown template engine `{}`", request.engine),
+                None,
+            )],
+        };
+    }
+
+    let entry = match request.entry.as_deref() {
+        Some(raw) => match TemplateId::parse(raw) {
+            Ok(id) => Some(id),
+            Err(error) => return template_failure(&error),
+        },
+        None => None,
+    };
+
+    let mut loader = MapTemplateLoader::new();
+    for root in request.catalog.unwrap_or_default() {
+        let mut template_root = TemplateRoot::new(root.name, u16::try_from(root.priority.unwrap_or(0)).unwrap_or(u16::MAX));
+        if let Some(scheme) = root.scheme {
+            template_root = template_root.with_scheme(scheme);
+        }
+        for file in root.files {
+            template_root = template_root.with_file(file.path, file.source);
+        }
+        loader = loader.with_root(template_root);
+    }
+
+    let options = SharedRenderOptions { strict_undefined: request.strict_undefined.unwrap_or(false), ..SharedRenderOptions::default() };
+    match DejavuEngine.render(&SharedRenderRequest {
+        source: &request.source,
+        entry: entry.as_ref(),
+        loader: &loader,
+        data: &request.data,
+        options: &options,
+    }) {
+        Ok(output) => RenderTemplateResponse {
+            text: Some(output.text),
+            content: Some(content_name(DejavuEngine.capability().content)),
+            dependencies: output.dependencies.iter().map(ToString::to_string).collect(),
+            diagnostics: Vec::new(),
+        },
+        Err(error) => template_failure(&error),
+    }
+}
+
+fn template_failure(error: &TemplateError) -> RenderTemplateResponse {
+    let diagnostics = error
+        .diagnostics()
+        .iter()
+        .map(|diagnostic| {
+            let mut args = serde_json::Map::new();
+            for (name, value) in diagnostic.message().args() {
+                args.insert(name.clone(), message_arg_json(value));
+            }
+            let message = diagnostic
+                .message()
+                .fallback()
+                .unwrap_or_else(|| diagnostic.code().as_str())
+                .to_string();
+            JsDiagnostic {
+                code: diagnostic.code().as_str().to_string(),
+                severity: "error".to_string(),
+                stage: "render".to_string(),
+                message,
+                path: None,
+                template_id: None,
+                span: None,
+                args_json: serde_json::to_string(&args).unwrap_or_else(|_| "{}".to_string()),
+                related: Vec::new(),
+            }
+        })
+        .collect::<Vec<_>>();
+    RenderTemplateResponse {
+        text: None,
+        content: None,
+        dependencies: Vec::new(),
+        diagnostics: if diagnostics.is_empty() {
+            vec![template_diagnostic(error.code(), error.code().to_string(), None)]
+        }
+        else {
+            diagnostics
+        },
+    }
+}
+
+fn template_diagnostic(code: &str, message: String, path: Option<String>) -> JsDiagnostic {
+    JsDiagnostic {
+        code: code.to_string(),
+        severity: "error".to_string(),
+        stage: "render".to_string(),
+        message,
+        path,
+        template_id: None,
+        span: None,
+        args_json: "{}".to_string(),
+        related: Vec::new(),
+    }
+}
+
+fn message_arg_json(value: &MessageArg) -> Value {
+    match value {
+        MessageArg::Bool(value) => Value::Bool(*value),
+        MessageArg::I64(value) => Value::Number((*value).into()),
+        MessageArg::U64(value) => Value::String(value.to_string()),
+        MessageArg::Text(value) => Value::String(value.clone()),
+        MessageArg::TextList(values) => Value::Array(values.iter().cloned().map(Value::String).collect()),
+        other => Value::String(format!("{other:?}")),
+    }
+}
+
+fn status_name(status: document_template::TemplateStatus) -> String {
+    match status {
+        document_template::TemplateStatus::Ready => "ready".to_string(),
+        document_template::TemplateStatus::Partial => "partial".to_string(),
+    }
+}
+
+fn content_name(content: document_template::TemplateContentKind) -> String {
+    match content {
+        document_template::TemplateContentKind::Html => "html".to_string(),
+        document_template::TemplateContentKind::Text => "text".to_string(),
     }
 }

@@ -10,9 +10,10 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-dejavu-ir = { workspace = true }
-dejavu-diagnostic = { workspace = true }
-serde_json = { workspace = true }
+document-template-input-dejavu = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = "1"
+dejavu-ir = { workspace = true }
+dejavu-diagnostic = { workspace = true }
+serde_json = { workspace = true }

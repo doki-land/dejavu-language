@@ -42,9 +42,13 @@ regex = "1.10.4"
 glob = "0.3.1"
 # Pinned to a `rust-boost` `rev` so local builds and CI resolve the same commit.
 boost-fs = { git = "https://github.com/oovm/rust-boost", rev = "7ba022a049cafef979dfe7a8adf81d9a0d3dd373" }
+# Same `boost-diagnostic` revision the shared template contract uses.
+boost-diagnostic = { git = "https://github.com/oovm/rust-boost", rev = "9aa52745d6eae2d7748c76e4e3e6555e1f6e4b86" }
 # Shared template contract from `document.rs`; the rev pin keeps CI reproducible
 # because CI checks out only this repository.
-document-template = { git = "https://github.com/notedge/document.rs", rev = "1ceec08b7504b0628f1a36232418e67bf80321d8" }
+document-template = { git = "https://github.com/notedge/document.rs", rev = "e7507ce49c21bff54439d8437875d6f9941c480f" }
+# The dejavu engine now lives upstream as `template.input.dejavu`.
+document-template-input-dejavu = { git = "https://github.com/notedge/document.rs", rev = "e7507ce49c21bff54439d8437875d6f9941c480f" }
 fluent = "0.16.0"
 fluent-syntax = "0.11.0"
 fluent-bundle = "0.15.0"

@@ -19,6 +19,9 @@ dejavu-engine.workspace = true
 dejavu-ir.workspace = true
 dejavu-language.workspace = true
 dejavu-codegen.workspace = true
+document-template.workspace = true
+document-template-input-dejavu.workspace = true
+boost-diagnostic.workspace = true
 
 [build-dependencies]
 napi-build = "2"

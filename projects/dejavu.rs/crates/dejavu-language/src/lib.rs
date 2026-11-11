@@ -1,19 +1,5 @@
-//! Dejavu T1 language frontend: hand-written lexer + recursive descent parser.
+//! 兼容再导出：Dejavu 语法前端现由 `document.rs` 的 `template.input.dejavu` 提供。
 //!
-//! Pipeline: `source → NativeTemplate → IrDocument` (via [`dejavu_ir::encode_native`]).
-//!
-//! This crate is **miette-free**. Error surface is plain `ParseError` + `ParseResult<T>`.
-//! miette / fancy formatting — if needed — happens at host layers.
+//! 本仓不再维护第二份 parser；对外名称与 `ParseError` 形状保持不变。
 
-#![forbid(unsafe_code)]
-
-mod error;
-mod lexer;
-mod parser;
-mod token;
-
-pub use error::{ParseError, ParseResult};
-pub use parser::{parse, parse_named, parse_native, parse_native_with, parse_with};
-
-/// Re-export IR document + Language types for convenience.
-pub use dejavu_ir::{IrDocument, Language, NativeTemplate, default_language};
+pub use document_template_input_dejavu::language::*;

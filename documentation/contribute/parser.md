@@ -1,6 +1,7 @@
 # 解析器笔记
 
-Rust T1 语言前端位于 `projects/dejavu.rs/crates/dejavu-language`：
+Rust T1 语言前端已上移到 `document.rs` 的 `document.template.input.dejavu`（按 git rev 钉住）。
+本仓 `projects/dejavu.rs/crates/dejavu-language` 只做再导出：
 
 - **Lexer**: 手写（定界符内表达式，`CodeToken` / `CodeLexer`）
 - **Parser**: 手写递归下降（模板外扫描 + 表达式优先级）
