@@ -7,7 +7,7 @@ license.workspace = true
 description = "Dejavu IR v0 types, encode/decode, normalize, and render"
 
 [dependencies]
-document-template-input-dejavu = { workspace = true }
+template-input-dejavu = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = "1"

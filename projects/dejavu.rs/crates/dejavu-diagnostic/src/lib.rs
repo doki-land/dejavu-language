@@ -2,4 +2,4 @@
 //!
 //! 本仓不再维护第二份诊断定义；对外名称、码与 args 形状保持不变。
 
-pub use document_template_input_dejavu::diagnostic::*;
+pub use template_input_dejavu::diagnostic::*;

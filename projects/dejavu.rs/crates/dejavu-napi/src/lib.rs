@@ -22,11 +22,11 @@ use dejavu_ir::{
     registry::{CapabilitySet, CustomEntry, Namespace},
     render_ir_opts, resolve_ref,
 };
-use document_template::{
+use template::{
     MapTemplateLoader, RenderOptions as SharedRenderOptions, RenderRequest as SharedRenderRequest, TemplateEngine,
     TemplateError, TemplateId, TemplateRoot,
 };
-use document_template_input_dejavu::DejavuEngine;
+use template_input_dejavu::DejavuEngine;
 use napi::bindgen_prelude::{Env, FnArgs, Function, Object, Unknown};
 use napi_derive::napi;
 use serde::Deserialize;
@@ -973,16 +973,16 @@ fn message_arg_json(value: &MessageArg) -> Value {
     }
 }
 
-fn status_name(status: document_template::TemplateStatus) -> String {
+fn status_name(status: template::TemplateStatus) -> String {
     match status {
-        document_template::TemplateStatus::Ready => "ready".to_string(),
-        document_template::TemplateStatus::Partial => "partial".to_string(),
+        template::TemplateStatus::Ready => "ready".to_string(),
+        template::TemplateStatus::Partial => "partial".to_string(),
     }
 }
 
-fn content_name(content: document_template::TemplateContentKind) -> String {
+fn content_name(content: template::TemplateContentKind) -> String {
     match content {
-        document_template::TemplateContentKind::Html => "html".to_string(),
-        document_template::TemplateContentKind::Text => "text".to_string(),
+        template::TemplateContentKind::Html => "html".to_string(),
+        template::TemplateContentKind::Text => "text".to_string(),
     }
 }

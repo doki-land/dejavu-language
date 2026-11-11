@@ -46,9 +46,9 @@ boost-fs = { git = "https://github.com/oovm/rust-boost", rev = "7ba022a049cafef9
 boost-diagnostic = { git = "https://github.com/oovm/rust-boost", rev = "9aa52745d6eae2d7748c76e4e3e6555e1f6e4b86" }
 # Shared template contract from `document.rs`; the rev pin keeps CI reproducible
 # because CI checks out only this repository.
-document-template = { git = "https://github.com/notedge/document.rs", rev = "5de8b97587de6969b1d1c83cb4b6ac4b805cdc70" }
+template = { git = "https://github.com/notedge/document.rs", rev = "f4217bf76831d61430800f7133142fe53ccfc456" }
 # The dejavu engine now lives upstream as `template.input.dejavu`.
-document-template-input-dejavu = { git = "https://github.com/notedge/document.rs", rev = "5de8b97587de6969b1d1c83cb4b6ac4b805cdc70" }
+template-input-dejavu = { git = "https://github.com/notedge/document.rs", rev = "f4217bf76831d61430800f7133142fe53ccfc456" }
 fluent = "0.16.0"
 fluent-syntax = "0.11.0"
 fluent-bundle = "0.15.0"

@@ -10,7 +10,7 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-document-template-input-dejavu = { workspace = true }
+template-input-dejavu = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = "1"

@@ -3,4 +3,4 @@
 //!
 //! 本仓不再维护第二份实现；对外名称、诊断码与渲染行为保持不变。
 
-pub use document_template_input_dejavu::*;
+pub use template_input_dejavu::*;
