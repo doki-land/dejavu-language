@@ -23,9 +23,9 @@ pnpm conformance
 
 ## 修改位置
 
-- 引擎实现（parser / IR / renderer / catalog）：`document.rs` 的 `document.template.input.dejavu`（按 git rev 钉住）
+- 引擎实现（parser / IR / renderer / catalog）：`document.rs` 的 `template.input.dejavu`（按 git rev 钉住）
 - 本仓入口：`dejavu-ir` / `dejavu-language` 只做再导出，`dejavu-napi` 保持 N-API 表面（含 `templateCapabilities` / `renderTemplate`）
-- path-v1 解析内核：`document.rs` 的 `document-template`（与引擎同一钉点）
+- path-v1 解析内核：`document.rs` 的 `template`（与引擎同一钉点）
 - 多根优先级、同优先级歧义、scheme 别名：上游引擎的 `catalog.rs`（宿主策略已随引擎上移）
 - AOT 运行时 helpers：`projects/dejavu.ts/packages/dejavu-engine/src/runtime/`
 - 其他宿主 renderer：各宿主对应 engine 模块
@@ -43,6 +43,6 @@ pnpm conformance
 - [ ] 同一 IR + Context 的输出没有宿主漂移。
 - [ ] canonical id 用于依赖与循环检测。
 - [ ] 没有通过重复别名修补 loader 行为。
-- [ ] 引用解析没有新增第二套 path-v1 实现：单根命中走 `document-template`，多根策略留在上游引擎 `catalog.rs`。
+- [ ] 引用解析没有新增第二套 path-v1 实现：单根命中走 `template`，多根策略留在上游引擎 `catalog.rs`。
 - [ ] 预算越限一律使用共享 `RenderLimits`（源 / 输出 / include 深度 / 步数），不得私自放宽默认值。
 - [ ] 安全行为和用户文档同步。

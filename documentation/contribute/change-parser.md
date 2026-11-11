@@ -26,7 +26,7 @@ pnpm conformance
 
 ## 修改位置
 
-- 正式 parser：`document.rs` 的 `document.template.input.dejavu`（按 git rev 钉住）；本仓 `dejavu-language` 只做再导出
+- 正式 parser：`document.rs` 的 `template.input.dejavu`（按 git rev 钉住）；本仓 `dejavu-language` 只做再导出
 - TypeScript 参考实现（不在 pnpm workspace，仅供对照）：`projects/dejavu.ts/packages/dejavu-language/src/`
 - IR 类型：随引擎上游，经 `dejavu-ir` 再导出
 - 规范：`specifications/template-contract/`、`specifications/ir/`
