@@ -43,3 +43,6 @@ projects/dejavu.ts/platforms/dejavu-unknown-wasm32/src/lib/
 *.log
 *.swp
 *~
+
+# npm secrets (nifty)
+.secrets/
